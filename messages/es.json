@@ -9,6 +9,7 @@
     "description": "Tema, primitivas de UI, fuentes locales e internacionalización ya están conectados para que clones el proyecto y empieces a construir el dominio real.",
     "primaryAction": "Empezar a construir",
     "secondaryAction": "Ver documentación",
+    "languageAction": "View in English",
     "stackTitle": "Base incluida",
     "stack": {
       "next": "Next.js App Router",

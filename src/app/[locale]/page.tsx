@@ -2,6 +2,7 @@ import { useTranslations } from "next-intl";
 import { setRequestLocale } from "next-intl/server";
 import { use } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Link } from "@/i18n/navigation";
 
 type Props = {
   params: Promise<{ locale: string }>;
@@ -13,6 +14,7 @@ export default function Home({ params }: Props) {
   setRequestLocale(locale);
 
   const t = useTranslations("HomePage");
+  const nextLocale = locale === "en" ? "es" : "en";
 
   return (
     <main className="flex min-h-dvh flex-1 items-center justify-center bg-background px-6 py-24 text-foreground">
@@ -37,6 +39,13 @@ export default function Home({ params }: Props) {
             >
               {t("secondaryAction")}
             </a>
+            <Link
+              href="/"
+              locale={nextLocale}
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              {t("languageAction")}
+            </Link>
           </div>
         </div>
 

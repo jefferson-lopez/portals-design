@@ -9,6 +9,7 @@
     "description": "Theme, UI primitives, local fonts and internationalization are already wired so you can clone the project and start building the real domain.",
     "primaryAction": "Start building",
     "secondaryAction": "View documentation",
+    "languageAction": "Ver en español",
     "stackTitle": "Included foundation",
     "stack": {
       "next": "Next.js App Router",
