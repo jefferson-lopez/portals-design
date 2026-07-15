@@ -96,6 +96,34 @@ bunx --bun shadcn@latest add <component>
 
 Do not preinstall a large component set in the starter. Keep the base small and let each product pull the UI primitives it actually uses.
 
+### Change the shadcn preset
+
+Use the shadcn Create page to pick a preset, then apply its code to the cloned project:
+
+```bash
+bunx --bun shadcn@latest apply <preset-code>
+```
+
+Example:
+
+```bash
+bunx --bun shadcn@latest apply a2r6bw
+```
+
+If you only want the visual theme or fonts, apply only that part instead of reinstalling UI components:
+
+```bash
+bunx --bun shadcn@latest apply a2r6bw --only theme
+bunx --bun shadcn@latest apply a2r6bw --only font
+```
+
+Supported `--only` values are `theme` and `font`.
+
+References:
+
+- [shadcn Create](https://ui.shadcn.com/create) — choose and copy a preset code.
+- [shadcn CLI apply](https://ui.shadcn.com/docs/cli#apply) — apply a preset to an existing project.
+
 ## Fonts
 
 The project uses the `geist` package, not `next/font/google`.
