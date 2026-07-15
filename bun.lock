@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "starnext",
+      "name": "portals-design",
       "dependencies": {
         "@base-ui/react": "^1.6.0",
         "@tabler/icons-react": "^3.44.0",

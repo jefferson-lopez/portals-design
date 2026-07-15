@@ -1,3 +1,4 @@
+import { IconArrowRight, IconBrandGithub } from "@tabler/icons-react";
 import { setRequestLocale } from "next-intl/server";
 import { use } from "react";
 import { buttonVariants } from "@/components/ui/button";
@@ -16,25 +17,32 @@ export default function Home({ params }: Props) {
   const nextLocale = isEnglish ? "es" : "en";
 
   return (
-    <main className="flex min-h-dvh flex-1 flex-col items-center justify-center gap-6 bg-background px-6 text-center text-foreground">
-      <div className="flex max-w-xl flex-col items-center gap-3">
-        <h1 className="text-4xl font-semibold tracking-tight text-balance sm:text-6xl">
-          Starnext
-        </h1>
-        <p className="text-balance text-muted-foreground">
+    <main className="flex min-h-dvh flex-1 flex-col items-center justify-center gap-8 bg-background px-6 py-16 text-center text-foreground">
+      <section className="flex max-w-3xl flex-col items-center gap-5">
+        <p className="rounded-full border bg-card px-3 py-1 text-sm text-muted-foreground">
           {isEnglish
-            ? "A minimal Next.js starter with theme, UI and internationalization ready."
-            : "Un starter mínimo de Next.js con tema, UI e internacionalización listos."}
+            ? "Client portals for branding projects"
+            : "Portales para proyectos de branding"}
         </p>
-      </div>
+        <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-6xl">
+          Portals Design
+        </h1>
+        <p className="max-w-2xl text-balance text-lg text-muted-foreground">
+          {isEnglish
+            ? "Organize, present, and deliver branding projects through focused, professional portals. No CRM. No tasks. No noise."
+            : "Organiza, presenta y entrega proyectos de branding mediante portales enfocados y profesionales. Sin CRM. Sin tareas. Sin ruido."}
+        </p>
+      </section>
+
       <div className="flex flex-col gap-3 sm:flex-row">
         <a
-          href="https://github.com/jefferson-lopez/starnext"
+          href="https://github.com/jefferson-lopez/portals-design"
           target="_blank"
           rel="noreferrer"
           className={buttonVariants()}
         >
-          {isEnglish ? "View on GitHub" : "Ver en GitHub"}
+          <IconBrandGithub data-icon="inline-start" />
+          {isEnglish ? "View repository" : "Ver repositorio"}
         </a>
         <Link
           href="/"
@@ -42,6 +50,7 @@ export default function Home({ params }: Props) {
           className={buttonVariants({ variant: "secondary" })}
         >
           {isEnglish ? "Ver en español" : "View in English"}
+          <IconArrowRight data-icon="inline-end" />
         </Link>
       </div>
     </main>

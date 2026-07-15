@@ -1,6 +1,23 @@
-# Starnext
+# Portals Design
 
-A clean Next.js starter for cloning and building quickly without repeating the same setup for theme, UI primitives, fonts and internationalization.
+Portals Design is a focused platform for organizing, presenting, and delivering branding projects through professional client portals.
+
+The product principle is simple:
+
+> Each project deserves its own portal.
+
+And the design principle is:
+
+> The designer organizes the content. Portals Design presents it professionally.
+
+## Product direction
+
+Portals Design is not trying to become Notion, a CRM, a task manager, or a free-form website builder. The app is centered on four pillars:
+
+1. **Authentication** — simple sign in, sign up, OAuth, password recovery, and profile.
+2. **Dashboard** — a focused list of the designer's portals.
+3. **Portal** — the project container where settings, sharing, branding, and publishing live.
+4. **Block builder** — a specialized editor for branding content blocks such as text, images, galleries, colors, typography, files, videos, comparisons, dividers, and automatic assets.
 
 ## Stack
 
@@ -22,38 +39,6 @@ bun run dev
 ```
 
 Open `http://localhost:3000`.
-
-## Clone and rename this starter
-
-Use this when starting a new project from Starnext:
-
-```bash
-git clone <your-starnext-repo-url> my-new-app
-cd my-new-app
-rm -rf .git
-git init
-bun install
-```
-
-Then rename the project:
-
-```txt
-package.json              -> name
-README.md                 -> project title and description
-messages/en.json          -> Metadata title/description
-messages/es.json          -> Metadata title/description
-src/i18n/routing.ts       -> locales/defaultLocale if needed
-```
-
-Post-clone checklist:
-
-- [ ] Rename `package.json`.
-- [ ] Update README title and product description.
-- [ ] Update metadata translations in `messages/*.json`.
-- [ ] Confirm supported locales in `src/i18n/routing.ts`.
-- [ ] Replace the starter home with the real product entry point.
-- [ ] Run `bun run lint`.
-- [ ] Run `bun run build`.
 
 ## Routes and languages
 
@@ -80,69 +65,30 @@ src/proxy.ts
 
 ## UI foundation
 
-The starter uses shadcn/Base UI with Tailwind tokens. Shared primitives live in:
+The project uses shadcn/Base UI with Tailwind tokens. Shared primitives live in:
 
 ```txt
 src/components/ui
 ```
 
-Use semantic tokens like `bg-background`, `text-foreground` and `text-muted-foreground` instead of hardcoded colors.
+Use semantic tokens like `bg-background`, `text-foreground`, and `text-muted-foreground` instead of hardcoded colors.
 
-Add new UI components only when a project needs them:
+Add new UI components only when the product needs them:
 
 ```bash
 bunx --bun shadcn@latest add <component>
 ```
 
-Do not preinstall a large component set in the starter. Keep the base small and let each product pull the UI primitives it actually uses.
+## Supabase direction
 
-### Change the shadcn preset
+Supabase will be added local-first:
 
-Use the shadcn Create page to pick a preset, then apply its code to the cloned project:
-
-```bash
-bunx --bun shadcn@latest apply <preset-code>
-```
-
-Example:
-
-```bash
-bunx --bun shadcn@latest apply a2r6bw
-```
-
-If you only want the visual theme or fonts, apply only that part instead of reinstalling UI components:
-
-```bash
-bunx --bun shadcn@latest apply a2r6bw --only theme
-bunx --bun shadcn@latest apply a2r6bw --only font
-```
-
-Supported `--only` values are `theme` and `font`.
-
-References:
-
-- [shadcn Create](https://ui.shadcn.com/create) — choose and copy a preset code.
-- [shadcn CLI apply](https://ui.shadcn.com/docs/cli#apply) — apply a preset to an existing project.
-
-## Fonts
-
-The project uses the `geist` package, not `next/font/google`.
-
-Geist is wired through Tailwind CSS variables in:
-
-```txt
-src/app/[locale]/layout.tsx
-src/app/globals.css
-```
-
-## What is intentionally not included
-
-This base starter does not include auth, ORM or database setup by default. Those are project-specific decisions and should be added through future starter variants or a CLI generator.
-
-Recommended future options:
-
-- DB/ORM: Drizzle, Prisma or Supabase
-- Auth: Better Auth, Auth.js, Clerk or Supabase Auth
+- `supabase/migrations/` for schema, RLS, policies, and RPC functions.
+- `supabase/seed.sql` for local development data.
+- Supabase Auth for authentication.
+- Supabase Postgres as the database.
+- Important writes through Postgres RPC functions.
+- Simple reads may use typed Supabase queries where RLS is enough.
 
 ## Quality checks
 
@@ -150,9 +96,3 @@ Recommended future options:
 bun run lint
 bun run build
 ```
-
-## Official documentation
-
-- [Next.js docs](https://nextjs.org/docs) — App Router, routing, rendering and deployment.
-- [next-intl docs](https://next-intl.dev/) — translations, locale routing and formatting.
-- [shadcn/ui docs](https://ui.shadcn.com/docs) — component workflow, theming, CLI and examples.
