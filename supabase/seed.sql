@@ -1,0 +1,2 @@
+-- Local development seed placeholder.
+-- Create users through Supabase Auth locally, then use the app UI/RPCs to create portals.

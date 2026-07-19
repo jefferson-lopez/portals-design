@@ -1,0 +1,687 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import {
+  normalizePortalDocument,
+  portalDocumentToJson,
+} from "@/lib/portal/document";
+import {
+  normalizeDesignerName,
+  normalizeSlug,
+  normalizeWebsiteUrl,
+  validateDesignerName,
+  validateSlug,
+} from "@/lib/portal/settings";
+import type {
+  Json,
+  PortalBlockType,
+  PortalTheme,
+  PortalVisibility,
+} from "@/lib/supabase/database.types";
+import { createClient } from "@/lib/supabase/server";
+
+const blockTypes = new Set<PortalBlockType>([
+  "text",
+  "image",
+  "gallery",
+  "color",
+  "typography",
+  "file",
+  "video",
+  "comparison",
+  "divider",
+  "assets",
+  "empty",
+]);
+
+function getString(formData: FormData, key: string) {
+  return String(formData.get(key) ?? "").trim();
+}
+
+function getBoolean(formData: FormData, key: string, defaultValue = false) {
+  const values = formData.getAll(key);
+
+  if (values.length === 0) {
+    return defaultValue;
+  }
+
+  return values.some((value) => value === "on" || value === "true");
+}
+
+function actionFailure(message: string): never {
+  throw new Error(message);
+}
+
+function parseJsonObject(value: string): Record<string, Json> | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, Json>;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function getGalleryImages(formData: FormData) {
+  const existing = parseJsonObject(getString(formData, "content_json"));
+  const rawImages = existing?.images;
+
+  if (!Array.isArray(rawImages)) {
+    return [];
+  }
+
+  return rawImages
+    .map((item) => {
+      if (typeof item === "string") {
+        return {
+          allow_download: true,
+          alt: "",
+          id: crypto.randomUUID(),
+          url: item,
+          visible: true,
+        };
+      }
+
+      if (!item || typeof item !== "object" || Array.isArray(item)) {
+        return null;
+      }
+
+      const record = item as Record<string, unknown>;
+      const url = typeof record.url === "string" ? record.url : "";
+
+      if (!url) {
+        return null;
+      }
+
+      return {
+        allow_download:
+          typeof record.allow_download === "boolean"
+            ? record.allow_download
+            : true,
+        alt: typeof record.alt === "string" ? record.alt : "",
+        id: typeof record.id === "string" ? record.id : crypto.randomUUID(),
+        url,
+        visible: typeof record.visible === "boolean" ? record.visible : true,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+}
+
+const slugify = normalizeSlug;
+
+function getBlockType(formData: FormData): PortalBlockType {
+  const type = getString(formData, "type") as PortalBlockType;
+
+  return blockTypes.has(type) ? type : "text";
+}
+
+function buildBlockContent(formData: FormData, type: PortalBlockType): Json {
+  const contentJson = parseJsonObject(getString(formData, "content_json"));
+
+  if (contentJson) {
+    return contentJson;
+  }
+
+  if (type === "empty") {
+    return {};
+  }
+
+  if (type === "text") {
+    return { body: getString(formData, "body") };
+  }
+
+  if (type === "image") {
+    return {
+      alt: getString(formData, "alt"),
+      image_url: getString(formData, "image_url"),
+    };
+  }
+
+  if (type === "color") {
+    return {
+      cmyk: getString(formData, "cmyk"),
+      color_name: getString(formData, "color_name"),
+      hex: getString(formData, "hex") || "#111111",
+      opacity: getString(formData, "opacity") || "100%",
+      pantone: getString(formData, "pantone"),
+      rgb: getString(formData, "rgb"),
+    };
+  }
+
+  if (type === "typography") {
+    return {
+      file_url: getString(formData, "file_url"),
+      font_name: getString(formData, "font_name"),
+      preview: getString(formData, "preview"),
+      provider: getString(formData, "provider"),
+      usage: getString(formData, "usage"),
+      weights: getString(formData, "weights"),
+    };
+  }
+
+  if (type === "video") {
+    return { video_url: getString(formData, "video_url") };
+  }
+
+  if (type === "comparison") {
+    return {
+      after_label: getString(formData, "after_label"),
+      after_url: getString(formData, "after_url"),
+      before_label: getString(formData, "before_label"),
+      before_url: getString(formData, "before_url"),
+    };
+  }
+
+  if (type === "file") {
+    return {
+      file_name: getString(formData, "file_name"),
+      file_url: getString(formData, "file_url"),
+    };
+  }
+
+  if (type === "gallery") {
+    const uploadedImage = getString(formData, "image_url");
+    const images = getString(formData, "image_urls")
+      .split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    return {
+      images: uploadedImage ? [uploadedImage, ...images] : images,
+    };
+  }
+
+  return {};
+}
+
+export async function createPortal(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const name = getString(formData, "name");
+  const rawSlug = getString(formData, "slug") || name;
+  const coverUrl = getString(formData, "cover_url") || null;
+  const visibility = (getString(formData, "visibility") ||
+    "private") as PortalVisibility;
+  if (!name) actionFailure("El nombre es obligatorio");
+  const slug = slugify(rawSlug);
+  if (!validateSlug(slug).valid) actionFailure("El slug no es válido");
+  if (!["public", "private"].includes(visibility))
+    actionFailure("Configura la contraseña después de crear el portal");
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("create_portal", {
+    portal_cover_url: coverUrl,
+    portal_name: name,
+    portal_slug: slug,
+    portal_visibility: visibility,
+  });
+
+  if (error || !data) {
+    actionFailure(error?.message ?? "Could not create portal");
+  }
+
+  revalidatePath(`/${locale}/dashboard`);
+  redirect(`/${locale}/create/${data.id}`);
+}
+
+export async function updatePortalSettings(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const portalId = getString(formData, "portal_id");
+  const supabase = await createClient();
+
+  const { data: portal, error: portalError } = await supabase
+    .from("portals")
+    .select(
+      "id,owner_id,name,slug,visibility,short_description,designer_name,designer_website_url,allow_asset_downloads,allow_color_copy,allow_downloads,allow_pdf_downloads,cover_url,custom_domain,designer_logo_url,designer_photo_url,icon_url,theme,social_image_url",
+    )
+    .eq("id", portalId)
+    .single();
+
+  if (portalError || !portal) {
+    actionFailure(portalError?.message ?? "Portal not found");
+  }
+
+  const nextName = formData.has("name")
+    ? getString(formData, "name")
+    : portal.name;
+  const nextShortDescription = formData.has("short_description")
+    ? getString(formData, "short_description").slice(0, 250) || null
+    : portal.short_description;
+  const nextSlug = formData.has("slug")
+    ? getString(formData, "slug")
+    : portal.slug;
+  if (!validateSlug(nextSlug).valid) actionFailure("El slug no es válido");
+  const nextDesignerName = formData.has("designer_name")
+    ? normalizeDesignerName(getString(formData, "designer_name")) || null
+    : portal.designer_name;
+  if (nextDesignerName && !validateDesignerName(nextDesignerName).valid) {
+    actionFailure("El nombre del diseñador supera 8 palabras o 80 caracteres");
+  }
+  const rawWebsite = getString(formData, "designer_website_url");
+  const nextDesignerWebsiteUrl = formData.has("designer_website_url")
+    ? normalizeWebsiteUrl(rawWebsite)
+    : portal.designer_website_url;
+  if (
+    formData.has("designer_website_url") &&
+    rawWebsite &&
+    !nextDesignerWebsiteUrl
+  ) {
+    actionFailure("El sitio web debe usar HTTPS");
+  }
+
+  const { error } = await supabase.rpc("update_portal_settings", {
+    portal_allow_asset_downloads: portal.allow_asset_downloads,
+    portal_allow_color_copy: portal.allow_color_copy,
+    portal_allow_downloads: portal.allow_downloads,
+    portal_allow_pdf_downloads: portal.allow_pdf_downloads,
+    portal_cover_url: portal.cover_url,
+    portal_custom_domain: portal.custom_domain,
+    portal_designer_logo_url: portal.designer_logo_url,
+    portal_designer_name: nextDesignerName,
+    portal_designer_photo_url: portal.designer_photo_url,
+    portal_designer_website_url: nextDesignerWebsiteUrl,
+    portal_icon_url: portal.icon_url,
+    portal_name: nextName,
+    portal_seo_description: nextShortDescription,
+    portal_seo_title: nextName,
+    portal_short_description: nextShortDescription,
+    portal_slug: nextSlug,
+    portal_social_image_url: portal.cover_url,
+    portal_theme: portal.theme as PortalTheme,
+    portal_visibility: portal.visibility,
+    target_portal_id: portalId,
+  });
+
+  if (error) {
+    actionFailure(error.message);
+  }
+
+  revalidatePath(`/${locale}/create/${portalId}`);
+  revalidatePath(`/${locale}/dashboard`);
+}
+
+export async function checkPortalSlugAvailability(
+  slug: string,
+  portalId: string,
+) {
+  const validation = validateSlug(slug);
+  if (!validation.valid) return { available: false, error: validation.error };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("is_portal_slug_available", {
+    candidate_slug: slug,
+    current_portal_id: portalId,
+  });
+  if (error) return { available: false, error: "No se pudo validar el slug." };
+  return data
+    ? { available: true, error: null }
+    : { available: false, error: "Este slug ya está usado por otro usuario." };
+}
+
+export async function savePrivacySettings(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const portalId = getString(formData, "portal_id");
+  const visibility = getString(formData, "visibility") as PortalVisibility;
+  const password = getString(formData, "password") || null;
+  if (!["public", "private", "password"].includes(visibility))
+    actionFailure("Privacidad inválida");
+  if (
+    visibility === "password" &&
+    password &&
+    (password.length < 8 || password.length > 128)
+  ) {
+    actionFailure("La contraseña debe contener entre 8 y 128 caracteres");
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_portal_privacy", {
+    portal_password: password,
+    portal_visibility: visibility,
+    target_portal_id: portalId,
+  });
+  if (error) actionFailure(error.message);
+  revalidatePath(`/${locale}/create/${portalId}`);
+  revalidatePath(`/${locale}/dashboard`);
+}
+
+type PortalSummaryActionState = {
+  error: string | null;
+  saved: boolean;
+};
+
+export async function updatePortalSummary(
+  _state: PortalSummaryActionState,
+  formData: FormData,
+): Promise<PortalSummaryActionState> {
+  const locale = getString(formData, "locale") || "en";
+  const portalId = getString(formData, "portal_id");
+  const name = getString(formData, "name");
+  const supabase = await createClient();
+
+  if (!name) {
+    return { error: "Portal name is required", saved: false };
+  }
+
+  const { error } = await supabase.rpc("update_portal_summary", {
+    portal_name: name,
+    portal_short_description: getString(formData, "short_description") || null,
+    target_portal_id: portalId,
+  });
+
+  if (error) {
+    return { error: error.message, saved: false };
+  }
+
+  revalidatePath(`/${locale}/create/${portalId}`);
+  revalidatePath(`/${locale}/dashboard`);
+  return { error: null, saved: true };
+}
+
+export async function createEmptySection(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const portalId = getString(formData, "portal_id");
+  const position = Number(getString(formData, "position") || "0");
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.rpc("create_empty_portal_section", {
+    section_position: position,
+    target_portal_id: portalId,
+  });
+
+  if (error || !data) {
+    actionFailure(error?.message ?? "Could not create section");
+  }
+
+  revalidatePath(`/${locale}/create/${portalId}`);
+  redirect(`/${locale}/create/${portalId}?focus=${data.id}`);
+}
+
+export async function updateSectionShell(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const portalId = getString(formData, "portal_id");
+  const blockId = getString(formData, "block_id");
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("update_portal_section_shell", {
+    section_description: getString(formData, "description"),
+    section_title: getString(formData, "title"),
+    target_block_id: blockId,
+    target_portal_id: portalId,
+  });
+
+  if (error) {
+    actionFailure(error.message);
+  }
+
+  revalidatePath(`/${locale}/create/${portalId}`);
+}
+
+export async function setPortalBlockType(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const portalId = getString(formData, "portal_id");
+  const blockId = getString(formData, "block_id");
+  const type = getBlockType(formData);
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("set_portal_block_type", {
+    block_layout: getString(formData, "layout") || "default",
+    block_type: type,
+    target_block_id: blockId,
+    target_portal_id: portalId,
+  });
+
+  if (error) {
+    actionFailure(error.message);
+  }
+
+  revalidatePath(`/${locale}/create/${portalId}`);
+  redirect(`/${locale}/create/${portalId}?focus=${blockId}`);
+}
+
+export async function upsertPortalBlock(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const portalId = getString(formData, "portal_id");
+  const blockId = getString(formData, "block_id") || null;
+  const type = getBlockType(formData);
+  const title = getString(formData, "title");
+  const description = getString(formData, "description");
+  const position = Number(getString(formData, "position") || "0");
+  const layout = getString(formData, "layout") || "default";
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("upsert_portal_block", {
+    block_allow_download: getBoolean(formData, "allow_download", true),
+    block_content: buildBlockContent(formData, type),
+    block_description: description,
+    block_id: blockId,
+    block_is_visible: getBoolean(formData, "is_visible", true),
+    block_layout: layout,
+    block_position: position,
+    block_title: title,
+    block_type: type,
+    target_portal_id: portalId,
+  });
+
+  if (error) {
+    actionFailure(error.message);
+  }
+
+  revalidatePath(`/${locale}/create/${portalId}`);
+}
+
+export async function upsertGalleryImage(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const portalId = getString(formData, "portal_id");
+  const blockId = getString(formData, "block_id") || null;
+  const imageId = getString(formData, "image_id") || crypto.randomUUID();
+  const imageUrl = getString(formData, "image_url");
+  const images = getGalleryImages(formData);
+  const nextImage = {
+    allow_download: getBoolean(formData, "item_allow_download", true),
+    alt: getString(formData, "alt"),
+    id: imageId,
+    url: imageUrl,
+    visible: getBoolean(formData, "item_visible", true),
+  };
+  const nextImages = images.some((image) => image.id === imageId)
+    ? images.map((image) => (image.id === imageId ? nextImage : image))
+    : [...images, nextImage];
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("upsert_portal_block", {
+    block_allow_download: getBoolean(formData, "allow_download", true),
+    block_content: { images: nextImages },
+    block_description: getString(formData, "description"),
+    block_id: blockId,
+    block_is_visible: getBoolean(formData, "is_visible", true),
+    block_layout: getString(formData, "layout") || "grid",
+    block_position: Number(getString(formData, "position") || "0"),
+    block_title: getString(formData, "title"),
+    block_type: "gallery",
+    target_portal_id: portalId,
+  });
+
+  if (error) {
+    actionFailure(error.message);
+  }
+
+  revalidatePath(`/${locale}/create/${portalId}`);
+}
+
+export async function removeGalleryImage(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const portalId = getString(formData, "portal_id");
+  const blockId = getString(formData, "block_id") || null;
+  const imageId = getString(formData, "image_id");
+  const images = getGalleryImages(formData).filter(
+    (image) => image.id !== imageId,
+  );
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("upsert_portal_block", {
+    block_allow_download: getBoolean(formData, "allow_download", true),
+    block_content: { images },
+    block_description: getString(formData, "description"),
+    block_id: blockId,
+    block_is_visible: getBoolean(formData, "is_visible", true),
+    block_layout: getString(formData, "layout") || "grid",
+    block_position: Number(getString(formData, "position") || "0"),
+    block_title: getString(formData, "title"),
+    block_type: "gallery",
+    target_portal_id: portalId,
+  });
+
+  if (error) {
+    actionFailure(error.message);
+  }
+
+  revalidatePath(`/${locale}/create/${portalId}`);
+}
+
+export async function reorderGalleryImages(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const portalId = getString(formData, "portal_id");
+  const blockId = getString(formData, "block_id") || null;
+  const orderedIds = getString(formData, "ordered_ids")
+    .split(",")
+    .filter(Boolean);
+  const images = getGalleryImages(formData);
+  const imageById = new Map(images.map((image) => [image.id, image]));
+  const orderedImages = orderedIds
+    .map((id) => imageById.get(id))
+    .filter((image): image is (typeof images)[number] => Boolean(image));
+  const missingImages = images.filter(
+    (image) => !orderedIds.includes(image.id),
+  );
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("upsert_portal_block", {
+    block_allow_download: getBoolean(formData, "allow_download", true),
+    block_content: { images: [...orderedImages, ...missingImages] },
+    block_description: getString(formData, "description"),
+    block_id: blockId,
+    block_is_visible: getBoolean(formData, "is_visible", true),
+    block_layout: getString(formData, "layout") || "grid",
+    block_position: Number(getString(formData, "position") || "0"),
+    block_title: getString(formData, "title"),
+    block_type: "gallery",
+    target_portal_id: portalId,
+  });
+
+  if (error) {
+    actionFailure(error.message);
+  }
+
+  revalidatePath(`/${locale}/create/${portalId}`);
+}
+
+export async function reorderPortalSections(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const portalId = getString(formData, "portal_id");
+  const orderedBlockIds = getString(formData, "ordered_block_ids")
+    .split(",")
+    .filter(Boolean);
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("reorder_portal_blocks", {
+    ordered_block_ids: orderedBlockIds,
+    target_portal_id: portalId,
+  });
+
+  if (error) {
+    actionFailure(error.message);
+  }
+
+  revalidatePath(`/${locale}/create/${portalId}`);
+}
+
+export async function updatePortalDocument(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const portalId = getString(formData, "portal_id");
+  const documentJson = getString(formData, "document_json");
+  const supabase = await createClient();
+
+  const { data: portal } = await supabase
+    .from("portals")
+    .select(
+      "id,owner_id,name,slug,short_description,cover_url,icon_url,visibility,seo_title,seo_description,social_image_url,custom_domain,allow_downloads,allow_asset_downloads,allow_color_copy,allow_pdf_downloads,theme,designer_name,designer_logo_url,designer_photo_url,designer_website_url,designer_social_links,status,published_publication_id,published_at,created_at,updated_at",
+    )
+    .eq("id", portalId)
+    .single();
+
+  if (!portal) {
+    actionFailure("Portal not found");
+  }
+
+  const parsed = parseJsonObject(documentJson);
+  const normalizedDocument = normalizePortalDocument(parsed, portal);
+
+  const { error } = await supabase.rpc("upsert_portal_document", {
+    portal_document: portalDocumentToJson(normalizedDocument),
+    target_portal_id: portalId,
+  });
+
+  if (error) {
+    actionFailure(error.message);
+  }
+
+  revalidatePath(`/${locale}/create/${portalId}`);
+  revalidatePath(`/${locale}/dashboard`);
+}
+
+export async function deletePortalBlock(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const portalId = getString(formData, "portal_id");
+  const blockId = getString(formData, "block_id");
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("delete_portal_block", {
+    target_block_id: blockId,
+    target_portal_id: portalId,
+  });
+
+  if (error) {
+    actionFailure(error.message);
+  }
+
+  revalidatePath(`/${locale}/create/${portalId}`);
+}
+
+type PublishPortalInput = {
+  locale: string;
+  portalId: string;
+  returnTo?: string;
+};
+
+export async function publishPortalById({
+  locale,
+  portalId,
+  returnTo = `/${locale}/dashboard`,
+}: PublishPortalInput) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.rpc("publish_portal", {
+    target_portal_id: portalId,
+  });
+
+  if (error) {
+    actionFailure(error.message);
+  }
+
+  revalidatePath(`/${locale}/dashboard`);
+  revalidatePath(returnTo);
+}
+
+export async function publishPortal(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const portalId = getString(formData, "portal_id");
+  const returnTo = getString(formData, "return_to") || `/${locale}/dashboard`;
+
+  await publishPortalById({ locale, portalId, returnTo });
+}
