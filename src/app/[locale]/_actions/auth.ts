@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import { createClient } from "@/lib/supabase/server";
 
 function getString(formData: FormData, key: string) {
@@ -66,7 +67,8 @@ export async function signInWithOAuth(formData: FormData) {
   });
 
   if (error || !data.url) {
-    actionFailure(error?.message ?? "OAuth failed");
+    const t = await getTranslations({ locale, namespace: "Actions" });
+    actionFailure(error?.message ?? t("oauthFailed"));
   }
 
   redirect(data.url);

@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import type { SVGProps } from "react";
 import type { PortalFileType } from "@/lib/portal/document";
 import { cn } from "@/lib/utils";
@@ -32,14 +35,17 @@ export function portalFileTypeFromName(
   return null;
 }
 
-export function portalFileTypeLabel(type?: PortalFileType) {
+export function portalFileTypeLabel(
+  type: PortalFileType | undefined,
+  fallback: { file: string; image: string },
+) {
   if (type === "pdf") return "PDF";
   if (type === "ai") return "AI";
   if (type === "eps") return "EPS";
   if (type === "psd") return "PSD";
   if (type === "svg") return "SVG";
-  if (type === "image") return "Imagen";
-  return "Archivo";
+  if (type === "image") return fallback.image;
+  return fallback.file;
 }
 
 const PdfIcon = (props: SVGProps<SVGSVGElement>) => (
@@ -151,7 +157,13 @@ const SvgIcon = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-function FileTypeIcon({ type }: { type?: PortalFileType }) {
+function FileTypeIcon({
+  fallback,
+  type,
+}: {
+  fallback: { file: string; image: string };
+  type?: PortalFileType;
+}) {
   if (type === "pdf") return <PdfIcon className="size-16" />;
   if (type === "ai") return <IllustratorIcon className="size-16" />;
   if (type === "eps") return <EpsIcon className="size-16" />;
@@ -159,7 +171,7 @@ function FileTypeIcon({ type }: { type?: PortalFileType }) {
   if (type === "svg") return <SvgIcon className="size-16" />;
   return (
     <span className="font-semibold text-muted-foreground text-xs uppercase">
-      {type === "image" ? "IMG" : "FILE"}
+      {type === "image" ? fallback.image : fallback.file}
     </span>
   );
 }
@@ -175,6 +187,7 @@ export function PortalFilePreview({
   fileUrl?: string;
   type?: PortalFileType;
 }) {
+  const t = useTranslations("PortalViewer.file");
   return (
     <div
       className={cn(
@@ -191,13 +204,22 @@ export function PortalFilePreview({
             src={fileUrl}
           />
         ) : (
-          <FileTypeIcon type={type} />
+          <FileTypeIcon
+            fallback={{
+              file: t("fileAbbreviation"),
+              image: t("imageAbbreviation"),
+            }}
+            type={type}
+          />
         )}
       </div>
       <div className="min-w-0 max-w-full">
         <p className="truncate line-clamp-2 font-medium text-sm">{fileName}</p>
         <p className="text-muted-foreground text-xs">
-          {portalFileTypeLabel(type)}
+          {portalFileTypeLabel(type, {
+            file: t("file"),
+            image: t("image"),
+          })}
         </p>
       </div>
     </div>

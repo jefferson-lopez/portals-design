@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 import {
   normalizePortalDocument,
   portalDocumentToJson,
@@ -242,20 +243,23 @@ function buildBlockContent(formData: FormData, type: PortalBlockType): Json {
 
 async function insertPortal({
   coverUrl = null,
+  locale,
   name,
   rawSlug = name,
   visibility = "private",
 }: {
   coverUrl?: string | null;
+  locale: string;
   name: string;
   rawSlug?: string;
   visibility?: PortalVisibility;
 }) {
-  if (!name) actionFailure("El nombre es obligatorio");
+  const t = await getTranslations({ locale, namespace: "Actions" });
+  if (!name) actionFailure(t("nameRequired"));
   const slug = slugify(rawSlug);
-  if (!validateSlug(slug).valid) actionFailure("El slug no es válido");
+  if (!validateSlug(slug).valid) actionFailure(t("slugInvalid"));
   if (!["public", "private"].includes(visibility))
-    actionFailure("Configura la contraseña después de crear el portal");
+    actionFailure(t("passwordAfterCreation"));
   const supabase = await createClient();
 
   const { data, error } = await supabase.rpc("create_portal", {
@@ -266,7 +270,7 @@ async function insertPortal({
   });
 
   if (error || !data) {
-    actionFailure(error?.message ?? "Could not create portal");
+    actionFailure(error?.message ?? t("createPortalFailed"));
   }
 
   return data;
@@ -279,7 +283,7 @@ export async function createPortalFromHome({
   locale: string;
   name: string;
 }) {
-  const portal = await insertPortal({ name: name.trim() });
+  const portal = await insertPortal({ locale, name: name.trim() });
 
   revalidatePath(`/${locale}/home`);
 
@@ -293,7 +297,13 @@ export async function createPortal(formData: FormData) {
   const coverUrl = getString(formData, "cover_url") || null;
   const visibility = (getString(formData, "visibility") ||
     "private") as PortalVisibility;
-  const data = await insertPortal({ coverUrl, name, rawSlug, visibility });
+  const data = await insertPortal({
+    coverUrl,
+    locale,
+    name,
+    rawSlug,
+    visibility,
+  });
 
   revalidatePath(`/${locale}/home`);
   redirect(`/${locale}/create/${data.id}`);
@@ -301,6 +311,7 @@ export async function createPortal(formData: FormData) {
 
 export async function updatePortalSettings(formData: FormData) {
   const locale = getString(formData, "locale") || "en";
+  const t = await getTranslations({ locale, namespace: "Actions" });
   const portalId = getString(formData, "portal_id");
   const supabase = await createClient();
 
@@ -313,7 +324,7 @@ export async function updatePortalSettings(formData: FormData) {
     .single();
 
   if (portalError || !portal) {
-    actionFailure(portalError?.message ?? "Portal not found");
+    actionFailure(portalError?.message ?? t("portalNotFound"));
   }
 
   const nextName = formData.has("name")
@@ -325,12 +336,12 @@ export async function updatePortalSettings(formData: FormData) {
   const nextSlug = formData.has("slug")
     ? getString(formData, "slug")
     : portal.slug;
-  if (!validateSlug(nextSlug).valid) actionFailure("El slug no es válido");
+  if (!validateSlug(nextSlug).valid) actionFailure(t("slugInvalid"));
   const nextDesignerName = formData.has("designer_name")
     ? normalizeDesignerName(getString(formData, "designer_name")) || null
     : portal.designer_name;
   if (nextDesignerName && !validateDesignerName(nextDesignerName).valid) {
-    actionFailure("El nombre del diseñador supera 8 palabras o 80 caracteres");
+    actionFailure(t("designerNameInvalid"));
   }
   const rawWebsite = getString(formData, "designer_website_url");
   const nextDesignerWebsiteUrl = formData.has("designer_website_url")
@@ -341,7 +352,7 @@ export async function updatePortalSettings(formData: FormData) {
     rawWebsite &&
     !nextDesignerWebsiteUrl
   ) {
-    actionFailure("El sitio web debe usar HTTPS");
+    actionFailure(t("websiteHttps"));
   }
 
   const { error } = await supabase.rpc("update_portal_settings", {
@@ -378,33 +389,36 @@ export async function updatePortalSettings(formData: FormData) {
 export async function checkPortalSlugAvailability(
   slug: string,
   portalId: string,
+  locale: string,
 ) {
+  const t = await getTranslations({ locale, namespace: "Actions" });
   const validation = validateSlug(slug);
-  if (!validation.valid) return { available: false, error: validation.error };
+  if (!validation.valid) return { available: false, error: t("slugInvalid") };
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("is_portal_slug_available", {
     candidate_slug: slug,
     current_portal_id: portalId,
   });
-  if (error) return { available: false, error: "No se pudo validar el slug." };
+  if (error) return { available: false, error: t("slugCheckFailed") };
   return data
     ? { available: true, error: null }
-    : { available: false, error: "Este slug ya está usado por otro usuario." };
+    : { available: false, error: t("slugTaken") };
 }
 
 export async function savePrivacySettings(formData: FormData) {
   const locale = getString(formData, "locale") || "en";
+  const t = await getTranslations({ locale, namespace: "Actions" });
   const portalId = getString(formData, "portal_id");
   const visibility = getString(formData, "visibility") as PortalVisibility;
   const password = getString(formData, "password") || null;
   if (!["public", "private", "password"].includes(visibility))
-    actionFailure("Privacidad inválida");
+    actionFailure(t("privacyInvalid"));
   if (
     visibility === "password" &&
     password &&
     (password.length < 8 || password.length > 128)
   ) {
-    actionFailure("La contraseña debe contener entre 8 y 128 caracteres");
+    actionFailure(t("passwordLength"));
   }
   const supabase = await createClient();
   const { error } = await supabase.rpc("set_portal_privacy", {
@@ -427,12 +441,13 @@ export async function updatePortalSummary(
   formData: FormData,
 ): Promise<PortalSummaryActionState> {
   const locale = getString(formData, "locale") || "en";
+  const t = await getTranslations({ locale, namespace: "Actions" });
   const portalId = getString(formData, "portal_id");
   const name = getString(formData, "name");
   const supabase = await createClient();
 
   if (!name) {
-    return { error: "Portal name is required", saved: false };
+    return { error: t("nameRequired"), saved: false };
   }
 
   const { error } = await supabase.rpc("update_portal_summary", {
@@ -452,6 +467,7 @@ export async function updatePortalSummary(
 
 export async function createEmptySection(formData: FormData) {
   const locale = getString(formData, "locale") || "en";
+  const t = await getTranslations({ locale, namespace: "Actions" });
   const portalId = getString(formData, "portal_id");
   const position = Number(getString(formData, "position") || "0");
   const supabase = await createClient();
@@ -462,7 +478,7 @@ export async function createEmptySection(formData: FormData) {
   });
 
   if (error || !data) {
-    actionFailure(error?.message ?? "Could not create section");
+    actionFailure(error?.message ?? t("createSectionFailed"));
   }
 
   revalidatePath(`/${locale}/create/${portalId}`);

@@ -21,7 +21,7 @@ export const PORTAL_LANDING_LAYOUT = {
   title:
     "max-w-5xl text-balance text-4xl font-medium leading-[0.94] tracking-[-0.055em] text-white sm:text-6xl md:text-7xl lg:text-8xl [@media(max-height:500px)]:text-3xl!",
   description:
-    "mt-7 max-w-lg text-balance text-sm leading-relaxed text-muted-foreground sm:text-base [@media(max-height:500px)]:mt-3! [@media(max-height:500px)]:max-w-xl! [@media(max-height:500px)]:text-xs! [@media(max-height:500px)]:leading-snug!",
+    "mt-7 max-w-lg text-balance text-sm leading-relaxed text-white/80 sm:text-base [@media(max-height:500px)]:mt-3! [@media(max-height:500px)]:max-w-xl! [@media(max-height:500px)]:text-xs! [@media(max-height:500px)]:leading-snug!",
   cta: "mt-9 [@media(max-height:500px)]:mt-4!",
   details: "relative z-20 px-5 py-24 sm:px-8 sm:py-32 lg:py-40",
   finalCta: "relative z-20 pb-24 pt-8 sm:pb-32 sm:pt-12 lg:pb-40",

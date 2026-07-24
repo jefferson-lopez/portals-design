@@ -1,4 +1,5 @@
 import { IconFolderCode } from "@tabler/icons-react";
+import { getTranslations } from "next-intl/server";
 import {
   Empty,
   EmptyDescription,
@@ -6,7 +7,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-export default function NotFound() {
+export default async function NotFound() {
+  const t = await getTranslations("PublicPortal.notFound");
   return (
     <main className="flex min-h-dvh items-center justify-center p-6">
       <Empty>
@@ -14,10 +16,8 @@ export default function NotFound() {
           <EmptyMedia variant="icon">
             <IconFolderCode />
           </EmptyMedia>
-          <EmptyTitle>Proyecto no encontrado</EmptyTitle>
-          <EmptyDescription>
-            Este portal es privado o no está publicado.
-          </EmptyDescription>
+          <EmptyTitle>{t("title")}</EmptyTitle>
+          <EmptyDescription>{t("description")}</EmptyDescription>
         </EmptyHeader>
       </Empty>
     </main>

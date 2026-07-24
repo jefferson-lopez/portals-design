@@ -3,6 +3,7 @@
 import { IconLoader2, IconWorldUpload } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useEffect } from "react";
 import { publishPortalById } from "@/app/[locale]/_actions/portals";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ export function PublishPortalButton({
   locale: string;
   portalId: string;
 }) {
+  const t = useTranslations("PortalEditor.workspace");
   const router = useRouter();
   const queryClient = useQueryClient();
   const publishError = usePortalEditorStore((state) => state.publishError);
@@ -51,9 +53,7 @@ export function PublishPortalButton({
       }),
     onError: (error) => {
       setPublishError(
-        error instanceof Error
-          ? error.message
-          : "No se pudo publicar el portal",
+        error instanceof Error ? error.message : t("publishError"),
       );
       setPublishingPortalId(null);
     },
@@ -88,7 +88,7 @@ export function PublishPortalButton({
         ) : (
           <IconWorldUpload data-icon="inline-start" />
         )}
-        Publicar
+        {t("publish")}
       </Button>
       {publishError ? (
         <span aria-live="polite" className="sr-only">

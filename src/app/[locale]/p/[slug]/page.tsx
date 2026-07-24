@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { PortalDocumentSidebarReadOnly } from "@/components/portal/portal-document-sidebar-read-only";
 import { RenderPortal } from "@/components/portal/render-portal";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ type Props = {
   searchParams: Promise<{ error?: string }>;
 };
 
-function PasswordGate({
+async function PasswordGate({
   error,
   locale,
   name,
@@ -50,14 +50,16 @@ function PasswordGate({
   name: string;
   slug: string;
 }) {
+  const t = await getTranslations({
+    locale,
+    namespace: "PublicPortal.password",
+  });
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md items-center px-6">
       <Card className="w-full">
         <CardHeader>
           <CardTitle>{name}</CardTitle>
-          <CardDescription>
-            Este portal de Portals Design está protegido con contraseña.
-          </CardDescription>
+          <CardDescription>{t("description")}</CardDescription>
         </CardHeader>
         <form
           action={`/${locale}/p/${encodeURIComponent(slug)}/unlock`}
@@ -66,25 +68,23 @@ function PasswordGate({
           <CardContent>
             <FieldGroup>
               <Field data-invalid={error || undefined}>
-                <FieldLabel htmlFor="portal-password">Contraseña</FieldLabel>
+                <FieldLabel htmlFor="portal-password">{t("label")}</FieldLabel>
                 <Input
                   aria-invalid={error || undefined}
                   autoComplete="current-password"
                   id="portal-password"
                   name="password"
-                  placeholder="Ingresa la contraseña"
+                  placeholder={t("placeholder")}
                   required
                   type="password"
                 />
-                {error ? (
-                  <FieldError>La contraseña no es válida.</FieldError>
-                ) : null}
+                {error ? <FieldError>{t("invalid")}</FieldError> : null}
               </Field>
             </FieldGroup>
           </CardContent>
           <CardFooter className="pt-6">
             <Button className="w-full" type="submit">
-              Ver portal
+              {t("submit")}
             </Button>
           </CardFooter>
         </form>
@@ -180,19 +180,22 @@ export default async function PublicPortalPage({
   );
 }
 
-const genericMetadata: Metadata = {
-  description: "Portal creado y compartido con Portals Design.",
-  title: "Portal no encontrado · Portals Design",
-};
-
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale, slug } = await params;
+  const t = await getTranslations({
+    locale,
+    namespace: "PublicPortal.metadata",
+  });
+  const genericMetadata: Metadata = {
+    description: t("description"),
+    title: t("title"),
+  };
   if (!hasSupabaseEnv()) return genericMetadata;
   try {
-    const { slug } = await params;
     const access = await resolvePortalAccess(slug);
     if (access.decision !== "allowed" || !access.portal) return genericMetadata;
     return {
-      description: `${access.portal.short_description || `Descubre ${access.portal.name}`} · Portals Design`,
+      description: `${access.portal.short_description || t("discover", { name: access.portal.name })} · Portals Design`,
       title: `${access.portal.name} · Portals Design`,
     };
   } catch {

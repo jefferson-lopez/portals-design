@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -60,6 +63,7 @@ function getGalleryImages(content: JsonRecord) {
 }
 
 export function PortalBlockRenderer({ block }: { block: PortalBlock }) {
+  const t = useTranslations("PortalBlocks");
   const content = asRecord(block.content);
 
   if (block.type === "empty") {
@@ -74,14 +78,15 @@ export function PortalBlockRenderer({ block }: { block: PortalBlock }) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{block.title || "Texto"}</CardTitle>
+          <CardTitle>{block.title || t("text")}</CardTitle>
           <CardDescription>
-            {block.description || `Texto · ${block.layout}`}
+            {block.description ||
+              t("layout", { type: t("text"), layout: block.layout })}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <p className="whitespace-pre-wrap text-muted-foreground">
-            {getText(content, "body") || "Sin contenido todavía."}
+            {getText(content, "body") || t("emptyContent")}
           </p>
         </CardContent>
       </Card>
@@ -94,21 +99,22 @@ export function PortalBlockRenderer({ block }: { block: PortalBlock }) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{block.title || "Imagen"}</CardTitle>
+          <CardTitle>{block.title || t("image")}</CardTitle>
           <CardDescription>
-            {block.description || `Imagen · ${block.layout}`}
+            {block.description ||
+              t("layout", { type: t("image"), layout: block.layout })}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {imageUrl ? (
             // biome-ignore lint/performance/noImgElement: remote client assets are user-provided and not yet proxied through Storage.
             <img
-              alt={block.title || "Imagen del portal"}
+              alt={block.title || t("portalImage")}
               className="max-h-[560px] w-full rounded-lg object-cover"
               src={imageUrl}
             />
           ) : (
-            <p className="text-sm text-muted-foreground">Sin imagen todavía.</p>
+            <p className="text-sm text-muted-foreground">{t("emptyImage")}</p>
           )}
         </CardContent>
       </Card>
@@ -121,9 +127,10 @@ export function PortalBlockRenderer({ block }: { block: PortalBlock }) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{block.title || "Galería"}</CardTitle>
+          <CardTitle>{block.title || t("gallery")}</CardTitle>
           <CardDescription>
-            {block.description || `Galería · ${block.layout}`}
+            {block.description ||
+              t("layout", { type: t("gallery"), layout: block.layout })}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -131,16 +138,14 @@ export function PortalBlockRenderer({ block }: { block: PortalBlock }) {
             images.map((image) => (
               // biome-ignore lint/performance/noImgElement: remote client assets are user-provided and not yet proxied through Storage.
               <img
-                alt={image.alt || block.title || "Imagen de galería"}
+                alt={image.alt || block.title || t("galleryImage")}
                 className="h-48 w-full rounded-lg object-cover"
                 key={image.url}
                 src={image.url}
               />
             ))
           ) : (
-            <p className="text-sm text-muted-foreground">
-              Sin imágenes todavía.
-            </p>
+            <p className="text-sm text-muted-foreground">{t("emptyGallery")}</p>
           )}
         </CardContent>
       </Card>
@@ -148,7 +153,8 @@ export function PortalBlockRenderer({ block }: { block: PortalBlock }) {
   }
 
   if (block.type === "color") {
-    const colorName = getText(content, "color_name") || block.title || "Color";
+    const colorName =
+      getText(content, "color_name") || block.title || t("color");
     const hex = getText(content, "hex") || "#111111";
     const rgb = getText(content, "rgb");
     const cmyk = getText(content, "cmyk");
@@ -157,9 +163,10 @@ export function PortalBlockRenderer({ block }: { block: PortalBlock }) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{block.title || "Color"}</CardTitle>
+          <CardTitle>{block.title || t("color")}</CardTitle>
           <CardDescription>
-            {block.description || `Color · ${block.layout}`}
+            {block.description ||
+              t("layout", { type: t("color"), layout: block.layout })}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-[160px_1fr]">
@@ -184,10 +191,11 @@ export function PortalBlockRenderer({ block }: { block: PortalBlock }) {
       <Card>
         <CardHeader>
           <CardTitle>
-            {block.title || getText(content, "font_name") || "Tipografía"}
+            {block.title || getText(content, "font_name") || t("typography")}
           </CardTitle>
           <CardDescription>
-            {block.description || `Tipografía · ${block.layout}`}
+            {block.description ||
+              t("layout", { type: t("typography"), layout: block.layout })}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
@@ -216,9 +224,10 @@ export function PortalBlockRenderer({ block }: { block: PortalBlock }) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{block.title || "Video"}</CardTitle>
+          <CardTitle>{block.title || t("video")}</CardTitle>
           <CardDescription>
-            {block.description || `Video · ${block.layout}`}
+            {block.description ||
+              t("layout", { type: t("video"), layout: block.layout })}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -229,10 +238,10 @@ export function PortalBlockRenderer({ block }: { block: PortalBlock }) {
               rel="noreferrer"
               target="_blank"
             >
-              Abrir video
+              {t("openVideo")}
             </a>
           ) : (
-            <p className="text-sm text-muted-foreground">Sin video todavía.</p>
+            <p className="text-sm text-muted-foreground">{t("emptyVideo")}</p>
           )}
         </CardContent>
       </Card>
@@ -249,8 +258,7 @@ export function PortalBlockRenderer({ block }: { block: PortalBlock }) {
       </CardHeader>
       <CardContent>
         <p className="text-sm text-muted-foreground">
-          Sección lista para contenido especializado. El renderer detallado de{" "}
-          {block.type} se ampliará en la siguiente iteración.
+          {t("specialized", { type: block.type })}
         </p>
       </CardContent>
     </Card>

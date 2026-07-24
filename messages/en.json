@@ -77,5 +77,332 @@
       "description": "Configure the backend to create and manage client portals."
     },
     "errorGeneric": "The action could not be completed."
+  },
+  "Common": {
+    "close": "Close"
+  },
+  "Actions": {
+    "oauthFailed": "OAuth login failed.",
+    "nameRequired": "The portal name is required.",
+    "slugInvalid": "The slug is not valid.",
+    "passwordAfterCreation": "Configure the password after creating the portal.",
+    "createPortalFailed": "The portal could not be created.",
+    "portalNotFound": "Portal not found.",
+    "designerNameInvalid": "The designer name exceeds 8 words or 80 characters.",
+    "websiteHttps": "The website must use HTTPS.",
+    "slugCheckFailed": "The slug could not be validated.",
+    "slugTaken": "This slug is already used by another user.",
+    "privacyInvalid": "The privacy setting is invalid.",
+    "passwordLength": "The password must contain between 8 and 128 characters.",
+    "createSectionFailed": "The section could not be created."
+  },
+  "Auth": {
+    "common": {
+      "email": "Email",
+      "password": "Password",
+      "backendDisabled": "Configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to enable authentication."
+    },
+    "signIn": {
+      "title": "Log in",
+      "description": "Enter your Portals Design workspace.",
+      "checkEmail": "Check your email to confirm your account.",
+      "passwordHelp": "Password recovery will be added in the next iteration.",
+      "submit": "Log in",
+      "continueWith": "Continue with {provider}",
+      "createAccount": "Create account"
+    },
+    "signUp": {
+      "title": "Create account",
+      "description": "Start organizing your branding portals.",
+      "name": "Name",
+      "submit": "Create account",
+      "haveAccount": "I already have an account"
+    }
+  },
+  "PublicPortal": {
+    "password": {
+      "description": "This Portals Design portal is password protected.",
+      "label": "Password",
+      "placeholder": "Enter the password",
+      "invalid": "The password is not valid.",
+      "submit": "View portal"
+    },
+    "notFound": {
+      "title": "Project not found",
+      "description": "This portal is private or has not been published."
+    },
+    "metadata": {
+      "description": "Portal created and shared with Portals Design.",
+      "title": "Portal not found · Portals Design",
+      "discover": "Discover {name}"
+    }
+  },
+  "PortalViewer": {
+    "sidebar": {
+      "theme": "Toggle color theme",
+      "exportAssets": "Export assets"
+    },
+    "file": {
+      "image": "Image",
+      "file": "File",
+      "imageAbbreviation": "IMG",
+      "fileAbbreviation": "FILE"
+    },
+    "summary": {
+      "name": "Portal name",
+      "description": "Portal description"
+    },
+    "section": {
+      "titlePlaceholder": "Title",
+      "descriptionPlaceholder": "Optional short description",
+      "descriptionLabel": "{title} description"
+    },
+    "sectionTypes": {
+      "empty": "Section",
+      "text": "Text",
+      "image": "Image",
+      "gallery": "Gallery",
+      "colors": "Colors",
+      "fonts": "Typography",
+      "files": "Files",
+      "image_comparison": "Image comparison"
+    },
+    "actions": {
+      "copied": "Copied",
+      "copyColor": "Copy {color}",
+      "downloadFile": "Download {name}",
+      "downloadFont": "Download {name} family",
+      "downloadImage": "Download {name}",
+      "downloadSection": "Download {name}",
+      "exportAll": "Export all assets",
+      "imageFallback": "image"
+    },
+    "fonts": {
+      "sampleTitle": "Your assistant, right in your messages app",
+      "sampleDescription": "A clear, readable paragraph preview for everyday product screens, brand decks, and messaging moments.",
+      "typeScale": "Type scale",
+      "undetectedFamily": "Undetected family",
+      "weightFallback": "Weight",
+      "weights": {
+        "100": "Thin",
+        "200": "Extra Light",
+        "300": "Light",
+        "400": "Regular",
+        "500": "Medium",
+        "600": "Semi Bold",
+        "700": "Bold",
+        "800": "Extra Bold",
+        "900": "Black"
+      }
+    },
+    "fallback": {
+      "color": "Color"
+    }
+  },
+  "PortalBlocks": {
+    "text": "Text",
+    "image": "Image",
+    "gallery": "Gallery",
+    "color": "Color",
+    "typography": "Typography",
+    "video": "Video",
+    "layout": "{type} · {layout}",
+    "emptyContent": "No content yet.",
+    "portalImage": "Portal image",
+    "emptyImage": "No image yet.",
+    "galleryImage": "Gallery image",
+    "emptyGallery": "No images yet.",
+    "openVideo": "Open video",
+    "emptyVideo": "No video yet.",
+    "specialized": "This section is ready for specialized content. Detailed rendering for {type} will be expanded in a future iteration."
+  },
+  "PortalEditor": {
+    "upload": {
+      "authRequired": "Log in to upload files."
+    },
+    "workspace": {
+      "back": "Back",
+      "openPublished": "Open published portal in a new tab",
+      "openPreview": "Open preview in a new tab",
+      "publish": "Publish",
+      "publishError": "The portal could not be published",
+      "unpublishedTitle": "Unpublished changes",
+      "unpublishedDescription": "Publish the portal so visitors can see your latest changes.",
+      "unpublishedAction": "View unpublished changes"
+    },
+    "sections": {
+      "add": "Add section",
+      "addTitle": "Add a section",
+      "chooseDescription": "Choose the content you want to show in your portal.",
+      "changeType": "Change section type",
+      "configure": "Configure section",
+      "order": "Order sections",
+      "orderTitle": "Section order",
+      "orderDescription": "Drag sections to arrange the portal order.",
+      "move": "Move {name}",
+      "types": {
+        "text": {
+          "label": "Text",
+          "description": "Titles, paragraphs, lists, and links."
+        },
+        "image": {
+          "label": "Image",
+          "description": "Feature an image in the format you prefer."
+        },
+        "gallery": {
+          "label": "Gallery",
+          "description": "Present several images in a composition."
+        },
+        "colors": {
+          "label": "Colors",
+          "description": "Show the brand palette and colors."
+        },
+        "fonts": {
+          "label": "Typography",
+          "description": "Present the fonts and how they should be used."
+        },
+        "files": {
+          "label": "Files",
+          "description": "Share resources and files for download."
+        },
+        "empty": {
+          "label": "Section",
+          "description": "An empty portal section."
+        },
+        "image_comparison": {
+          "label": "Image comparison",
+          "description": "Compare two images side by side."
+        }
+      }
+    },
+    "common": {
+      "visible": "Visible",
+      "allowDownload": "Allow download",
+      "save": "Save",
+      "columns": "{count} columns",
+      "columnsLabel": "Columns",
+      "mixedValues": "Mixed values",
+      "layout": "Layout",
+      "saveSettings": "Save settings"
+    },
+    "image": {
+      "settings": "Configure image",
+      "settingsDescription": "Adjust presentation, visibility, and downloading.",
+      "fit": "Fit",
+      "ratio": "Aspect ratio",
+      "altPlaceholder": "Image description",
+      "uploadError": "The image could not be uploaded.",
+      "remove": "Remove image"
+    },
+    "gallery": {
+      "settings": "Configure gallery",
+      "settingsDescription": "Adjust the layout and apply global styles to images.",
+      "grid": "Grid",
+      "comparison": "Comparison",
+      "globalFit": "Global fit",
+      "globalRatio": "Global aspect ratio"
+    },
+    "colors": {
+      "settings": "Configure colors",
+      "settingsDescription": "Adjust columns and the information displayed.",
+      "palette": "Palette",
+      "stack": "Stack",
+      "showName": "Show color name",
+      "showCode": "Show color code",
+      "dialogTitle": "Color",
+      "dialogDescription": "Define the color name, format, and preview.",
+      "format": "Format",
+      "picker": "Picker",
+      "choose": "Choose color",
+      "code": "Code",
+      "name": "Name",
+      "namePlaceholder": "E.g. Primary, Accent, Background",
+      "move": "Move color",
+      "edit": "Edit color",
+      "fallback": "Color"
+    },
+    "fonts": {
+      "dialogTitle": "Typography",
+      "uploadFamily": "Upload font family",
+      "editDescription": "Adjust this font-family weight.",
+      "uploadDescription": "Select every weight from one or more families. The app detects family and weight from each file.",
+      "file": "Font file",
+      "upload": "Upload fonts",
+      "replace": "Replace font",
+      "uploading": "Uploading…",
+      "uploaded": "Uploaded font",
+      "uploadError": "The fonts could not be uploaded.",
+      "filesReady": "{count, plural, one {# file ready} other {# files ready}}",
+      "familyDetected": "Detected family",
+      "weight": "Weight",
+      "previewTitle": "Preview title",
+      "previewDescription": "Preview description",
+      "remove": "Remove {name}",
+      "editFamily": "Edit font family",
+      "editFamilyDescription": "Change the group name and remove weights that do not belong to this family.",
+      "familyName": "Family name",
+      "familyWeights": "Family weights",
+      "delete": "Delete {name}",
+      "noWeights": "This family has no font weights.",
+      "undetectedFamily": "Undetected family",
+      "typeScale": "Type scale",
+      "base": "Base",
+      "ratio": "Ratio",
+      "weightFallback": "Weight",
+      "weights": {
+        "100": "Thin",
+        "200": "Extra Light",
+        "300": "Light",
+        "400": "Regular",
+        "500": "Medium",
+        "600": "Semi Bold",
+        "700": "Bold",
+        "800": "Extra Bold",
+        "900": "Black"
+      },
+      "typeScaleEmpty": "Upload fonts in the type system to generate this scale by weight.",
+      "visible": "Visible",
+      "save": "Save"
+    },
+    "files": {
+      "settings": "Configure files",
+      "settingsDescription": "Adjust how many cards are shown per row.",
+      "upload": "Add file",
+      "invalidFormat": "Unsupported format. Use PDF, AI, EPS, PSD, SVG, or images.",
+      "uploadError": "The file could not be uploaded."
+    },
+    "sidebar": {
+      "theme": "Toggle color theme",
+      "exportAssets": "Export assets"
+    },
+    "settings": {
+      "generalTitle": "General settings",
+      "generalDescription": "Adjust the slug and visible designer information. Saving this data does not publish the portal.",
+      "slug": "Slug",
+      "slugPlaceholder": "my-portal",
+      "checkingSlug": "Checking availability…",
+      "slugAvailable": "This slug is available.",
+      "slugUnavailable": "Slug unavailable",
+      "designerName": "Designer name",
+      "designerPlaceholder": "Visible designer name",
+      "designerLimit": "Maximum 8 words and 80 characters",
+      "website": "Website",
+      "websitePlaceholder": "https://your-site.com",
+      "privacyTitle": "Privacy and password",
+      "privacyDescription": "Define who can access it. Saving privacy does not publish or unpublish the portal.",
+      "privacy": "Privacy",
+      "privacyPlaceholder": "Select privacy",
+      "public": "Public",
+      "private": "Private",
+      "password": "Password protected",
+      "publicHelp": "Anyone who finds the link can view it.",
+      "privateHelp": "Only you can view it with your account.",
+      "passwordHelp": "Anyone with the link and password can view it.",
+      "changePassword": "Change password",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "At least 8 characters",
+      "keepPassword": "Leave it blank to keep the current password.",
+      "passwordRules": "Use between 8 and 128 characters."
+    }
   }
 }

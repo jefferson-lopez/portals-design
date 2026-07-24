@@ -1,5 +1,5 @@
 import { IconBrandGoogle } from "@tabler/icons-react";
-import { setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -30,26 +30,24 @@ export default async function SignInPage({ params, searchParams }: Props) {
   const { message } = await searchParams;
 
   setRequestLocale(locale);
+  const t = await getTranslations({ locale, namespace: "Auth" });
 
   return (
     <main className="flex min-h-dvh flex-1 items-center justify-center bg-muted/30 px-6 py-12">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Iniciar sesión</CardTitle>
-          <CardDescription>
-            Entra a tu espacio de Portals Design.
-          </CardDescription>
+          <CardTitle>{t("signIn.title")}</CardTitle>
+          <CardDescription>{t("signIn.description")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
           {!hasSupabaseEnv() ? (
             <p className="rounded-md border bg-background p-3 text-sm text-muted-foreground">
-              Configura NEXT_PUBLIC_SUPABASE_URL y
-              NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY para activar auth.
+              {t("common.backendDisabled")}
             </p>
           ) : null}
           {message === "check-email" ? (
             <p className="rounded-md border bg-background p-3 text-sm text-muted-foreground">
-              Revisa tu correo para confirmar la cuenta.
+              {t("signIn.checkEmail")}
             </p>
           ) : null}
 
@@ -57,18 +55,18 @@ export default async function SignInPage({ params, searchParams }: Props) {
             <input name="locale" type="hidden" value={locale} />
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <FieldLabel htmlFor="email">{t("common.email")}</FieldLabel>
                 <Input id="email" name="email" required type="email" />
               </Field>
               <Field>
-                <FieldLabel htmlFor="password">Contraseña</FieldLabel>
+                <FieldLabel htmlFor="password">
+                  {t("common.password")}
+                </FieldLabel>
                 <Input id="password" name="password" required type="password" />
-                <FieldDescription>
-                  Recuperación de contraseña se añadirá en la siguiente tajada.
-                </FieldDescription>
+                <FieldDescription>{t("signIn.passwordHelp")}</FieldDescription>
               </Field>
               <Button disabled={!hasSupabaseEnv()} type="submit">
-                Entrar
+                {t("signIn.submit")}
               </Button>
             </FieldGroup>
           </form>
@@ -92,7 +90,7 @@ export default async function SignInPage({ params, searchParams }: Props) {
                     className="w-full"
                   >
                     <Icon data-icon="inline-start" />
-                    Continuar con {label as string}
+                    {t("signIn.continueWith", { provider: label as string })}
                   </Button>
                 </form>
               ),
@@ -103,7 +101,7 @@ export default async function SignInPage({ params, searchParams }: Props) {
             href="/auth/sign-up"
             className={buttonVariants({ variant: "link" })}
           >
-            Crear cuenta
+            {t("signIn.createAccount")}
           </Link>
         </CardContent>
       </Card>

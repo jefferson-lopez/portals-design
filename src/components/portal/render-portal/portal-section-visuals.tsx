@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import {
   PortalFilePreview,
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 import {
   fontFaceFor,
   fontFamilyFor,
+  fontWeightMessageKey,
   fontWeightSpec,
   groupedFonts,
   representativeFont,
@@ -135,6 +137,7 @@ function PortalColorsVisual({
   actions?: PortalRenderActions;
   section: PortalSection;
 }) {
+  const t = useTranslations("PortalViewer.fallback");
   const isStack = section.layout.mode === "stack";
   const columns = isStack ? 1 : (section.layout.columns ?? 4);
   const showColorName =
@@ -179,7 +182,7 @@ function PortalColorsVisual({
               >
                 {showColorName ? (
                   <div className="max-w-full truncate font-medium">
-                    {color.color_name || "Color"}
+                    {color.color_name || t("color")}
                   </div>
                 ) : null}
                 {showColorCode ? (
@@ -211,8 +214,13 @@ function PortalFontsVisual({
   actions?: PortalRenderActions;
   section: PortalSection;
 }) {
+  const t = useTranslations("PortalViewer.fonts");
+  const weightName = (weight: number) => {
+    const key = fontWeightMessageKey(weight);
+    return key ? t(key) : t("weightFallback");
+  };
   const fonts = section.content.fonts ?? [];
-  const groups = groupedFonts(fonts);
+  const groups = groupedFonts(fonts, t("undetectedFamily"));
   const settings: PortalTypeScaleSettings = section.content
     .type_scale_settings ?? {
     base_size: 20,
@@ -243,15 +251,13 @@ function PortalFontsVisual({
                     className="text-3xl font-semibold tracking-tight"
                     style={family ? { fontFamily: `"${family}"` } : undefined}
                   >
-                    {font.sample_text ||
-                      "Your assistant, right in your messages app"}
+                    {font.sample_text || t("sampleTitle")}
                   </p>
                   <p
                     className="mt-3 max-w-2xl text-muted-foreground text-sm leading-6"
                     style={family ? { fontFamily: `"${family}"` } : undefined}
                   >
-                    {font.sample_description ||
-                      "A clear, readable paragraph preview for everyday product screens, brand decks, and messaging moments."}
+                    {font.sample_description || t("sampleDescription")}
                   </p>
                 </div>
               </div>
@@ -263,7 +269,7 @@ function PortalFontsVisual({
         <section className="flex flex-col gap-5">
           <div className="flex flex-col gap-1">
             <h3 className="font-heading font-medium text-lg tracking-tight">
-              Type scale
+              {t("typeScale")}
             </h3>
           </div>
           <div className="flex flex-col gap-6">
@@ -289,7 +295,10 @@ function PortalFontsVisual({
                       >
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-[10px] text-muted-foreground uppercase">
-                            {fontWeightSpec(font)}
+                            {fontWeightSpec(
+                              font,
+                              weightName(font.weight ?? 400),
+                            )}
                           </span>
                         </div>
                         <p

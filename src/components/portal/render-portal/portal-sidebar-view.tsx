@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { type ReactNode, useEffect, useState } from "react";
 import type { PortalDocument } from "@/lib/portal/document";
 import { cn } from "@/lib/utils";
@@ -13,6 +14,7 @@ export function PortalSidebarView({
   sectionIds: string[];
   sections: PortalDocument["sections"];
 }) {
+  const t = useTranslations("PortalViewer.sectionTypes");
   const [activeId, setActiveId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export function PortalSidebarView({
           >
             <div className="flex items-center">
               <div className="min-w-0 flex-1 truncate px-2 first-letter:uppercase">
-                {section.title || section.type}
+                {section.title || t(section.type)}
               </div>
             </div>
           </a>

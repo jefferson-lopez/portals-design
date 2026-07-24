@@ -23,6 +23,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import type { ReactElement, ReactNode } from "react";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -38,6 +39,7 @@ import {
   PortalFilePreview,
   portalFileTypeFromName,
 } from "@/components/portal/file-preview";
+import { fontWeightMessageKey } from "@/components/portal/render-portal/font-utils";
 import {
   PortalActionTriggerButton,
   PortalItemActionsOverlay,
@@ -130,63 +132,46 @@ import { cn } from "@/lib/utils";
 
 type SectionOption = {
   accentClassName: string;
-  description: string;
   icon: typeof IconTextCaption;
-  label: string;
   type: Exclude<PortalSectionType, "empty">;
 };
 
 const sectionTypes: SectionOption[] = [
   {
     accentClassName: "bg-chart-1/15 text-chart-1",
-    description: "Títulos, párrafos, listas y enlaces.",
     icon: IconTextCaption,
-    label: "Texto",
     type: "text",
   },
   {
     accentClassName: "bg-chart-2/15 text-chart-2",
-    description: "Destaca una imagen en el formato que prefieras.",
     icon: IconPhoto,
-    label: "Imagen",
     type: "image",
   },
   {
     accentClassName: "bg-chart-3/15 text-chart-3",
-    description: "Presenta varias imágenes en una composición.",
     icon: IconLayoutGrid,
-    label: "Galería",
     type: "gallery",
   },
   {
     accentClassName: "bg-chart-4/15 text-chart-4",
-    description: "Muestra la paleta y los colores de la marca.",
     icon: IconPalette,
-    label: "Colores",
     type: "colors",
   },
   {
     accentClassName: "bg-chart-5/15 text-chart-5",
-    description: "Presenta las fuentes y cómo deben utilizarse.",
     icon: IconTypography,
-    label: "Tipografías",
     type: "fonts",
   },
   {
     accentClassName: "bg-primary/10 text-primary",
-    description: "Comparte recursos y archivos para descargar.",
     icon: IconFiles,
-    label: "Archivos",
     type: "files",
   },
 ];
 
 const imageFits: ImageFit[] = ["cover", "contain", "fill", "auto"];
 const aspectRatios: ImageAspectRatio[] = ["auto", "1/1", "4/3", "16/9", "21/9"];
-const galleryModeItems = [
-  { label: "Grid", value: "grid" },
-  { label: "Comparación", value: "comparison" },
-];
+const galleryModes = ["grid", "comparison"] as const;
 
 type ColorFormat =
   | "hex"
@@ -306,6 +291,7 @@ function VisualColorPicker({
   onChange: (value: string) => void;
   value: string;
 }) {
+  const t = useTranslations("PortalEditor.colors");
   return (
     <ColorPicker
       value={value}
@@ -322,7 +308,7 @@ function VisualColorPicker({
           }
         >
           <ColorSwatch className="size-4 rounded-sm border" />
-          Elegir color
+          {t("choose")}
         </PopoverTrigger>
         <PopoverContent align="end" className="w-auto" side="bottom">
           <div className="flex flex-col gap-4 outline-none">
@@ -390,16 +376,17 @@ function uniqueForRender<T extends { id: string; position: number }>(
 }
 
 async function uploadPortalAsset({
+  authError,
   file,
   portalId,
 }: {
+  authError: string;
   file: File;
   portalId: string;
 }) {
   const supabase = createClient();
   const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user)
-    throw new Error("Debes iniciar sesión para subir archivos.");
+  if (userError || !userData.user) throw new Error(authError);
   const safeName = file.name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -423,6 +410,7 @@ export function SectionTypeDialog({
   onSelect: (type: Exclude<PortalSectionType, "empty">) => void;
   trigger: ReactElement;
 }) {
+  const t = useTranslations("PortalEditor.sections");
   const [open, setOpen] = useState(false);
   const selectionPendingRef = useRef(false);
   return (
@@ -439,10 +427,8 @@ export function SectionTypeDialog({
       <DialogTrigger render={trigger} />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Añade una sección</DialogTitle>
-          <DialogDescription>
-            Elige el contenido que quieres mostrar en tu portal.
-          </DialogDescription>
+          <DialogTitle>{t("addTitle")}</DialogTitle>
+          <DialogDescription>{t("chooseDescription")}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
           {sectionTypes.map((item) => {
@@ -468,9 +454,11 @@ export function SectionTypeDialog({
                   <Icon aria-hidden="true" />
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="truncate font-medium">{item.label}</span>
+                  <span className="truncate font-medium">
+                    {t(`types.${item.type}.label`)}
+                  </span>
                   <span className="line-clamp-2 text-wrap font-normal text-muted-foreground text-xs leading-relaxed">
-                    {item.description}
+                    {t(`types.${item.type}.description`)}
                   </span>
                 </span>
               </Button>
@@ -495,6 +483,7 @@ function ImageSettingsPopover({
   open: boolean;
   trigger: ReactElement;
 }) {
+  const t = useTranslations("PortalEditor");
   function updateImage(nextImage: PortalImageItem) {
     onSave(nextImage);
   }
@@ -504,15 +493,15 @@ function ImageSettingsPopover({
       <PopoverTrigger render={trigger} />
       <PopoverContent align="end" className="w-80" side="bottom">
         <PopoverHeader>
-          <PopoverTitle>Configurar imagen</PopoverTitle>
+          <PopoverTitle>{t("image.settings")}</PopoverTitle>
           <PopoverDescription>
-            Ajusta presentación, visibilidad y descarga.
+            {t("image.settingsDescription")}
           </PopoverDescription>
         </PopoverHeader>
         <FieldGroup>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field>
-              <FieldLabel>Fit</FieldLabel>
+              <FieldLabel>{t("image.fit")}</FieldLabel>
               <Select
                 value={image.fit}
                 onValueChange={(value) =>
@@ -534,7 +523,7 @@ function ImageSettingsPopover({
               </Select>
             </Field>
             <Field>
-              <FieldLabel>Proporción</FieldLabel>
+              <FieldLabel>{t("image.ratio")}</FieldLabel>
               <Select
                 value={image.aspect_ratio}
                 onValueChange={(value) =>
@@ -561,7 +550,9 @@ function ImageSettingsPopover({
             </Field>
           </div>
           <Field className="flex flex-row items-center justify-between gap-3">
-            <FieldLabel htmlFor={`${image.id}-visible`}>Visible</FieldLabel>
+            <FieldLabel htmlFor={`${image.id}-visible`}>
+              {t("common.visible")}
+            </FieldLabel>
             <Switch
               checked={image.visible}
               id={`${image.id}-visible`}
@@ -572,7 +563,7 @@ function ImageSettingsPopover({
           </Field>
           <Field className="flex flex-row items-center justify-between gap-3">
             <FieldLabel htmlFor={`${image.id}-download`}>
-              Permitir descarga
+              {t("common.allowDownload")}
             </FieldLabel>
             <Switch
               checked={image.allow_download}
@@ -603,6 +594,7 @@ function ImageTile({
   onRemove: () => void;
   onSave: (image: PortalImageItem) => void;
 }) {
+  const t = useTranslations("PortalEditor.image");
   const ratioClass =
     image.aspect_ratio === "1/1"
       ? "aspect-square"
@@ -655,13 +647,13 @@ function ImageTile({
             trigger={
               <PortalActionTriggerButton
                 icon="settings"
-                label="Configurar imagen"
+                label={t("settings")}
                 variant="secondary"
               />
             }
           />
           <Button
-            aria-label="Remover"
+            aria-label={t("remove")}
             className="rounded-full"
             onClick={onRemove}
             size="icon-sm"
@@ -680,7 +672,7 @@ function ImageTile({
           onBlur={(event) =>
             onSave({ ...image, alt_text: event.currentTarget.value })
           }
-          placeholder="Descripción de la imagen"
+          placeholder={t("altPlaceholder")}
         />
       ) : null}
     </figure>
@@ -697,6 +689,8 @@ function AddImageTile({
   onAdd: (image: PortalImageItem) => void;
   portalId: string;
 }) {
+  const t = useTranslations("PortalEditor.image");
+  const uploadT = useTranslations("PortalEditor.upload");
   const inputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -714,7 +708,11 @@ function AddImageTile({
     if (!file) return;
     startTransition(async () => {
       try {
-        const asset = await uploadPortalAsset({ file, portalId });
+        const asset = await uploadPortalAsset({
+          authError: uploadT("authRequired"),
+          file,
+          portalId,
+        });
         onAdd({
           ...createImageItem(asset.signedUrl, 0),
           storage_path: asset.path,
@@ -722,9 +720,7 @@ function AddImageTile({
         setError(null);
       } catch (uploadError) {
         setError(
-          uploadError instanceof Error
-            ? uploadError.message
-            : "No se pudo subir.",
+          uploadError instanceof Error ? uploadError.message : t("uploadError"),
         );
       }
     });
@@ -765,6 +761,7 @@ function GalleryLayoutControls({
   section: PortalSection;
   updateSection: (section: PortalSection) => void;
 }) {
+  const t = useTranslations("PortalEditor");
   const sharedFit = images.every((image) => image.fit === images[0]?.fit)
     ? images[0]?.fit
     : null;
@@ -774,7 +771,7 @@ function GalleryLayoutControls({
     ? images[0]?.aspect_ratio
     : null;
   const columnItems = [3, 4].map((columns) => ({
-    label: `${columns} columnas`,
+    label: t("common.columns", { count: columns }),
     value: String(columns),
   }));
   const selectedColumns = [3, 4].includes(section.layout.columns ?? 3)
@@ -794,9 +791,12 @@ function GalleryLayoutControls({
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       <Field className="sm:col-span-2">
-        <FieldLabel>Layout</FieldLabel>
+        <FieldLabel>{t("common.layout")}</FieldLabel>
         <Select
-          items={galleryModeItems}
+          items={galleryModes.map((value) => ({
+            label: t(`gallery.${value}`),
+            value,
+          }))}
           value={selectedMode}
           onValueChange={(value) => {
             if (value === "comparison") {
@@ -827,9 +827,9 @@ function GalleryLayoutControls({
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              {galleryModeItems.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
-                  {item.label}
+              {galleryModes.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {t(`gallery.${value}`)}
                 </SelectItem>
               ))}
             </SelectGroup>
@@ -838,7 +838,7 @@ function GalleryLayoutControls({
       </Field>
       {selectedMode === "grid" ? (
         <Field className="sm:col-span-2">
-          <FieldLabel>Columnas</FieldLabel>
+          <FieldLabel>{t("common.columnsLabel")}</FieldLabel>
           <Select
             items={columnItems}
             value={String(selectedColumns)}
@@ -871,7 +871,7 @@ function GalleryLayoutControls({
         </Field>
       ) : null}
       <Field>
-        <FieldLabel>Fit global</FieldLabel>
+        <FieldLabel>{t("gallery.globalFit")}</FieldLabel>
         <Select
           items={fitItems}
           value={sharedFit}
@@ -883,7 +883,7 @@ function GalleryLayoutControls({
           }
         >
           <SelectTrigger className="w-full" size="sm">
-            <SelectValue placeholder="Valores mixtos" />
+            <SelectValue placeholder={t("common.mixedValues")} />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
@@ -897,7 +897,7 @@ function GalleryLayoutControls({
         </Select>
       </Field>
       <Field>
-        <FieldLabel>Proporción global</FieldLabel>
+        <FieldLabel>{t("gallery.globalRatio")}</FieldLabel>
         <Select
           items={aspectRatioItems}
           value={sharedAspectRatio}
@@ -912,7 +912,7 @@ function GalleryLayoutControls({
           }
         >
           <SelectTrigger className="w-full" size="sm">
-            <SelectValue placeholder="Valores mixtos" />
+            <SelectValue placeholder={t("common.mixedValues")} />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
@@ -942,6 +942,7 @@ function GallerySettingsPopover({
   trigger: ReactElement;
   updateSection: (section: PortalSection) => void;
 }) {
+  const t = useTranslations("PortalEditor.gallery");
   const images = uniqueForRender(section.content.images ?? [], "img");
 
   function saveImages(nextImages: PortalImageItem[]) {
@@ -957,10 +958,8 @@ function GallerySettingsPopover({
       <PopoverTrigger render={trigger} />
       <PopoverContent align="end" className="w-80" side="bottom">
         <PopoverHeader>
-          <PopoverTitle>Configurar galería</PopoverTitle>
-          <PopoverDescription>
-            Ajusta layout y aplica estilos globales a las imágenes.
-          </PopoverDescription>
+          <PopoverTitle>{t("settings")}</PopoverTitle>
+          <PopoverDescription>{t("settingsDescription")}</PopoverDescription>
         </PopoverHeader>
         <GalleryLayoutControls
           images={images}
@@ -980,8 +979,9 @@ function FilesLayoutControls({
   section: PortalSection;
   updateSection: (section: PortalSection) => void;
 }) {
+  const t = useTranslations("PortalEditor");
   const columnItems = [3, 4].map((columns) => ({
-    label: `${columns} columnas`,
+    label: t("common.columns", { count: columns }),
     value: String(columns),
   }));
   const selectedColumns = [3, 4].includes(section.layout.columns ?? 3)
@@ -991,7 +991,7 @@ function FilesLayoutControls({
   return (
     <FieldGroup>
       <Field>
-        <FieldLabel>Columnas</FieldLabel>
+        <FieldLabel>{t("common.columnsLabel")}</FieldLabel>
         <Select
           items={columnItems}
           value={String(selectedColumns)}
@@ -1038,15 +1038,14 @@ function FilesSettingsPopover({
   trigger: ReactElement;
   updateSection: (section: PortalSection) => void;
 }) {
+  const t = useTranslations("PortalEditor.files");
   return (
     <Popover onOpenChange={onOpenChange} open={open}>
       <PopoverTrigger render={trigger} />
       <PopoverContent align="end" className="w-72" side="bottom">
         <PopoverHeader>
-          <PopoverTitle>Configurar archivos</PopoverTitle>
-          <PopoverDescription>
-            Ajusta cuántas cards se muestran por fila.
-          </PopoverDescription>
+          <PopoverTitle>{t("settings")}</PopoverTitle>
+          <PopoverDescription>{t("settingsDescription")}</PopoverDescription>
         </PopoverHeader>
         <FilesLayoutControls section={section} updateSection={updateSection} />
       </PopoverContent>
@@ -1067,12 +1066,13 @@ function ColorsSettingsPopover({
   trigger: ReactElement;
   updateSection: (section: PortalSection) => void;
 }) {
+  const t = useTranslations("PortalEditor");
   const layoutModeItems = [
-    { label: "Palette", value: "palette" },
-    { label: "Stack", value: "stack" },
+    { label: t("colors.palette"), value: "palette" },
+    { label: t("colors.stack"), value: "stack" },
   ];
   const columnItems = [3, 4, 5, 6].map((columns) => ({
-    label: `${columns} columnas`,
+    label: t("common.columns", { count: columns }),
     value: String(columns),
   }));
   const isStackLayout = section.layout.mode === "stack";
@@ -1082,15 +1082,15 @@ function ColorsSettingsPopover({
       <PopoverTrigger render={trigger} />
       <PopoverContent align="end" className="w-80" side="bottom">
         <PopoverHeader>
-          <PopoverTitle>Configurar colores</PopoverTitle>
+          <PopoverTitle>{t("colors.settings")}</PopoverTitle>
           <PopoverDescription>
-            Ajusta columnas y qué información se muestra.
+            {t("colors.settingsDescription")}
           </PopoverDescription>
         </PopoverHeader>
         <FieldGroup>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field>
-              <FieldLabel>Layout</FieldLabel>
+              <FieldLabel>{t("common.layout")}</FieldLabel>
               <Select
                 value={section.layout.mode ?? "palette"}
                 onValueChange={(value) =>
@@ -1119,7 +1119,7 @@ function ColorsSettingsPopover({
               </Select>
             </Field>
             <Field>
-              <FieldLabel>Columnas</FieldLabel>
+              <FieldLabel>{t("common.columnsLabel")}</FieldLabel>
               <Select
                 disabled={isStackLayout}
                 value={String(section.layout.columns ?? 4)}
@@ -1155,7 +1155,7 @@ function ColorsSettingsPopover({
           </div>
           <Field orientation="horizontal">
             <FieldLabel htmlFor={`${section.id}-show-color-name`}>
-              Mostrar nombre
+              {t("colors.showName")}
             </FieldLabel>
             <Switch
               checked={
@@ -1175,7 +1175,7 @@ function ColorsSettingsPopover({
           </Field>
           <Field orientation="horizontal">
             <FieldLabel htmlFor={`${section.id}-show-color-code`}>
-              Mostrar código
+              {t("colors.showCode")}
             </FieldLabel>
             <Switch
               checked={
@@ -1377,6 +1377,7 @@ function ColorDialog({
   onSave: (color: PortalColorItem) => void;
   trigger: ReactElement;
 }) {
+  const t = useTranslations("PortalEditor");
   const [open, setOpen] = useState(false);
   const [format, setFormat] = useState<ColorFormat>(() =>
     detectColorFormat(color),
@@ -1410,15 +1411,13 @@ function ColorDialog({
       <DialogTrigger render={trigger} />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Color</DialogTitle>
-          <DialogDescription>
-            Define el nombre, el formato y la vista previa del color.
-          </DialogDescription>
+          <DialogTitle>{t("colors.dialogTitle")}</DialogTitle>
+          <DialogDescription>{t("colors.dialogDescription")}</DialogDescription>
         </DialogHeader>
         <FieldGroup>
           <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
             <Field>
-              <FieldLabel>Formato</FieldLabel>
+              <FieldLabel>{t("colors.format")}</FieldLabel>
               <Select
                 value={format}
                 onValueChange={(value) =>
@@ -1426,7 +1425,7 @@ function ColorDialog({
                 }
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Formato" />
+                  <SelectValue placeholder={t("colors.format")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
@@ -1441,7 +1440,7 @@ function ColorDialog({
             </Field>
 
             <Field>
-              <FieldLabel>Picker</FieldLabel>
+              <FieldLabel>{t("colors.picker")}</FieldLabel>
               <VisualColorPicker
                 format={format}
                 value={pickerValue}
@@ -1451,7 +1450,7 @@ function ColorDialog({
           </div>
 
           <Field>
-            <FieldLabel>Código</FieldLabel>
+            <FieldLabel>{t("colors.code")}</FieldLabel>
             {format === "hex" || format === "hexa" ? (
               <div className="flex h-9 items-center rounded-md border border-input bg-transparent shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
                 <span className="px-2.5 text-muted-foreground text-sm">#</span>
@@ -1481,10 +1480,10 @@ function ColorDialog({
           </Field>
 
           <Field>
-            <FieldLabel>Nombre</FieldLabel>
+            <FieldLabel>{t("colors.name")}</FieldLabel>
             <Input
               maxLength={colorNameMaxLength}
-              placeholder="Ej. Primario, Acento, Fondo"
+              placeholder={t("colors.namePlaceholder")}
               value={draft.color_name}
               onChange={(e) =>
                 setDraft({ ...draft, color_name: e.currentTarget.value })
@@ -1493,7 +1492,9 @@ function ColorDialog({
           </Field>
 
           <Field orientation="horizontal">
-            <FieldLabel htmlFor={`${draft.id}-visible`}>Visible</FieldLabel>
+            <FieldLabel htmlFor={`${draft.id}-visible`}>
+              {t("common.visible")}
+            </FieldLabel>
             <Switch
               checked={draft.visible}
               id={`${draft.id}-visible`}
@@ -1517,7 +1518,7 @@ function ColorDialog({
             }}
             type="button"
           >
-            Guardar
+            {t("common.save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1542,6 +1543,7 @@ function SortableColorItem({
   showColorCode: boolean;
   showColorName: boolean;
 }) {
+  const t = useTranslations("PortalEditor.colors");
   const { handleRef, isDragging, ref } = useSortable({
     group: "colors",
     id: color.id,
@@ -1559,7 +1561,7 @@ function SortableColorItem({
       ref={ref}
     >
       <button
-        aria-label="Mover color"
+        aria-label={t("move")}
         className={cn(
           "aspect-square cursor-grab rounded-lg border active:cursor-grabbing",
           isStack ? "size-14 shrink-0" : "w-full",
@@ -1577,7 +1579,7 @@ function SortableColorItem({
         >
           {showColorName ? (
             <div className="max-w-full truncate font-medium">
-              {color.color_name || "Color"}
+              {color.color_name || t("fallback")}
             </div>
           ) : null}
           {showColorCode ? (
@@ -1598,7 +1600,7 @@ function SortableColorItem({
           trigger={
             <PortalActionTriggerButton
               icon="edit"
-              label="Editar color"
+              label={t("edit")}
               variant="secondary"
             />
           }
@@ -1706,18 +1708,6 @@ function ColorsEditor({
 
 const maxFontFamilies = 4;
 
-const fontWeightLabels: Record<number, string> = {
-  100: "Thin",
-  200: "Extra Light",
-  300: "Light",
-  400: "Regular",
-  500: "Medium",
-  600: "Semi Bold",
-  700: "Bold",
-  800: "Extra Bold",
-  900: "Black",
-};
-
 function inferFontMetadata(fileName: string) {
   const cleanName = fileName.replace(/\.(otf|ttf|woff2?|ttc)$/i, "");
   const normalized = cleanName.replace(/[_.]+/g, "-");
@@ -1750,7 +1740,6 @@ function inferFontMetadata(fileName: string) {
   return {
     fontName: family || cleanName,
     weight,
-    weightLabel: `${weight} ${fontWeightLabels[weight] ?? "Weight"}`,
   };
 }
 
@@ -1774,6 +1763,14 @@ function FontDialog({
   portalId: string;
   trigger: ReactElement;
 }) {
+  const t = useTranslations("PortalEditor.fonts");
+  const viewerT = useTranslations("PortalViewer.fonts");
+  const uploadT = useTranslations("PortalEditor.upload");
+  const weightLabel = (weight: number) => String(weight);
+  const weightName = (weight: number) => {
+    const key = fontWeightMessageKey(weight);
+    return key ? t(key) : t("weightFallback");
+  };
   const [draft, setDraft] = useState<PortalFontItem>(() =>
     font
       ? { ...font }
@@ -1781,12 +1778,11 @@ function FontDialog({
           font_name: "",
           id: `font_${crypto.randomUUID()}`,
           position: 0,
-          sample_description:
-            "A clear, readable paragraph preview for everyday product screens, brand decks, and messaging moments.",
-          sample_text: "Your assistant, right in your messages app",
+          sample_description: viewerT("sampleDescription"),
+          sample_text: viewerT("sampleTitle"),
           visible: true,
           weight: 400,
-          weights: "400 Regular",
+          weights: "400",
         },
   );
   const [uploadedFonts, setUploadedFonts] = useState<PortalFontItem[]>([]);
@@ -1810,7 +1806,11 @@ function FontDialog({
         const uploaded = await Promise.all(
           files.map(async (file, index) => {
             const metadata = inferFontMetadata(file.name);
-            const asset = await uploadPortalAsset({ file, portalId });
+            const asset = await uploadPortalAsset({
+              authError: uploadT("authRequired"),
+              file,
+              portalId,
+            });
             return {
               file_name: file.name,
               file_url: asset.signedUrl,
@@ -1818,12 +1818,11 @@ function FontDialog({
               font_name: metadata.fontName,
               id: `font_${crypto.randomUUID()}`,
               position: uploadedFonts.length + index,
-              sample_description:
-                "A clear, readable paragraph preview for everyday product screens, brand decks, and messaging moments.",
-              sample_text: "Your assistant, right in your messages app",
+              sample_description: viewerT("sampleDescription"),
+              sample_text: viewerT("sampleTitle"),
               visible: true,
               weight: metadata.weight,
-              weights: metadata.weightLabel,
+              weights: weightLabel(metadata.weight),
             } satisfies PortalFontItem;
           }),
         );
@@ -1832,9 +1831,7 @@ function FontDialog({
         setUploadError(null);
       } catch (error) {
         setUploadError(
-          error instanceof Error
-            ? error.message
-            : "No se pudieron subir las fuentes.",
+          error instanceof Error ? error.message : t("uploadError"),
         );
       }
     });
@@ -1846,7 +1843,11 @@ function FontDialog({
 
     startUpload(async () => {
       try {
-        const asset = await uploadPortalAsset({ file, portalId });
+        const asset = await uploadPortalAsset({
+          authError: uploadT("authRequired"),
+          file,
+          portalId,
+        });
         setDraft((current) => ({
           ...current,
           file_name: file.name,
@@ -1854,14 +1855,12 @@ function FontDialog({
           font_name: current.font_name || metadata.fontName,
           storage_path: asset.path,
           weight: metadata.weight,
-          weights: metadata.weightLabel,
+          weights: weightLabel(metadata.weight),
         }));
         setUploadError(null);
       } catch (error) {
         setUploadError(
-          error instanceof Error
-            ? error.message
-            : "No se pudo subir la fuente.",
+          error instanceof Error ? error.message : t("uploadError"),
         );
       }
     });
@@ -1874,17 +1873,15 @@ function FontDialog({
         {dialogFontFaces ? <style>{dialogFontFaces}</style> : null}
         <DialogHeader>
           <DialogTitle>
-            {font ? "Tipografía" : "Subir familia tipográfica"}
+            {font ? t("dialogTitle") : t("uploadFamily")}
           </DialogTitle>
           <DialogDescription>
-            {font
-              ? "Ajusta este peso de la familia tipográfica."
-              : "Selecciona todos los pesos de una o varias familias. La app detecta familia y peso desde cada archivo."}
+            {font ? t("editDescription") : t("uploadDescription")}
           </DialogDescription>
         </DialogHeader>
         <FieldGroup>
           <Field>
-            <FieldLabel>Archivo de fuente</FieldLabel>
+            <FieldLabel>{t("file")}</FieldLabel>
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 onClick={() => inputRef.current?.click()}
@@ -1893,19 +1890,19 @@ function FontDialog({
               >
                 <IconPlus data-icon="inline-start" />
                 {isUploading
-                  ? "Subiendo..."
+                  ? t("uploading")
                   : font
-                    ? "Reemplazar fuente"
-                    : "Subir fuentes"}
+                    ? t("replace")
+                    : t("upload")}
               </Button>
               {font && (draft.file_name || draft.file_url) ? (
                 <span className="text-muted-foreground text-sm">
-                  {draft.file_name || "Fuente subida"}
+                  {draft.file_name || t("uploaded")}
                 </span>
               ) : null}
               {!font && uploadedFonts.length ? (
                 <span className="text-muted-foreground text-sm">
-                  {uploadedFonts.length} archivos listos
+                  {t("filesReady", { count: uploadedFonts.length })}
                 </span>
               ) : null}
             </div>
@@ -1929,7 +1926,7 @@ function FontDialog({
             <>
               <div className="flex flex-col gap-3 sm:grid sm:grid-cols-2">
                 <Field>
-                  <FieldLabel>Familia detectada</FieldLabel>
+                  <FieldLabel>{t("familyDetected")}</FieldLabel>
                   <Input
                     value={draft.font_name}
                     onChange={(e) =>
@@ -1939,7 +1936,7 @@ function FontDialog({
                   />
                 </Field>
                 <Field>
-                  <FieldLabel>Peso</FieldLabel>
+                  <FieldLabel>{t("weight")}</FieldLabel>
                   <Input
                     inputMode="numeric"
                     min={100}
@@ -1952,24 +1949,24 @@ function FontDialog({
                       setDraft({
                         ...draft,
                         weight,
-                        weights: `${weight} ${fontWeightLabels[weight] ?? "Weight"}`,
+                        weights: weightLabel(weight),
                       });
                     }}
                   />
                 </Field>
               </div>
               <Field>
-                <FieldLabel>Título de preview</FieldLabel>
+                <FieldLabel>{t("previewTitle")}</FieldLabel>
                 <Input
                   value={draft.sample_text ?? ""}
                   onChange={(e) =>
                     setDraft({ ...draft, sample_text: e.currentTarget.value })
                   }
-                  placeholder="Your assistant, right in your messages app"
+                  placeholder={viewerT("sampleTitle")}
                 />
               </Field>
               <Field>
-                <FieldLabel>Descripción de preview</FieldLabel>
+                <FieldLabel>{t("previewDescription")}</FieldLabel>
                 <Textarea
                   value={draft.sample_description ?? ""}
                   onChange={(e) =>
@@ -1978,7 +1975,7 @@ function FontDialog({
                       sample_description: e.currentTarget.value,
                     })
                   }
-                  placeholder="A clear, readable paragraph preview for everyday product screens."
+                  placeholder={viewerT("sampleDescription")}
                 />
               </Field>
             </>
@@ -2002,12 +1999,15 @@ function FontDialog({
                     <AttachmentContent>
                       <AttachmentTitle>{item.font_name}</AttachmentTitle>
                       <AttachmentDescription>
-                        {fontWeightLabel(item)} · {item.file_name}
+                        {fontWeightLabel(item, weightName(item.weight ?? 400))}{" "}
+                        · {item.file_name}
                       </AttachmentDescription>
                     </AttachmentContent>
                     <AttachmentActions>
                       <AttachmentAction
-                        aria-label={`Quitar ${item.file_name}`}
+                        aria-label={t("remove", {
+                          name: item.file_name || t("uploaded"),
+                        })}
                         onClick={() =>
                           setUploadedFonts((current) =>
                             current.filter(
@@ -2034,7 +2034,7 @@ function FontDialog({
                 }
                 type="checkbox"
               />
-              Visible
+              {t("visible")}
             </label>
           ) : null}
         </FieldGroup>
@@ -2044,7 +2044,7 @@ function FontDialog({
             onClick={() => onSave(font ? draft : uploadedFonts)}
             type="button"
           >
-            Guardar
+            {t("save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -2063,6 +2063,11 @@ function FontFamilyDialog({
   onSave: (fonts: PortalFontItem[]) => void;
   trigger: ReactElement;
 }) {
+  const t = useTranslations("PortalEditor.fonts");
+  const weightName = (weight: number) => {
+    const key = fontWeightMessageKey(weight);
+    return key ? t(key) : t("weightFallback");
+  };
   const [familyName, setFamilyName] = useState(family);
   const [draftFonts, setDraftFonts] = useState(fonts);
 
@@ -2076,22 +2081,19 @@ function FontFamilyDialog({
       <DialogTrigger render={trigger} />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Editar familia tipográfica</DialogTitle>
-          <DialogDescription>
-            Cambia el nombre del grupo y elimina pesos que no pertenezcan a esta
-            familia.
-          </DialogDescription>
+          <DialogTitle>{t("editFamily")}</DialogTitle>
+          <DialogDescription>{t("editFamilyDescription")}</DialogDescription>
         </DialogHeader>
         <FieldGroup>
           <Field>
-            <FieldLabel>Nombre de la familia</FieldLabel>
+            <FieldLabel>{t("familyName")}</FieldLabel>
             <Input
               value={familyName}
               onChange={(event) => setFamilyName(event.currentTarget.value)}
             />
           </Field>
           <Field>
-            <FieldLabel>Pesos de la familia</FieldLabel>
+            <FieldLabel>{t("familyWeights")}</FieldLabel>
             {draftFonts.length ? (
               <div className="scroll-fade-y max-h-72 overflow-y-auto">
                 <div className="flex flex-col gap-2">
@@ -2111,15 +2113,25 @@ function FontFamilyDialog({
                       </AttachmentMedia>
                       <AttachmentContent>
                         <AttachmentTitle>
-                          {fontWeightLabel(font)}
+                          {fontWeightLabel(
+                            font,
+                            weightName(font.weight ?? 400),
+                          )}
                         </AttachmentTitle>
                         <AttachmentDescription>
-                          {font.file_name || "Fuente subida"}
+                          {font.file_name || t("uploaded")}
                         </AttachmentDescription>
                       </AttachmentContent>
                       <AttachmentActions>
                         <AttachmentAction
-                          aria-label={`Eliminar ${font.file_name || fontWeightLabel(font)}`}
+                          aria-label={t("delete", {
+                            name:
+                              font.file_name ||
+                              fontWeightLabel(
+                                font,
+                                weightName(font.weight ?? 400),
+                              ),
+                          })}
                           onClick={() =>
                             setDraftFonts((current) =>
                               current.filter((item) => item.id !== font.id),
@@ -2136,7 +2148,7 @@ function FontFamilyDialog({
               </div>
             ) : (
               <p className="rounded-xl border border-dashed p-4 text-muted-foreground text-sm">
-                No quedan pesos en esta familia.
+                {t("noWeights")}
               </p>
             )}
           </Field>
@@ -2153,7 +2165,7 @@ function FontFamilyDialog({
             }
             type="button"
           >
-            Guardar
+            {t("save")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -2161,18 +2173,21 @@ function FontFamilyDialog({
   );
 }
 
-function fontWeightLabel(font: PortalFontItem) {
-  return font.weights || `${font.weight ?? 400} Weight`;
+function fontWeightLabel(font: PortalFontItem, fallback: string) {
+  const persistedWeight = Number.parseInt(font.weights ?? "", 10);
+  const weight =
+    font.weight ?? (Number.isNaN(persistedWeight) ? 400 : persistedWeight);
+  return `${weight} ${fallback}`;
 }
 
-function fontWeightSpec(font: PortalFontItem) {
-  return fontWeightLabel(font);
+function fontWeightSpec(font: PortalFontItem, fallback: string) {
+  return fontWeightLabel(font, fallback);
 }
 
-function groupedFonts(fonts: PortalFontItem[]) {
+function groupedFonts(fonts: PortalFontItem[], undetectedFamily: string) {
   const groups = new Map<string, PortalFontItem[]>();
   for (const font of fonts.filter((item) => item.visible)) {
-    const key = font.font_name || "Familia sin detectar";
+    const key = font.font_name || undetectedFamily;
     groups.set(key, [...(groups.get(key) ?? []), font]);
   }
 
@@ -2187,14 +2202,15 @@ function groupedFonts(fonts: PortalFontItem[]) {
 function exceedsFontFamilyLimit(
   currentFonts: PortalFontItem[],
   nextFonts: PortalFontItem[],
+  undetectedFamily: string,
 ) {
   const familyNames = new Set(
     currentFonts
       .filter((font) => font.visible)
-      .map((font) => font.font_name || "Familia sin detectar"),
+      .map((font) => font.font_name || undetectedFamily),
   );
   for (const font of nextFonts) {
-    familyNames.add(font.font_name || "Familia sin detectar");
+    familyNames.add(font.font_name || undetectedFamily);
   }
   return familyNames.size > maxFontFamilies;
 }
@@ -2232,7 +2248,12 @@ function TypeScalePreview({
   onSettingsChange: (settings: PortalTypeScaleSettings) => void;
   settings: PortalTypeScaleSettings;
 }) {
-  const groups = groupedFonts(fonts);
+  const t = useTranslations("PortalEditor.fonts");
+  const weightName = (weight: number) => {
+    const key = fontWeightMessageKey(weight);
+    return key ? t(key) : t("weightFallback");
+  };
+  const groups = groupedFonts(fonts, t("undetectedFamily"));
   const [draftSettings, setDraftSettings] = useState(settings);
 
   useEffect(() => {
@@ -2247,13 +2268,13 @@ function TypeScalePreview({
     <section className="flex flex-col gap-5">
       <div className="flex flex-col gap-1">
         <h3 className="font-heading font-medium text-lg tracking-tight">
-          Type scale
+          {t("typeScale")}
         </h3>
       </div>
       <div className="flex flex-col gap-5">
         <Field>
           <div className="flex items-center justify-between gap-4">
-            <FieldLabel>Base</FieldLabel>
+            <FieldLabel>{t("base")}</FieldLabel>
             <span className="font-medium text-sm">
               {draftSettings.base_size}px
             </span>
@@ -2279,7 +2300,7 @@ function TypeScalePreview({
         </Field>
         <Field>
           <div className="flex items-center justify-between gap-4">
-            <FieldLabel>Ratio</FieldLabel>
+            <FieldLabel>{t("ratio")}</FieldLabel>
             <span className="font-medium text-sm">
               {draftSettings.ratio.toFixed(2)}
             </span>
@@ -2327,7 +2348,7 @@ function TypeScalePreview({
                     <div className=" gap-3 py-4 flex flex-col" key={font.id}>
                       <div className="flex justify-between gap-3 items-center">
                         <span className="text-muted-foreground text-[10px] uppercase">
-                          {fontWeightSpec(font)}
+                          {fontWeightSpec(font, weightName(font.weight ?? 400))}
                         </span>
                       </div>
                       <p
@@ -2349,7 +2370,7 @@ function TypeScalePreview({
         </div>
       ) : (
         <p className="rounded-xl border border-dashed p-4 text-muted-foreground text-sm">
-          Sube fuentes en Type system para generar esta escala por pesos.
+          {t("typeScaleEmpty")}
         </p>
       )}
     </section>
@@ -2365,6 +2386,8 @@ function FontsEditor({
   section: PortalSection;
   updateSection: (section: PortalSection) => void;
 }) {
+  const t = useTranslations("PortalEditor.fonts");
+  const viewerT = useTranslations("PortalViewer.fonts");
   const fonts = uniqueForRender(section.content.fonts ?? [], "font");
   const typeScaleSettings = section.content.type_scale_settings ?? {
     base_size: 20,
@@ -2390,7 +2413,7 @@ function FontsEditor({
       },
     });
   }
-  const fontGroups = groupedFonts(fonts);
+  const fontGroups = groupedFonts(fonts, t("undetectedFamily"));
   const canAddFontFamily = fontGroups.length < maxFontFamilies;
   const fontFaces = fonts.map(fontFaceFor).filter(Boolean).join("\n");
 
@@ -2427,7 +2450,7 @@ function FontsEditor({
                       trigger={
                         <PortalActionTriggerButton
                           icon="edit"
-                          label="Editar familia tipográfica"
+                          label={t("editFamily")}
                           variant="secondary"
                         />
                       }
@@ -2451,15 +2474,13 @@ function FontsEditor({
                     className="text-3xl font-semibold tracking-tight"
                     style={family ? { fontFamily: `"${family}"` } : undefined}
                   >
-                    {font.sample_text ||
-                      "Your assistant, right in your messages app"}
+                    {font.sample_text || viewerT("sampleTitle")}
                   </p>
                   <p
                     className="mt-3 max-w-2xl text-muted-foreground text-sm leading-6"
                     style={family ? { fontFamily: `"${family}"` } : undefined}
                   >
-                    {font.sample_description ||
-                      "A clear, readable paragraph preview for everyday product screens, brand decks, and messaging moments."}
+                    {font.sample_description || viewerT("sampleDescription")}
                   </p>
                 </div>
               </div>
@@ -2470,7 +2491,14 @@ function FontsEditor({
               portalId={portalId}
               onSave={(font) => {
                 const nextFonts = Array.isArray(font) ? font : [font];
-                if (exceedsFontFamilyLimit(fonts, nextFonts)) return;
+                if (
+                  exceedsFontFamilyLimit(
+                    fonts,
+                    nextFonts,
+                    t("undetectedFamily"),
+                  )
+                )
+                  return;
                 saveFonts([
                   ...fonts,
                   ...nextFonts.map((item, index) => ({
@@ -2559,6 +2587,8 @@ function FilesEditor({
   section: PortalSection;
   updateSection: (section: PortalSection) => void;
 }) {
+  const t = useTranslations("PortalEditor.files");
+  const uploadT = useTranslations("PortalEditor.upload");
   const files = uniqueForRender(section.content.files ?? [], "file");
   const columns = [3, 4].includes(section.layout.columns ?? 3)
     ? (section.layout.columns ?? 3)
@@ -2577,13 +2607,17 @@ function FilesEditor({
     if (!file) return;
     const fileType = portalFileTypeFromName(file.name);
     if (!fileType) {
-      setError("Formato no permitido. Usa PDF, AI, EPS, PSD, SVG o imágenes.");
+      setError(t("invalidFormat"));
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
     startTransition(async () => {
       try {
-        const asset = await uploadPortalAsset({ file, portalId });
+        const asset = await uploadPortalAsset({
+          authError: uploadT("authRequired"),
+          file,
+          portalId,
+        });
         saveFiles([
           ...files,
           {
@@ -2601,9 +2635,7 @@ function FilesEditor({
         setError(null);
       } catch (uploadError) {
         setError(
-          uploadError instanceof Error
-            ? uploadError.message
-            : "No se pudo subir el archivo.",
+          uploadError instanceof Error ? uploadError.message : t("uploadError"),
         );
       } finally {
         if (inputRef.current) inputRef.current.value = "";
@@ -2645,12 +2677,14 @@ function FilesEditor({
           </p>
         ) : null}
         <button
+          aria-label={t("upload")}
           className="flex aspect-square items-center justify-center gap-2 rounded-xl border border-dashed text-muted-foreground hover:bg-muted"
           disabled={isPending}
           onClick={() => inputRef.current?.click()}
           type="button"
         >
           <IconPlus />
+          <span className="sr-only">{t("upload")}</span>
         </button>
         <input
           className="sr-only"
@@ -2673,6 +2707,7 @@ export function SectionContentEditor({
   section: PortalSection;
   updateSection: (section: PortalSection) => void;
 }) {
+  const t = useTranslations("PortalEditor.sections");
   if (section.type === "empty")
     return (
       <SectionTypeDialog
@@ -2687,7 +2722,7 @@ export function SectionContentEditor({
         trigger={
           <Button className="h-28 w-full" type="button" variant="outline">
             <IconPlus data-icon="inline-start" />
-            <span className="sr-only">Agregar sección</span>
+            <span className="sr-only">{t("add")}</span>
           </Button>
         }
       />
@@ -2843,11 +2878,12 @@ function SidebarItem({
   isActive: boolean;
   section: PortalSection;
 }) {
+  const t = useTranslations("PortalEditor.sections");
   return (
     <SidebarLink
       href={`#${section.id}`}
       isActive={isActive}
-      label={section.title || section.type}
+      label={section.title || t(`types.${section.type}.label`)}
     />
   );
 }
@@ -2904,6 +2940,7 @@ function SidebarFooterActions({
 }: {
   assetsSectionId?: string;
 }) {
+  const t = useTranslations("PortalEditor.sidebar");
   const { resolvedTheme, setTheme } = useTheme();
   const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
 
@@ -2911,14 +2948,14 @@ function SidebarFooterActions({
     <div className="mt-auto flex flex-col gap-1">
       <SidebarLink
         icon={<IconMoon className="size-4" />}
-        label="Dark mode"
+        label={t("theme")}
         onClick={() => setTheme(nextTheme)}
       />
       {assetsSectionId ? (
         <SidebarLink
           href={`#${assetsSectionId}`}
           icon={<IconPackageExport className="size-4" />}
-          label="Export assets"
+          label={t("exportAssets")}
         />
       ) : null}
     </div>
@@ -2934,6 +2971,7 @@ export function SectionActionToolbar({
   section: PortalSection;
   updateSection: (section: PortalSection) => void;
 }) {
+  const t = useTranslations("PortalEditor.sections");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [colorsSettingsOpen, setColorsSettingsOpen] = useState(false);
 
@@ -2948,7 +2986,7 @@ export function SectionActionToolbar({
           trigger={
             <PortalActionTriggerButton
               icon="settings"
-              label="Configurar sección"
+              label={t("configure")}
               variant="ghost"
             />
           }
@@ -2963,7 +3001,7 @@ export function SectionActionToolbar({
           trigger={
             <PortalActionTriggerButton
               icon="settings"
-              label="Configurar sección"
+              label={t("configure")}
               variant="ghost"
             />
           }
@@ -2978,7 +3016,7 @@ export function SectionActionToolbar({
           trigger={
             <PortalActionTriggerButton
               icon="settings"
-              label="Configurar sección"
+              label={t("configure")}
               variant="ghost"
             />
           }
@@ -2996,7 +3034,7 @@ export function SectionActionToolbar({
         trigger={
           <PortalActionTriggerButton
             icon="refresh"
-            label="Cambiar tipo de sección"
+            label={t("changeType")}
             variant="ghost"
           />
         }
@@ -3021,6 +3059,8 @@ function SectionOrderItem({
   index: number;
   section: PortalSection;
 }) {
+  const t = useTranslations("PortalEditor.sections");
+  const sectionName = section.title || t(`types.${section.type}.label`);
   const { handleRef, isDragging, ref } = useSortable({
     id: section.id,
     index,
@@ -3036,14 +3076,14 @@ function SectionOrderItem({
       ref={ref}
     >
       <button
-        aria-label={`Mover ${section.title || section.type}`}
+        aria-label={t("move", { name: sectionName })}
         className="flex shrink-0 cursor-grab gap-2 items-center justify-center active:cursor-grabbing"
         ref={handleRef}
         type="button"
       >
         <IconGripVertical className="size-3 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate first-letter:uppercase">
-          {section.title || section.type}
+          {sectionName}
         </span>
       </button>
     </div>
@@ -3059,6 +3099,7 @@ export function SectionOrderPopover({
   locale: string;
   portalId: string;
 }) {
+  const t = useTranslations("PortalEditor.sections");
   const draft = usePortalDocumentDraft(portalId, document);
   const setDraft = usePortalEditorStore((state) => state.setDocument);
   const setHasUnpublishedChanges = usePortalEditorStore(
@@ -3110,7 +3151,7 @@ export function SectionOrderPopover({
           <PopoverTrigger
             render={
               <Button
-                aria-label="Configurar posición de las secciones"
+                aria-label={t("order")}
                 className="rounded-full"
                 size="icon-lg"
                 type="button"
@@ -3119,32 +3160,28 @@ export function SectionOrderPopover({
             }
           >
             <IconStack2 />
-            <span className="sr-only">
-              Configurar posición de las secciones
-            </span>
+            <span className="sr-only">{t("order")}</span>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>Ordenar secciones</TooltipContent>
+        <TooltipContent>{t("order")}</TooltipContent>
       </Tooltip>
       <PopoverContent align="center" className="w-72" side="top">
         <PopoverHeader>
-          <PopoverTitle>Posición de secciones</PopoverTitle>
-          <PopoverDescription>
-            Arrastra para acomodar el orden del portal.
-          </PopoverDescription>
+          <PopoverTitle>{t("orderTitle")}</PopoverTitle>
+          <PopoverDescription>{t("orderDescription")}</PopoverDescription>
         </PopoverHeader>
         <SectionTypeDialog
           onSelect={addSection}
           onSelectComplete={() => setOpen(false)}
           trigger={
             <Button
-              aria-label="Agregar sección"
+              aria-label={t("add")}
               size="sm"
               type="button"
               variant="outline"
             >
               <IconPlus data-icon="inline-start" />
-              Agregar sección
+              {t("add")}
             </Button>
           }
         />
@@ -3224,6 +3261,7 @@ function SettingsFormShell({
   portal: Portal;
   title: string;
 }) {
+  const t = useTranslations("PortalEditor.common");
   const setHasUnpublishedChanges = usePortalEditorStore(
     (state) => state.setHasUnpublishedChanges,
   );
@@ -3247,7 +3285,7 @@ function SettingsFormShell({
         <DialogFooter className="pt-6">
           <Button type="submit">
             <IconDeviceFloppy data-icon="inline-start" />
-            Guardar configuración
+            {t("saveSettings")}
           </Button>
         </DialogFooter>
       </form>
@@ -3293,7 +3331,14 @@ function SettingsModal({
   );
 }
 
-function SlugAvailabilityField({ portal }: { portal: Portal }) {
+function SlugAvailabilityField({
+  locale,
+  portal,
+}: {
+  locale: string;
+  portal: Portal;
+}) {
+  const t = useTranslations("PortalEditor.settings");
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(portal.slug);
   const [edited, setEdited] = useState(false);
@@ -3306,31 +3351,33 @@ function SlugAvailabilityField({ portal }: { portal: Portal }) {
     if (!edited) return;
     let current = true;
     setStatus("checking");
-    setMessage("Comprobando disponibilidad…");
+    setMessage(t("checkingSlug"));
     const timer = window.setTimeout(async () => {
-      const result = await checkPortalSlugAvailability(value, portal.id);
+      const result = await checkPortalSlugAvailability(
+        value,
+        portal.id,
+        locale,
+      );
       if (!current) return;
       setStatus(result.available ? "available" : "unavailable");
-      setMessage(
-        result.available ? "Este slug está disponible." : result.error,
-      );
+      setMessage(result.available ? t("slugAvailable") : result.error);
     }, 350);
     return () => {
       current = false;
       window.clearTimeout(timer);
     };
-  }, [edited, portal.id, value]);
+  }, [edited, locale, portal.id, value, t]);
 
   useEffect(() => {
     inputRef.current?.setCustomValidity(
-      status === "unavailable" ? (message ?? "Slug no disponible") : "",
+      status === "unavailable" ? (message ?? t("slugUnavailable")) : "",
     );
-  }, [message, status]);
+  }, [message, status, t]);
 
   const invalid = edited && status === "unavailable";
   return (
     <Field data-invalid={invalid || undefined}>
-      <FieldLabel htmlFor="portal-slug">Slug</FieldLabel>
+      <FieldLabel htmlFor="portal-slug">{t("slug")}</FieldLabel>
       <Input
         aria-invalid={invalid || undefined}
         autoComplete="off"
@@ -3342,7 +3389,7 @@ function SlugAvailabilityField({ portal }: { portal: Portal }) {
           setValue(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""));
         }}
         pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-        placeholder="mi-portal"
+        placeholder={t("slugPlaceholder")}
         ref={inputRef}
         required
         value={value}
@@ -3362,34 +3409,35 @@ export function SettingsDialog({
   locale: string;
   portal: Portal;
 }) {
+  const t = useTranslations("PortalEditor.settings");
   return (
     <SettingsModal
-      description="Ajusta el slug y la información visible del diseñador. Guardar estos datos no publica el portal."
+      description={t("generalDescription")}
       icon={<IconSettings data-icon="inline-start" />}
-      label="Configuración general"
+      label={t("generalTitle")}
       locale={locale}
       portal={portal}
-      title="Configuración general"
+      title={t("generalTitle")}
     >
       <FieldGroup>
-        <SlugAvailabilityField portal={portal} />
+        <SlugAvailabilityField locale={locale} portal={portal} />
         <Field>
-          <FieldLabel>Nombre del diseñador</FieldLabel>
+          <FieldLabel>{t("designerName")}</FieldLabel>
           <Input
             name="designer_name"
             defaultValue={portal.designer_name ?? ""}
-            placeholder="Nombre visible del diseñador"
+            placeholder={t("designerPlaceholder")}
             maxLength={80}
             pattern="(?:\\S+\\s+){0,7}\\S*"
-            title="Máximo 8 palabras y 80 caracteres"
+            title={t("designerLimit")}
           />
         </Field>
         <Field>
-          <FieldLabel>Sitio web</FieldLabel>
+          <FieldLabel>{t("website")}</FieldLabel>
           <Input
             name="designer_website_url"
             defaultValue={portal.designer_website_url ?? ""}
-            placeholder="https://tu-sitio.com"
+            placeholder={t("websitePlaceholder")}
             inputMode="url"
           />
         </Field>
@@ -3405,22 +3453,23 @@ export function PrivacySettingsDialog({
   locale: string;
   portal: Portal;
 }) {
+  const t = useTranslations("PortalEditor.settings");
   const [visibility, setVisibility] = useState<PortalVisibility>(
     portal.visibility,
   );
   return (
     <SettingsModal
       action={savePrivacySettings}
-      description="Define quién puede acceder. Guardar privacidad no publica ni despublica el portal."
+      description={t("privacyDescription")}
       icon={<IconLock data-icon="inline-start" />}
-      label="Privacidad y contraseña"
+      label={t("privacyTitle")}
       locale={locale}
       portal={portal}
-      title="Privacidad y contraseña"
+      title={t("privacyTitle")}
     >
       <FieldGroup>
         <Field>
-          <FieldLabel>Privacidad</FieldLabel>
+          <FieldLabel>{t("privacy")}</FieldLabel>
           <Select
             name="visibility"
             onValueChange={(value) =>
@@ -3429,30 +3478,28 @@ export function PrivacySettingsDialog({
             value={visibility}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Selecciona la privacidad" />
+              <SelectValue placeholder={t("privacyPlaceholder")} />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectItem value="public">Público</SelectItem>
-                <SelectItem value="private">Privado</SelectItem>
-                <SelectItem value="password">Con contraseña</SelectItem>
+                <SelectItem value="public">{t("public")}</SelectItem>
+                <SelectItem value="private">{t("private")}</SelectItem>
+                <SelectItem value="password">{t("password")}</SelectItem>
               </SelectGroup>
             </SelectContent>
           </Select>
           <FieldDescription>
-            {visibility === "public" &&
-              "Cualquiera que encuentre el enlace podrá verlo."}
-            {visibility === "private" && "Solo tú podrás verlo con tu cuenta."}
-            {visibility === "password" &&
-              "Cualquiera con el enlace y la contraseña podrá verlo."}
+            {visibility === "public" && t("publicHelp")}
+            {visibility === "private" && t("privateHelp")}
+            {visibility === "password" && t("passwordHelp")}
           </FieldDescription>
         </Field>
         {visibility === "password" ? (
           <Field>
             <FieldLabel htmlFor="portal-new-password">
               {portal.visibility === "password"
-                ? "Cambiar contraseña"
-                : "Contraseña"}
+                ? t("changePassword")
+                : t("passwordLabel")}
             </FieldLabel>
             <Input
               autoComplete="new-password"
@@ -3460,14 +3507,14 @@ export function PrivacySettingsDialog({
               maxLength={128}
               minLength={8}
               name="password"
-              placeholder="Mínimo 8 caracteres"
+              placeholder={t("passwordPlaceholder")}
               required={portal.visibility !== "password"}
               type="password"
             />
             <FieldDescription>
               {portal.visibility === "password"
-                ? "Déjalo vacío para conservar la contraseña actual."
-                : "Usa entre 8 y 128 caracteres."}
+                ? t("keepPassword")
+                : t("passwordRules")}
             </FieldDescription>
           </Field>
         ) : null}
@@ -3483,6 +3530,7 @@ export function UnpublishedChangesIndicator({
   initialHasUnpublishedChanges: boolean;
   portalId: string;
 }) {
+  const t = useTranslations("PortalEditor.workspace");
   const storeValue = usePortalEditorStore(
     (state) => state.hasUnpublishedChangesByPortalId[portalId],
   );
@@ -3513,7 +3561,7 @@ export function UnpublishedChangesIndicator({
             <PopoverTrigger
               render={
                 <Button
-                  aria-label="Ver cambios no publicados"
+                  aria-label={t("unpublishedAction")}
                   className="rounded-full"
                   size="icon-lg"
                   type="button"
@@ -3522,15 +3570,13 @@ export function UnpublishedChangesIndicator({
               }
             >
               <IconInfoCircle className="text-blue-500" />
-              <span className="sr-only">Ver cambios no publicados</span>
+              <span className="sr-only">{t("unpublishedAction")}</span>
             </PopoverTrigger>
             <PopoverContent align="center" className="w-72" side="top">
               <PopoverHeader>
-                <PopoverTitle>Cambios no publicados</PopoverTitle>
+                <PopoverTitle>{t("unpublishedTitle")}</PopoverTitle>
                 <PopoverDescription>
-                  Este portal tiene cambios guardados que aún no son públicos.
-                  Publica el portal para que los clientes vean la versión más
-                  reciente.
+                  {t("unpublishedDescription")}
                 </PopoverDescription>
               </PopoverHeader>
             </PopoverContent>

@@ -77,5 +77,332 @@
       "description": "Configura el backend para crear y administrar portales para clientes."
     },
     "errorGeneric": "No se pudo completar la acción."
+  },
+  "Common": {
+    "close": "Cerrar"
+  },
+  "Actions": {
+    "oauthFailed": "No se pudo iniciar sesión con OAuth.",
+    "nameRequired": "El nombre del portal es obligatorio.",
+    "slugInvalid": "El slug no es válido.",
+    "passwordAfterCreation": "Configura la contraseña después de crear el portal.",
+    "createPortalFailed": "No se pudo crear el portal.",
+    "portalNotFound": "Portal no encontrado.",
+    "designerNameInvalid": "El nombre del diseñador supera 8 palabras o 80 caracteres.",
+    "websiteHttps": "El sitio web debe usar HTTPS.",
+    "slugCheckFailed": "No se pudo validar el slug.",
+    "slugTaken": "Este slug ya está usado por otro usuario.",
+    "privacyInvalid": "La configuración de privacidad no es válida.",
+    "passwordLength": "La contraseña debe contener entre 8 y 128 caracteres.",
+    "createSectionFailed": "No se pudo crear la sección."
+  },
+  "Auth": {
+    "common": {
+      "email": "Email",
+      "password": "Contraseña",
+      "backendDisabled": "Configura NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY para activar la autenticación."
+    },
+    "signIn": {
+      "title": "Iniciar sesión",
+      "description": "Entra a tu espacio de Portals Design.",
+      "checkEmail": "Revisa tu correo para confirmar la cuenta.",
+      "passwordHelp": "La recuperación de contraseña se añadirá en la siguiente iteración.",
+      "submit": "Entrar",
+      "continueWith": "Continuar con {provider}",
+      "createAccount": "Crear cuenta"
+    },
+    "signUp": {
+      "title": "Crear cuenta",
+      "description": "Empieza a organizar tus portales de branding.",
+      "name": "Nombre",
+      "submit": "Crear cuenta",
+      "haveAccount": "Ya tengo cuenta"
+    }
+  },
+  "PublicPortal": {
+    "password": {
+      "description": "Este portal de Portals Design está protegido con contraseña.",
+      "label": "Contraseña",
+      "placeholder": "Ingresa la contraseña",
+      "invalid": "La contraseña no es válida.",
+      "submit": "Ver portal"
+    },
+    "notFound": {
+      "title": "Proyecto no encontrado",
+      "description": "Este portal es privado o no está publicado."
+    },
+    "metadata": {
+      "description": "Portal creado y compartido con Portals Design.",
+      "title": "Portal no encontrado · Portals Design",
+      "discover": "Descubre {name}"
+    }
+  },
+  "PortalViewer": {
+    "sidebar": {
+      "theme": "Cambiar tema de color",
+      "exportAssets": "Exportar recursos"
+    },
+    "file": {
+      "image": "Imagen",
+      "file": "Archivo",
+      "imageAbbreviation": "IMG",
+      "fileAbbreviation": "ARCH"
+    },
+    "summary": {
+      "name": "Nombre del portal",
+      "description": "Descripción del portal"
+    },
+    "section": {
+      "titlePlaceholder": "Título",
+      "descriptionPlaceholder": "Descripción breve opcional",
+      "descriptionLabel": "Descripción de {title}"
+    },
+    "sectionTypes": {
+      "empty": "Sección",
+      "text": "Texto",
+      "image": "Imagen",
+      "gallery": "Galería",
+      "colors": "Colores",
+      "fonts": "Tipografías",
+      "files": "Archivos",
+      "image_comparison": "Comparación de imágenes"
+    },
+    "actions": {
+      "copied": "Copiado",
+      "copyColor": "Copiar {color}",
+      "downloadFile": "Descargar {name}",
+      "downloadFont": "Descargar familia {name}",
+      "downloadImage": "Descargar {name}",
+      "downloadSection": "Descargar {name}",
+      "exportAll": "Exportar todos los recursos",
+      "imageFallback": "imagen"
+    },
+    "fonts": {
+      "sampleTitle": "Tu asistente, directamente en tu aplicación de mensajes",
+      "sampleDescription": "Un párrafo claro y legible para pantallas de producto, presentaciones de marca y momentos de comunicación.",
+      "typeScale": "Escala tipográfica",
+      "undetectedFamily": "Familia sin detectar",
+      "weightFallback": "Peso",
+      "weights": {
+        "100": "Fina",
+        "200": "Extraligera",
+        "300": "Ligera",
+        "400": "Regular",
+        "500": "Media",
+        "600": "Seminegrita",
+        "700": "Negrita",
+        "800": "Extranegrita",
+        "900": "Negra"
+      }
+    },
+    "fallback": {
+      "color": "Color"
+    }
+  },
+  "PortalBlocks": {
+    "text": "Texto",
+    "image": "Imagen",
+    "gallery": "Galería",
+    "color": "Color",
+    "typography": "Tipografía",
+    "video": "Video",
+    "layout": "{type} · {layout}",
+    "emptyContent": "Sin contenido todavía.",
+    "portalImage": "Imagen del portal",
+    "emptyImage": "Sin imagen todavía.",
+    "galleryImage": "Imagen de galería",
+    "emptyGallery": "Sin imágenes todavía.",
+    "openVideo": "Abrir video",
+    "emptyVideo": "Sin video todavía.",
+    "specialized": "Esta sección está lista para contenido especializado. La representación detallada de {type} se ampliará en una próxima iteración."
+  },
+  "PortalEditor": {
+    "upload": {
+      "authRequired": "Inicia sesión para subir archivos."
+    },
+    "workspace": {
+      "back": "Atrás",
+      "openPublished": "Abrir portal publicado en otra pestaña",
+      "openPreview": "Abrir vista previa en otra pestaña",
+      "publish": "Publicar",
+      "publishError": "No se pudo publicar el portal",
+      "unpublishedTitle": "Cambios no publicados",
+      "unpublishedDescription": "Publica el portal para que los visitantes puedan ver tus últimos cambios.",
+      "unpublishedAction": "Ver cambios no publicados"
+    },
+    "sections": {
+      "add": "Agregar sección",
+      "addTitle": "Añade una sección",
+      "chooseDescription": "Elige el contenido que quieres mostrar en tu portal.",
+      "changeType": "Cambiar tipo de sección",
+      "configure": "Configurar sección",
+      "order": "Ordenar secciones",
+      "orderTitle": "Posición de secciones",
+      "orderDescription": "Arrastra las secciones para acomodar el orden del portal.",
+      "move": "Mover {name}",
+      "types": {
+        "text": {
+          "label": "Texto",
+          "description": "Títulos, párrafos, listas y enlaces."
+        },
+        "image": {
+          "label": "Imagen",
+          "description": "Destaca una imagen en el formato que prefieras."
+        },
+        "gallery": {
+          "label": "Galería",
+          "description": "Presenta varias imágenes en una composición."
+        },
+        "colors": {
+          "label": "Colores",
+          "description": "Muestra la paleta y los colores de la marca."
+        },
+        "fonts": {
+          "label": "Tipografías",
+          "description": "Presenta las fuentes y cómo deben utilizarse."
+        },
+        "files": {
+          "label": "Archivos",
+          "description": "Comparte recursos y archivos para descargar."
+        },
+        "empty": {
+          "label": "Sección",
+          "description": "Una sección vacía del portal."
+        },
+        "image_comparison": {
+          "label": "Comparación de imágenes",
+          "description": "Compara dos imágenes lado a lado."
+        }
+      }
+    },
+    "common": {
+      "visible": "Visible",
+      "allowDownload": "Permitir descarga",
+      "save": "Guardar",
+      "columns": "{count} columnas",
+      "columnsLabel": "Columnas",
+      "mixedValues": "Valores mixtos",
+      "layout": "Disposición",
+      "saveSettings": "Guardar configuración"
+    },
+    "image": {
+      "settings": "Configurar imagen",
+      "settingsDescription": "Ajusta la presentación, visibilidad y descarga.",
+      "fit": "Ajuste",
+      "ratio": "Proporción",
+      "altPlaceholder": "Descripción de la imagen",
+      "uploadError": "No se pudo subir la imagen.",
+      "remove": "Remover imagen"
+    },
+    "gallery": {
+      "settings": "Configurar galería",
+      "settingsDescription": "Ajusta la disposición y aplica estilos globales a las imágenes.",
+      "grid": "Cuadrícula",
+      "comparison": "Comparación",
+      "globalFit": "Ajuste global",
+      "globalRatio": "Proporción global"
+    },
+    "colors": {
+      "settings": "Configurar colores",
+      "settingsDescription": "Ajusta las columnas y la información que se muestra.",
+      "palette": "Paleta",
+      "stack": "Pila",
+      "showName": "Mostrar nombre del color",
+      "showCode": "Mostrar código del color",
+      "dialogTitle": "Color",
+      "dialogDescription": "Define el nombre, el formato y la vista previa del color.",
+      "format": "Formato",
+      "picker": "Selector",
+      "choose": "Elegir color",
+      "code": "Código",
+      "name": "Nombre",
+      "namePlaceholder": "Ej. Primario, Acento, Fondo",
+      "move": "Mover color",
+      "edit": "Editar color",
+      "fallback": "Color"
+    },
+    "fonts": {
+      "dialogTitle": "Tipografía",
+      "uploadFamily": "Subir familia tipográfica",
+      "editDescription": "Ajusta este peso de la familia tipográfica.",
+      "uploadDescription": "Selecciona todos los pesos de una o varias familias. La aplicación detecta la familia y el peso de cada archivo.",
+      "file": "Archivo de fuente",
+      "upload": "Subir fuentes",
+      "replace": "Reemplazar fuente",
+      "uploading": "Subiendo…",
+      "uploaded": "Fuente subida",
+      "uploadError": "No se pudieron subir las fuentes.",
+      "filesReady": "{count, plural, one {# archivo listo} other {# archivos listos}}",
+      "familyDetected": "Familia detectada",
+      "weight": "Peso",
+      "previewTitle": "Título de vista previa",
+      "previewDescription": "Descripción de vista previa",
+      "remove": "Quitar {name}",
+      "editFamily": "Editar familia tipográfica",
+      "editFamilyDescription": "Cambia el nombre del grupo y elimina los pesos que no pertenezcan a esta familia.",
+      "familyName": "Nombre de la familia",
+      "familyWeights": "Pesos de la familia",
+      "delete": "Eliminar {name}",
+      "noWeights": "Esta familia no tiene pesos tipográficos.",
+      "undetectedFamily": "Familia sin detectar",
+      "typeScale": "Escala tipográfica",
+      "base": "Base",
+      "ratio": "Proporción",
+      "weightFallback": "Peso",
+      "weights": {
+        "100": "Fina",
+        "200": "Extraligera",
+        "300": "Ligera",
+        "400": "Regular",
+        "500": "Media",
+        "600": "Seminegrita",
+        "700": "Negrita",
+        "800": "Extranegrita",
+        "900": "Negra"
+      },
+      "typeScaleEmpty": "Sube fuentes en el sistema tipográfico para generar esta escala por pesos.",
+      "visible": "Visible",
+      "save": "Guardar"
+    },
+    "files": {
+      "settings": "Configurar archivos",
+      "settingsDescription": "Ajusta cuántas tarjetas se muestran por fila.",
+      "upload": "Agregar archivo",
+      "invalidFormat": "Formato no permitido. Usa PDF, AI, EPS, PSD, SVG o imágenes.",
+      "uploadError": "No se pudo subir el archivo."
+    },
+    "sidebar": {
+      "theme": "Cambiar tema de color",
+      "exportAssets": "Exportar recursos"
+    },
+    "settings": {
+      "generalTitle": "Configuración general",
+      "generalDescription": "Ajusta el slug y la información visible del diseñador. Guardar estos datos no publica el portal.",
+      "slug": "Slug",
+      "slugPlaceholder": "mi-portal",
+      "checkingSlug": "Comprobando disponibilidad…",
+      "slugAvailable": "Este slug está disponible.",
+      "slugUnavailable": "Slug no disponible",
+      "designerName": "Nombre del diseñador",
+      "designerPlaceholder": "Nombre visible del diseñador",
+      "designerLimit": "Máximo 8 palabras y 80 caracteres",
+      "website": "Sitio web",
+      "websitePlaceholder": "https://tu-sitio.com",
+      "privacyTitle": "Privacidad y contraseña",
+      "privacyDescription": "Define quién puede acceder. Guardar la privacidad no publica ni despublica el portal.",
+      "privacy": "Privacidad",
+      "privacyPlaceholder": "Selecciona la privacidad",
+      "public": "Público",
+      "private": "Privado",
+      "password": "Con contraseña",
+      "publicHelp": "Cualquiera que encuentre el enlace podrá verlo.",
+      "privateHelp": "Solo tú podrás verlo con tu cuenta.",
+      "passwordHelp": "Cualquiera con el enlace y la contraseña podrá verlo.",
+      "changePassword": "Cambiar contraseña",
+      "passwordLabel": "Contraseña",
+      "passwordPlaceholder": "Mínimo 8 caracteres",
+      "keepPassword": "Déjalo vacío para conservar la contraseña actual.",
+      "passwordRules": "Usa entre 8 y 128 caracteres."
+    }
   }
 }

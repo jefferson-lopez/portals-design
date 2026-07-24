@@ -152,6 +152,9 @@ describe("PortalLanding", () => {
     expect(PORTAL_LANDING_LAYOUT.heroCopy.split(" ")).not.toContain("dark");
     expect(PORTAL_LANDING_LAYOUT.heroCopy.split(" ")).toContain("contents");
     expect(PORTAL_LANDING_LAYOUT.title.split(" ")).toContain("text-white");
+    expect(PORTAL_LANDING_LAYOUT.description.split(" ")).toContain(
+      "text-white/80",
+    );
     expect(source).toContain(
       "<div className={PORTAL_LANDING_LAYOUT.heroCopy}>",
     );

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { type ReactNode, useEffect, useRef, useTransition } from "react";
 import {
   updatePortalDocument,
@@ -88,18 +89,31 @@ function hasDownloadReference(value: {
 }
 
 function buildPublicActions({
+  copy,
   slots,
   slug,
-}: PortalPublicActionConfig): PortalRenderActions {
+}: PortalPublicActionConfig & {
+  copy: {
+    copied: string;
+    copyColor: (color: string) => string;
+    downloadFile: (name: string) => string;
+    downloadFont: (name: string) => string;
+    downloadImage: (name: string) => string;
+    downloadSection: (name: string) => string;
+    exportAll: string;
+    imageFallback: string;
+    sectionType: (type: PortalSectionType) => string;
+  };
+}): PortalRenderActions {
   return {
     color: ({ item }) =>
       slots.item?.color?.copy
         ? [
             {
-              feedbackLabel: "Copiado",
+              feedbackLabel: copy.copied,
               icon: "copy",
               id: `copy-${item.id}`,
-              label: `Copiar ${item.color_code}`,
+              label: copy.copyColor(item.color_code),
               onClick: () => copyText(item.color_code),
             },
           ]
@@ -114,7 +128,7 @@ function buildPublicActions({
               href: itemDownloadHref(slug, item.id),
               icon: "download",
               id: `download-${item.id}`,
-              label: `Descargar ${item.file_name}`,
+              label: copy.downloadFile(item.file_name),
             },
           ]
         : [],
@@ -128,7 +142,7 @@ function buildPublicActions({
               href: fontFamilyExportHref(slug, section.id, item.font_name),
               icon: "download",
               id: `download-font-family-${section.id}-${item.font_name}`,
-              label: `Descargar familia ${item.font_name}`,
+              label: copy.downloadFont(item.font_name),
             },
           ]
         : [],
@@ -140,7 +154,7 @@ function buildPublicActions({
               href: `/api/portals/${encodeURIComponent(slug)}/export`,
               icon: "export",
               id: "export-all",
-              label: "Exportar todos los assets",
+              label: copy.exportAll,
               size: "icon-lg",
               variant: "ghost",
             },
@@ -156,7 +170,7 @@ function buildPublicActions({
               href: itemDownloadHref(slug, item.id),
               icon: "download",
               id: `download-${item.id}`,
-              label: `Descargar ${item.alt_text || "imagen"}`,
+              label: copy.downloadImage(item.alt_text || copy.imageFallback),
             },
           ]
         : [],
@@ -170,7 +184,9 @@ function buildPublicActions({
               href: sectionExportHref(slug, section.id),
               icon: "download",
               id: `download-section-${section.id}`,
-              label: `Descargar ${section.title || section.type}`,
+              label: copy.downloadSection(
+                section.title || copy.sectionType(section.type),
+              ),
               variant: "ghost",
             },
           ]
@@ -204,13 +220,14 @@ function PortalSummary({
   editable?: boolean;
   onPortalChange: (portal: PortalDocument["portal"]) => void;
 }) {
+  const t = useTranslations("PortalViewer.summary");
   const portal = document.portal;
 
   return (
     <div className="flex flex-col gap-2">
       <Field>
         <Input
-          aria-label="Portal name"
+          aria-label={t("name")}
           className={cn(
             "border-none bg-transparent! px-0 text-2xl! font-medium shadow-none focus-visible:ring-0",
             !editable && "pointer-events-none",
@@ -227,7 +244,7 @@ function PortalSummary({
       </Field>
       <Field>
         <Textarea
-          aria-label="Portal description"
+          aria-label={t("description")}
           className={cn(
             "resize-none whitespace-pre-wrap border-none bg-transparent! px-0 text-muted-foreground shadow-none focus-visible:ring-0",
             !editable && "pointer-events-none",
@@ -265,6 +282,8 @@ function PortalSectionHeading({
   ) => void;
   section: RenderPortalProps["document"]["sections"][number];
 }) {
+  const t = useTranslations("PortalViewer.section");
+  const sectionTypeT = useTranslations("PortalViewer.sectionTypes");
   return (
     <div className="flex flex-col">
       <div className="flex items-center justify-between gap-2">
@@ -281,7 +300,7 @@ function PortalSectionHeading({
                 title: event.currentTarget.value,
               })
             }
-            placeholder="Título"
+            placeholder={t("titlePlaceholder")}
           />
         ) : section.title ? (
           <h2 className="px-0 font-heading font-medium text-lg text-primary tracking-tight">
@@ -308,11 +327,13 @@ function PortalSectionHeading({
               description: event.currentTarget.value,
             })
           }
-          placeholder="Descripción breve opcional"
+          placeholder={t("descriptionPlaceholder")}
         />
       ) : section.description ? (
         <Textarea
-          aria-label={`Descripción de ${section.title || section.type}`}
+          aria-label={t("descriptionLabel", {
+            title: section.title || sectionTypeT(section.type),
+          })}
           className="pointer-events-none resize-none whitespace-pre-wrap border-none bg-transparent! px-0 text-muted-foreground text-sm shadow-none outline-none focus-visible:ring-0"
           readOnly
           tabIndex={-1}
@@ -336,6 +357,7 @@ export function RenderPortal({
   sidebar,
   visibility,
 }: RenderPortalProps) {
+  const t = useTranslations();
   const storeDocument = usePortalEditorStore((state) =>
     editor ? state.documentsByPortalId[editor.portalId] : undefined,
   );
@@ -446,7 +468,24 @@ export function RenderPortal({
     return true;
   });
   const renderActions = actionConfig?.public
-    ? buildPublicActions(actionConfig.public)
+    ? buildPublicActions({
+        ...actionConfig.public,
+        copy: {
+          copied: t("PortalViewer.actions.copied"),
+          copyColor: (color) => t("PortalViewer.actions.copyColor", { color }),
+          downloadFile: (name) =>
+            t("PortalViewer.actions.downloadFile", { name }),
+          downloadFont: (name) =>
+            t("PortalViewer.actions.downloadFont", { name }),
+          downloadImage: (name) =>
+            t("PortalViewer.actions.downloadImage", { name }),
+          downloadSection: (name) =>
+            t("PortalViewer.actions.downloadSection", { name }),
+          exportAll: t("PortalViewer.actions.exportAll"),
+          imageFallback: t("PortalViewer.actions.imageFallback"),
+          sectionType: (type) => t(`PortalViewer.sectionTypes.${type}`),
+        },
+      })
     : undefined;
   const globalActions = compactActions(renderActions?.global?.());
 
@@ -510,7 +549,7 @@ export function RenderPortal({
               trigger={
                 <PortalActionTriggerButton
                   icon="plus"
-                  label="Agregar sección"
+                  label={t("PortalEditor.sections.add")}
                   size="icon-lg"
                   variant="outline"
                 />

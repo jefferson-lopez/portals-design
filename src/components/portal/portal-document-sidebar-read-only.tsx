@@ -1,6 +1,7 @@
 "use client";
 
 import { IconMoon, IconPackageExport } from "@tabler/icons-react";
+import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { PortalSidebarView } from "@/components/portal/render-portal/portal-sidebar-view";
 import type { PortalDocument } from "@/lib/portal/document";
@@ -12,6 +13,7 @@ export function PortalDocumentSidebarReadOnly({
   sectionIds: string[];
   sections: PortalDocument["sections"];
 }) {
+  const t = useTranslations("PortalViewer.sidebar");
   const { resolvedTheme, setTheme } = useTheme();
   const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
   const assetsSection = sections.find((section) => section.type === "files");
@@ -32,7 +34,7 @@ export function PortalDocumentSidebarReadOnly({
                 <IconMoon className="size-4" />
               </span>
               <div className="min-w-0 flex-1 truncate px-2 first-letter:uppercase">
-                Dark mode
+                {t("theme")}
               </div>
             </div>
           </button>
@@ -46,7 +48,7 @@ export function PortalDocumentSidebarReadOnly({
                   <IconPackageExport className="size-4" />
                 </span>
                 <div className="min-w-0 flex-1 truncate px-2 first-letter:uppercase">
-                  Export assets
+                  {t("exportAssets")}
                 </div>
               </div>
             </a>

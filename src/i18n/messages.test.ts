@@ -1,0 +1,70 @@
+import { describe, expect, test } from "bun:test";
+import { readdirSync, readFileSync } from "node:fs";
+import { extname, join } from "node:path";
+import en from "../../messages/en.json";
+import es from "../../messages/es.json";
+
+function leafKeys(value: unknown, prefix = ""): string[] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [prefix];
+  }
+
+  return Object.entries(value).flatMap(([key, child]) =>
+    leafKeys(child, prefix ? `${prefix}.${key}` : key),
+  );
+}
+
+function sourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return sourceFiles(path);
+    if (
+      ![".ts", ".tsx"].includes(extname(entry.name)) ||
+      entry.name.includes(".test.")
+    ) {
+      return [];
+    }
+    return [path];
+  });
+}
+
+describe("translation catalogs", () => {
+  test("keep English and Spanish message keys in sync", () => {
+    expect(leafKeys(en).sort()).toEqual(leafKeys(es).sort());
+  });
+
+  test("cover authentication, public portals, and the portal editor", () => {
+    expect(en).toHaveProperty("Auth.signIn.title");
+    expect(en).toHaveProperty("PublicPortal.password.label");
+    expect(en).toHaveProperty("PortalEditor.sections.addTitle");
+    expect(en).toHaveProperty("PortalViewer.actions.exportAll");
+  });
+
+  test("does not leave Spanish UI copy hardcoded in app or components", () => {
+    const files = [...sourceFiles("src/app"), ...sourceFiles("src/components")];
+    const spanishUiCopy =
+      /[áéíóúñÁÉÍÓÚÑ]|\b(?:Ajusta|Agregar|Archivos|Arrastra|Cambiar|Comprobando|Configurar|Contraseña|Cualquiera|Define el|Eliminar|Elegir|Familia|Guardar|Mostrar|Permitir|Privacidad|Quitar|Remover|Sitio web|Solo tu|Subir)\b/;
+    const offenders = files.filter((file) => {
+      const source = readFileSync(file, "utf8");
+      return spanishUiCopy.test(source);
+    });
+
+    expect(offenders).toEqual([]);
+  });
+
+  test("keeps section and font fallbacks locale-safe", () => {
+    const workspace = readFileSync(
+      "src/components/portal/portal-workspace-controls.tsx",
+      "utf8",
+    );
+    const renderer = readFileSync(
+      "src/components/portal/render-portal/render-portal.tsx",
+      "utf8",
+    );
+
+    expect(workspace).not.toContain("section.title || section.type");
+    expect(renderer).not.toContain("section.title || section.type");
+    expect(workspace).not.toContain("t(`weights.$" + "{weight}`)");
+    expect(renderer).not.toContain("t(`sectionTypes.$" + "{section.type}`)");
+  });
+});

@@ -1,6 +1,6 @@
 import { IconArrowLeft, IconExternalLink } from "@tabler/icons-react";
 import { notFound, redirect } from "next/navigation";
-import { setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import {
   PortalDocumentSidebar,
   PrivacySettingsDialog,
@@ -204,6 +204,10 @@ export default async function CreatePortalPage({
   const { focus } = await searchParams;
 
   setRequestLocale(locale);
+  const t = await getTranslations({
+    locale,
+    namespace: "PortalEditor.workspace",
+  });
 
   const { document, hasUnpublishedChanges, portal } = await getWorkspace(
     locale,
@@ -215,19 +219,19 @@ export default async function CreatePortalPage({
         <div className="flex items-center gap-2 rounded-full border border-border/80 bg-background/80 p-3 shadow-lg backdrop-blur">
           <Link className="md:hidden" href="/home">
             <Button
-              aria-label="Atrás"
+              aria-label={t("back")}
               className="rounded-full"
               size="icon-lg"
               variant="secondary"
             >
               <IconArrowLeft />
-              <span className="sr-only">Atrás</span>
+              <span className="sr-only">{t("back")}</span>
             </Button>
           </Link>
           <Link className="hidden md:inline-flex" href="/home">
             <Button className="rounded-full" size="lg" variant="secondary">
               <IconArrowLeft data-icon="inline-start" />
-              Atrás
+              {t("back")}
             </Button>
           </Link>
           <div aria-hidden="true" className="h-6 w-px bg-border" />
@@ -242,19 +246,17 @@ export default async function CreatePortalPage({
                   target="_blank"
                 >
                   <Button
-                    aria-label="Abrir portal publicado en otra pestaña"
+                    aria-label={t("openPublished")}
                     className="rounded-full"
                     size="icon-lg"
                     variant="ghost"
                   >
                     <IconExternalLink data-icon="inline-start" />
-                    <span className="sr-only">
-                      Abrir portal publicado en otra pestaña
-                    </span>
+                    <span className="sr-only">{t("openPublished")}</span>
                   </Button>
                 </Link>
               </TooltipTrigger>
-              <TooltipContent>Abrir preview en otra pestaña</TooltipContent>
+              <TooltipContent>{t("openPreview")}</TooltipContent>
             </Tooltip>
           ) : null}
           <SectionOrderPopover
