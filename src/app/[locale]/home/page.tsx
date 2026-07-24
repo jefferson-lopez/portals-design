@@ -13,7 +13,9 @@ export default async function HomePage({ params }: Props) {
 
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "Home" });
-  const initialPortals = backendEnabled ? await getHomePortals(locale) : [];
+  const initialResult = backendEnabled
+    ? await getHomePortals(locale)
+    : { error: null, portals: [] };
 
   return (
     <PortalHome
@@ -41,7 +43,7 @@ export default async function HomePage({ params }: Props) {
         },
         intro: {
           portalCount: t("intro.portalCount", {
-            count: initialPortals.length,
+            count: initialResult.portals.length,
           }),
           title: t("intro.title"),
         },
@@ -63,7 +65,8 @@ export default async function HomePage({ params }: Props) {
           trigger: t.raw("settings.trigger") as string,
         },
       }}
-      initialPortals={initialPortals}
+      initialError={initialResult.error ? t("errorGeneric") : null}
+      initialPortals={initialResult.portals}
       locale={locale}
     />
   );

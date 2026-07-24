@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import {
   normalizePortalDocument,
@@ -42,35 +42,64 @@ export type HomePortal = Pick<
   "id" | "name" | "slug" | "updated_at" | "visibility"
 >;
 
-export async function getHomePortals(locale: string): Promise<HomePortal[]> {
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
+export type HomePortalsResult = {
+  error: "loadFailed" | null;
+  portals: HomePortal[];
+};
 
-  if (!userData.user) {
-    redirect(`/${locale}/auth/sign-in`);
+function logHomePortalsError(stage: string, error: unknown) {
+  const details =
+    error && typeof error === "object"
+      ? {
+          code:
+            "code" in error && typeof error.code === "string"
+              ? error.code
+              : "unknown",
+          name:
+            "name" in error && typeof error.name === "string"
+              ? error.name
+              : "UnknownError",
+        }
+      : { code: "unknown", name: "UnknownError" };
+
+  console.error("Failed to load home portals", { stage, ...details });
+}
+
+function homePortalsFailure(stage: string, error: unknown): HomePortalsResult {
+  logHomePortalsError(stage, error);
+  return { error: "loadFailed", portals: [] };
+}
+
+export async function getHomePortals(
+  locale: string,
+): Promise<HomePortalsResult> {
+  try {
+    const supabase = await createClient();
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+
+    if (userError) {
+      return homePortalsFailure("get-user", userError);
+    }
+
+    if (!userData.user) {
+      redirect(`/${locale}/auth/sign-in`);
+    }
+
+    const { data, error } = await supabase
+      .from("portals")
+      .select("id,name,slug,updated_at,visibility")
+      .eq("owner_id", userData.user.id)
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      return homePortalsFailure("list-portals", error);
+    }
+
+    return { error: null, portals: data };
+  } catch (error) {
+    unstable_rethrow(error);
+    return homePortalsFailure("unexpected", error);
   }
-
-  const { data: memberships, error: membershipsError } = await supabase
-    .from("portal_members")
-    .select("portal_id")
-    .eq("user_id", userData.user.id)
-    .in("role", ["owner", "editor"]);
-
-  if (membershipsError) actionFailure(membershipsError.message);
-
-  const editablePortalIds = memberships.map(({ portal_id }) => portal_id);
-
-  if (editablePortalIds.length === 0) return [];
-
-  const { data, error } = await supabase
-    .from("portals")
-    .select("id,name,slug,updated_at,visibility")
-    .in("id", editablePortalIds)
-    .order("updated_at", { ascending: false });
-
-  if (error) actionFailure(error.message);
-
-  return data;
 }
 
 function getString(formData: FormData, key: string) {

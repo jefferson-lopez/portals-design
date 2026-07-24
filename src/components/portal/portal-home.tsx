@@ -10,6 +10,8 @@ import {
   IconSpiral,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { toast } from "sonner";
 import { signOut } from "@/app/[locale]/_actions/auth";
 import {
   createPortalFromHome,
@@ -52,6 +54,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Link, useRouter } from "@/i18n/navigation";
+import { getHomeErrorEvent } from "@/lib/portal/home-error-event";
 import { usePortalHomeStore } from "@/lib/portal/home-store";
 import { cn } from "@/lib/utils";
 
@@ -382,23 +385,40 @@ function PortalCard({
 export function PortalHome({
   backendEnabled,
   copy,
+  initialError,
   initialPortals,
   locale,
 }: {
   backendEnabled: boolean;
   copy: PortalHomeCopy;
+  initialError: string | null;
   initialPortals: HomePortal[];
   locale: string;
 }) {
   const portalsQuery = useQuery({
     enabled: backendEnabled,
-    initialData: initialPortals,
+    initialData: {
+      error: initialError ? ("loadFailed" as const) : null,
+      portals: initialPortals,
+    },
     initialDataUpdatedAt: 0,
     queryFn: () => getHomePortals(locale),
     queryKey: portalsQueryKey(locale),
     refetchOnMount: "always",
     staleTime: 0,
   });
+  const homeErrorEvent = getHomeErrorEvent({
+    controlledError: Boolean(portalsQuery.data.error),
+    dataUpdatedAt: portalsQuery.dataUpdatedAt,
+    errorUpdatedAt: portalsQuery.errorUpdatedAt,
+    queryError: portalsQuery.error,
+  });
+
+  useEffect(() => {
+    if (homeErrorEvent) {
+      toast.error(copy.errorGeneric, { id: "home-portals-error" });
+    }
+  }, [copy.errorGeneric, homeErrorEvent]);
 
   return (
     <main className="relative min-h-dvh overflow-hidden bg-background text-foreground">
@@ -465,7 +485,7 @@ export function PortalHome({
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
-          ) : portalsQuery.data.length === 0 ? (
+          ) : portalsQuery.data.portals.length === 0 ? (
             <Empty className="min-h-80 border border-border/60 bg-card/50">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
@@ -477,7 +497,7 @@ export function PortalHome({
             </Empty>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
-              {portalsQuery.data.map((portal) => (
+              {portalsQuery.data.portals.map((portal) => (
                 <PortalCard
                   copy={copy}
                   key={portal.id}
