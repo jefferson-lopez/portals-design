@@ -35,6 +35,13 @@ describe("translation catalogs", () => {
 
   test("cover authentication, public portals, and the portal editor", () => {
     expect(en).toHaveProperty("Auth.signIn.title");
+    expect(en).toHaveProperty("Auth.common.showPassword");
+    expect(en).toHaveProperty("Auth.common.hidePassword");
+    expect(en).toHaveProperty("Auth.signIn.emailPlaceholder");
+    expect(en).toHaveProperty("Auth.signIn.passwordPlaceholder");
+    expect(en).toHaveProperty("Auth.signUp.namePlaceholder");
+    expect(en).toHaveProperty("Auth.signUp.emailPlaceholder");
+    expect(en).toHaveProperty("Auth.signUp.passwordPlaceholder");
     expect(en).toHaveProperty("PublicPortal.password.label");
     expect(en).toHaveProperty("PortalEditor.sections.addTitle");
     expect(en).toHaveProperty("PortalViewer.actions.exportAll");

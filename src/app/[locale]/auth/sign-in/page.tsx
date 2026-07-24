@@ -1,6 +1,5 @@
-import { IconBrandGoogle } from "@tabler/icons-react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -8,17 +7,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { Link } from "@/i18n/navigation";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
-import { signInWithOAuth, signInWithPassword } from "../../_actions/auth";
+import { SignInForm } from "./sign-in-form";
 
 type Props = {
   params: Promise<{ locale: string }>;
@@ -51,51 +42,20 @@ export default async function SignInPage({ params, searchParams }: Props) {
             </p>
           ) : null}
 
-          <form action={signInWithPassword}>
-            <input name="locale" type="hidden" value={locale} />
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="email">{t("common.email")}</FieldLabel>
-                <Input id="email" name="email" required type="email" />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="password">
-                  {t("common.password")}
-                </FieldLabel>
-                <Input id="password" name="password" required type="password" />
-                <FieldDescription>{t("signIn.passwordHelp")}</FieldDescription>
-              </Field>
-              <Button disabled={!hasSupabaseEnv()} type="submit">
-                {t("signIn.submit")}
-              </Button>
-            </FieldGroup>
-          </form>
-
-          <Separator />
-
-          <div className="grid gap-2">
-            {[["google", "Google", IconBrandGoogle]].map(
-              ([provider, label, Icon]) => (
-                <form action={signInWithOAuth} key={provider as string}>
-                  <input name="locale" type="hidden" value={locale} />
-                  <input
-                    name="provider"
-                    type="hidden"
-                    value={provider as string}
-                  />
-                  <Button
-                    disabled={!hasSupabaseEnv()}
-                    type="submit"
-                    variant="outline"
-                    className="w-full"
-                  >
-                    <Icon data-icon="inline-start" />
-                    {t("signIn.continueWith", { provider: label as string })}
-                  </Button>
-                </form>
-              ),
-            )}
-          </div>
+          <SignInForm
+            backendEnabled={hasSupabaseEnv()}
+            copy={{
+              email: t("common.email"),
+              emailPlaceholder: t("signIn.emailPlaceholder"),
+              hidePassword: t("common.hidePassword"),
+              password: t("common.password"),
+              passwordHelp: t("signIn.passwordHelp"),
+              passwordPlaceholder: t("signIn.passwordPlaceholder"),
+              showPassword: t("common.showPassword"),
+              submit: t("signIn.submit"),
+            }}
+            locale={locale}
+          />
 
           <Link
             href="/auth/sign-up"

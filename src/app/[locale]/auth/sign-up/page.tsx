@@ -1,4 +1,5 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { PasswordInput } from "@/components/auth/password-input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -36,22 +37,38 @@ export default async function SignUpPage({ params }: Props) {
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="full_name">{t("signUp.name")}</FieldLabel>
-                <Input id="full_name" name="full_name" required />
+                <Input
+                  autoComplete="name"
+                  id="full_name"
+                  name="full_name"
+                  placeholder={t("signUp.namePlaceholder")}
+                  required
+                />
               </Field>
               <Field>
                 <FieldLabel htmlFor="email">{t("common.email")}</FieldLabel>
-                <Input id="email" name="email" required type="email" />
+                <Input
+                  autoComplete="email"
+                  id="email"
+                  name="email"
+                  placeholder={t("signUp.emailPlaceholder")}
+                  required
+                  type="email"
+                />
               </Field>
               <Field>
                 <FieldLabel htmlFor="password">
                   {t("common.password")}
                 </FieldLabel>
-                <Input
+                <PasswordInput
                   id="password"
                   name="password"
-                  required
                   minLength={8}
-                  type="password"
+                  placeholder={t("signUp.passwordPlaceholder")}
+                  required
+                  autoComplete="new-password"
+                  hidePasswordLabel={t("common.hidePassword")}
+                  showPasswordLabel={t("common.showPassword")}
                 />
               </Field>
               <Button disabled={!hasSupabaseEnv()} type="submit">

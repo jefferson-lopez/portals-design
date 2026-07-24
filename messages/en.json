@@ -82,7 +82,6 @@
     "close": "Close"
   },
   "Actions": {
-    "oauthFailed": "OAuth login failed.",
     "nameRequired": "The portal name is required.",
     "slugInvalid": "The slug is not valid.",
     "passwordAfterCreation": "Configure the password after creating the portal.",
@@ -100,21 +99,29 @@
     "common": {
       "email": "Email",
       "password": "Password",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password",
       "backendDisabled": "Configure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to enable authentication."
     },
     "signIn": {
       "title": "Log in",
       "description": "Enter your Portals Design workspace.",
       "checkEmail": "Check your email to confirm your account.",
+      "emailPlaceholder": "name@example.com",
+      "passwordPlaceholder": "Enter your password",
       "passwordHelp": "Password recovery will be added in the next iteration.",
       "submit": "Log in",
-      "continueWith": "Continue with {provider}",
+      "invalidCredentials": "The email or password is incorrect.",
+      "failed": "We could not log you in. Please try again.",
       "createAccount": "Create account"
     },
     "signUp": {
       "title": "Create account",
       "description": "Start organizing your branding portals.",
       "name": "Name",
+      "namePlaceholder": "Your name",
+      "emailPlaceholder": "name@example.com",
+      "passwordPlaceholder": "At least 8 characters",
       "submit": "Create account",
       "haveAccount": "I already have an account"
     }

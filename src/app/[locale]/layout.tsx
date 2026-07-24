@@ -6,6 +6,7 @@ import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { QueryProvider } from "@/components/query-provider";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { routing } from "@/i18n/routing";
 import "../globals.css";
@@ -50,7 +51,10 @@ export default async function LocaleLayout({ children, params }: Props) {
         <NextIntlClientProvider>
           <QueryProvider>
             <ThemeProvider attribute="class" defaultTheme="system">
-              <TooltipProvider>{children}</TooltipProvider>
+              <TooltipProvider>
+                {children}
+                <Toaster richColors />
+              </TooltipProvider>
             </ThemeProvider>
           </QueryProvider>
         </NextIntlClientProvider>

@@ -82,7 +82,6 @@
     "close": "Cerrar"
   },
   "Actions": {
-    "oauthFailed": "No se pudo iniciar sesión con OAuth.",
     "nameRequired": "El nombre del portal es obligatorio.",
     "slugInvalid": "El slug no es válido.",
     "passwordAfterCreation": "Configura la contraseña después de crear el portal.",
@@ -100,21 +99,29 @@
     "common": {
       "email": "Email",
       "password": "Contraseña",
+      "showPassword": "Mostrar contraseña",
+      "hidePassword": "Ocultar contraseña",
       "backendDisabled": "Configura NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY para activar la autenticación."
     },
     "signIn": {
       "title": "Iniciar sesión",
       "description": "Entra a tu espacio de Portals Design.",
       "checkEmail": "Revisa tu correo para confirmar la cuenta.",
+      "emailPlaceholder": "nombre@ejemplo.com",
+      "passwordPlaceholder": "Ingresa tu contraseña",
       "passwordHelp": "La recuperación de contraseña se añadirá en la siguiente iteración.",
       "submit": "Entrar",
-      "continueWith": "Continuar con {provider}",
+      "invalidCredentials": "El correo o la contraseña son incorrectos.",
+      "failed": "No pudimos iniciar tu sesión. Inténtalo de nuevo.",
       "createAccount": "Crear cuenta"
     },
     "signUp": {
       "title": "Crear cuenta",
       "description": "Empieza a organizar tus portales de branding.",
       "name": "Nombre",
+      "namePlaceholder": "Tu nombre",
+      "emailPlaceholder": "nombre@ejemplo.com",
+      "passwordPlaceholder": "Mínimo 8 caracteres",
       "submit": "Crear cuenta",
       "haveAccount": "Ya tengo cuenta"
     }

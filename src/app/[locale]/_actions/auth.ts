@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { getSignInErrorKey } from "@/lib/auth/sign-in-error";
 import { createClient } from "@/lib/supabase/server";
 
 function getString(formData: FormData, key: string) {
@@ -17,16 +18,45 @@ function actionFailure(message: string): never {
   throw new Error(message);
 }
 
-export async function signInWithPassword(formData: FormData) {
+export type AuthActionState = {
+  message?: string;
+  status: "idle" | "error";
+};
+
+export async function signInWithPassword(
+  _previousState: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
   const locale = getString(formData, "locale") || "en";
   const email = getString(formData, "email");
   const password = getString(formData, "password");
-  const supabase = await createClient();
+  const t = await getTranslations({ locale, namespace: "Auth.signIn" });
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-  if (error) {
-    actionFailure(error.message);
+    if (error) {
+      const errorKey = getSignInErrorKey(error);
+
+      if (errorKey !== "invalidCredentials") {
+        console.error("Password sign-in failed", {
+          code: error.code ?? "unknown",
+          status: error.status,
+        });
+      }
+
+      return { message: t(errorKey), status: "error" };
+    }
+  } catch (error) {
+    console.error("Unexpected password sign-in failure", {
+      name: error instanceof Error ? error.name : "UnknownError",
+    });
+
+    return { message: t("failed"), status: "error" };
   }
 
   revalidatePath(`/${locale}/home`);
@@ -54,24 +84,6 @@ export async function signUpWithPassword(formData: FormData) {
   }
 
   redirect(`/${locale}/auth/sign-in?message=check-email`);
-}
-
-export async function signInWithOAuth(formData: FormData) {
-  const locale = getString(formData, "locale") || "en";
-  const provider = getString(formData, "provider") as "google";
-  const supabase = await createClient();
-
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    options: { redirectTo: `${getOrigin()}/${locale}/auth/callback` },
-    provider,
-  });
-
-  if (error || !data.url) {
-    const t = await getTranslations({ locale, namespace: "Actions" });
-    actionFailure(error?.message ?? t("oauthFailed"));
-  }
-
-  redirect(data.url);
 }
 
 export async function signOut(formData: FormData) {
