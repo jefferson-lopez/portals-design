@@ -104,9 +104,15 @@ that environment:
 
 | Type | Name | Value |
 | --- | --- | --- |
-| Environment variable | `SUPABASE_PROJECT_ID` | Project reference from the Supabase dashboard URL |
+| Environment variable **or secret** | `SUPABASE_PROJECT_ID` | Project reference from the Supabase dashboard URL |
 | Environment secret | `SUPABASE_ACCESS_TOKEN` | Personal access token created in Supabase account settings |
 | Environment secret | `SUPABASE_DB_PASSWORD` | Database password for the target Supabase project |
+
+Add `SUPABASE_PROJECT_ID` under either **production → Environment variables**
+(recommended because a project reference is not a credential) or **production →
+Environment secrets**. The workflow accepts both locations and prefers the
+configuration variable when both are present. Do not create it only in Vercel:
+Vercel variables are not exposed to GitHub Actions.
 
 The project reference is not the public API URL or a Supabase API key. For a
 dashboard URL such as `https://supabase.com/dashboard/project/abc123`, the
