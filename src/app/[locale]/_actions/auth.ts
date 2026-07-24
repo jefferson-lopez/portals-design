@@ -28,8 +28,8 @@ export async function signInWithPassword(formData: FormData) {
     actionFailure(error.message);
   }
 
-  revalidatePath(`/${locale}/dashboard`);
-  redirect(`/${locale}/dashboard`);
+  revalidatePath(`/${locale}/home`);
+  redirect(`/${locale}/home`);
 }
 
 export async function signUpWithPassword(formData: FormData) {

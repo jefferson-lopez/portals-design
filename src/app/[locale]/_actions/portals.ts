@@ -15,6 +15,7 @@ import {
 } from "@/lib/portal/settings";
 import type {
   Json,
+  Portal,
   PortalBlockType,
   PortalTheme,
   PortalVisibility,
@@ -34,6 +35,42 @@ const blockTypes = new Set<PortalBlockType>([
   "assets",
   "empty",
 ]);
+
+export type HomePortal = Pick<
+  Portal,
+  "id" | "name" | "slug" | "updated_at" | "visibility"
+>;
+
+export async function getHomePortals(locale: string): Promise<HomePortal[]> {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+
+  if (!userData.user) {
+    redirect(`/${locale}/auth/sign-in`);
+  }
+
+  const { data: memberships, error: membershipsError } = await supabase
+    .from("portal_members")
+    .select("portal_id")
+    .eq("user_id", userData.user.id)
+    .in("role", ["owner", "editor"]);
+
+  if (membershipsError) actionFailure(membershipsError.message);
+
+  const editablePortalIds = memberships.map(({ portal_id }) => portal_id);
+
+  if (editablePortalIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("portals")
+    .select("id,name,slug,updated_at,visibility")
+    .in("id", editablePortalIds)
+    .order("updated_at", { ascending: false });
+
+  if (error) actionFailure(error.message);
+
+  return data;
+}
 
 function getString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -203,13 +240,17 @@ function buildBlockContent(formData: FormData, type: PortalBlockType): Json {
   return {};
 }
 
-export async function createPortal(formData: FormData) {
-  const locale = getString(formData, "locale") || "en";
-  const name = getString(formData, "name");
-  const rawSlug = getString(formData, "slug") || name;
-  const coverUrl = getString(formData, "cover_url") || null;
-  const visibility = (getString(formData, "visibility") ||
-    "private") as PortalVisibility;
+async function insertPortal({
+  coverUrl = null,
+  name,
+  rawSlug = name,
+  visibility = "private",
+}: {
+  coverUrl?: string | null;
+  name: string;
+  rawSlug?: string;
+  visibility?: PortalVisibility;
+}) {
   if (!name) actionFailure("El nombre es obligatorio");
   const slug = slugify(rawSlug);
   if (!validateSlug(slug).valid) actionFailure("El slug no es válido");
@@ -228,7 +269,33 @@ export async function createPortal(formData: FormData) {
     actionFailure(error?.message ?? "Could not create portal");
   }
 
-  revalidatePath(`/${locale}/dashboard`);
+  return data;
+}
+
+export async function createPortalFromHome({
+  locale,
+  name,
+}: {
+  locale: string;
+  name: string;
+}) {
+  const portal = await insertPortal({ name: name.trim() });
+
+  revalidatePath(`/${locale}/home`);
+
+  return { id: portal.id };
+}
+
+export async function createPortal(formData: FormData) {
+  const locale = getString(formData, "locale") || "en";
+  const name = getString(formData, "name");
+  const rawSlug = getString(formData, "slug") || name;
+  const coverUrl = getString(formData, "cover_url") || null;
+  const visibility = (getString(formData, "visibility") ||
+    "private") as PortalVisibility;
+  const data = await insertPortal({ coverUrl, name, rawSlug, visibility });
+
+  revalidatePath(`/${locale}/home`);
   redirect(`/${locale}/create/${data.id}`);
 }
 
@@ -305,7 +372,7 @@ export async function updatePortalSettings(formData: FormData) {
   }
 
   revalidatePath(`/${locale}/create/${portalId}`);
-  revalidatePath(`/${locale}/dashboard`);
+  revalidatePath(`/${locale}/home`);
 }
 
 export async function checkPortalSlugAvailability(
@@ -347,7 +414,7 @@ export async function savePrivacySettings(formData: FormData) {
   });
   if (error) actionFailure(error.message);
   revalidatePath(`/${locale}/create/${portalId}`);
-  revalidatePath(`/${locale}/dashboard`);
+  revalidatePath(`/${locale}/home`);
 }
 
 type PortalSummaryActionState = {
@@ -379,7 +446,7 @@ export async function updatePortalSummary(
   }
 
   revalidatePath(`/${locale}/create/${portalId}`);
-  revalidatePath(`/${locale}/dashboard`);
+  revalidatePath(`/${locale}/home`);
   return { error: null, saved: true };
 }
 
@@ -632,7 +699,7 @@ export async function updatePortalDocument(formData: FormData) {
   }
 
   revalidatePath(`/${locale}/create/${portalId}`);
-  revalidatePath(`/${locale}/dashboard`);
+  revalidatePath(`/${locale}/home`);
 }
 
 export async function deletePortalBlock(formData: FormData) {
@@ -662,7 +729,7 @@ type PublishPortalInput = {
 export async function publishPortalById({
   locale,
   portalId,
-  returnTo = `/${locale}/dashboard`,
+  returnTo = `/${locale}/home`,
 }: PublishPortalInput) {
   const supabase = await createClient();
 
@@ -674,14 +741,14 @@ export async function publishPortalById({
     actionFailure(error.message);
   }
 
-  revalidatePath(`/${locale}/dashboard`);
+  revalidatePath(`/${locale}/home`);
   revalidatePath(returnTo);
 }
 
 export async function publishPortal(formData: FormData) {
   const locale = getString(formData, "locale") || "en";
   const portalId = getString(formData, "portal_id");
-  const returnTo = getString(formData, "return_to") || `/${locale}/dashboard`;
+  const returnTo = getString(formData, "return_to") || `/${locale}/home`;
 
   await publishPortalById({ locale, portalId, returnTo });
 }

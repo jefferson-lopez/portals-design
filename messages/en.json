@@ -2,5 +2,80 @@
   "Metadata": {
     "title": "Portals Design",
     "description": "Organize, present, and deliver branding projects through professional client portals."
+  },
+  "Landing": {
+    "titleLine1": "Design the brand.",
+    "titleLine2": "Deliver the experience.",
+    "description": "Portals Design turns your brand systems into polished client portals where you can present the work, organize assets, and deliver every file in one place.",
+    "cta": "Create a portal",
+    "header": {
+      "createAccount": "Create account",
+      "enter": "Enter",
+      "signIn": "Log in"
+    },
+    "details": {
+      "title": "A better handoff is part of the design.",
+      "description": "Portals Design gives brand designers one considered space to present the thinking, organize the system, and deliver every final asset without breaking the experience.",
+      "benefits": [
+        {
+          "title": "Tell the story behind the system",
+          "description": "Guide clients through the strategy, visual language, and decisions that make the identity work."
+        },
+        {
+          "title": "Give every asset a clear home",
+          "description": "Structure logos, guidelines, colors, typography, and exports in a portal clients can understand."
+        },
+        {
+          "title": "Make the final moment feel designed",
+          "description": "Turn delivery into a polished extension of the brand instead of one last folder download."
+        }
+      ],
+      "ctaTitle": "Your work deserves more than a download link.",
+      "ctaDescription": "Create a portal and make the handoff as intentional as the identity.",
+      "ctaLabel": "Create account"
+    }
+  },
+  "Home": {
+    "header": {
+      "createPortal": "Create portal",
+      "signOut": "Sign out"
+    },
+    "intro": {
+      "title": "Your Portals",
+      "portalCount": "{count, plural, =0 {No portals} one {# portal} other {# portals}}"
+    },
+    "create": {
+      "title": "Create portal",
+      "description": "Give the project a name. You can shape the full experience inside the portal.",
+      "nameLabel": "Name",
+      "namePlaceholder": "Portal name",
+      "submit": "Create"
+    },
+    "settings": {
+      "trigger": "Configure {name}",
+      "title": "Settings for {name}",
+      "description": "Update the portal name and its public address.",
+      "nameLabel": "Name",
+      "slugLabel": "Public address",
+      "save": "Save changes"
+    },
+    "portal": {
+      "lastEdited": "Last edited",
+      "edit": "Edit portal",
+      "view": "View portal",
+      "visibility": {
+        "public": "Public",
+        "private": "Private"
+      }
+    },
+    "empty": {
+      "title": "No portals yet",
+      "description": "Create your first portal and give your next client handoff a considered home."
+    },
+    "backendDisabled": {
+      "title": "Connect Supabase",
+      "description": "Configure the backend to create and manage client portals."
+    },
+    "errorGeneric": "The action could not be completed."
   }
 }

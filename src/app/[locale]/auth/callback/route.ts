@@ -10,7 +10,7 @@ export async function GET(
   const { locale } = await params;
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const next = requestUrl.searchParams.get("next") ?? `/${locale}/dashboard`;
+  const next = requestUrl.searchParams.get("next") ?? `/${locale}/home`;
 
   if (!hasSupabaseEnv()) {
     return NextResponse.redirect(

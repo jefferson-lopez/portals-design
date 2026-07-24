@@ -37,7 +37,7 @@ export default async function SignInPage({ params, searchParams }: Props) {
         <CardHeader>
           <CardTitle>Iniciar sesión</CardTitle>
           <CardDescription>
-            Entra a tu dashboard de Portals Design.
+            Entra a tu espacio de Portals Design.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">

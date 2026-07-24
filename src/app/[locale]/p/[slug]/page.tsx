@@ -51,7 +51,7 @@ function PasswordGate({
   slug: string;
 }) {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md items-center px-6">
+    <main className="mx-auto flex min-h-dvh w-full max-w-md items-center px-6">
       <Card className="w-full">
         <CardHeader>
           <CardTitle>{name}</CardTitle>
@@ -72,6 +72,7 @@ function PasswordGate({
                   autoComplete="current-password"
                   id="portal-password"
                   name="password"
+                  placeholder="Ingresa la contraseña"
                   required
                   type="password"
                 />

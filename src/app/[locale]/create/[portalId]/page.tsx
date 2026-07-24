@@ -213,7 +213,7 @@ export default async function CreatePortalPage({
     <>
       <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2">
         <div className="flex items-center gap-2 rounded-full border border-border/80 bg-background/80 p-3 shadow-lg backdrop-blur">
-          <Link className="md:hidden" href="/dashboard">
+          <Link className="md:hidden" href="/home">
             <Button
               aria-label="Atrás"
               className="rounded-full"
@@ -224,7 +224,7 @@ export default async function CreatePortalPage({
               <span className="sr-only">Atrás</span>
             </Button>
           </Link>
-          <Link className="hidden md:inline-flex" href="/dashboard">
+          <Link className="hidden md:inline-flex" href="/home">
             <Button className="rounded-full" size="lg" variant="secondary">
               <IconArrowLeft data-icon="inline-start" />
               Atrás

@@ -2,5 +2,80 @@
   "Metadata": {
     "title": "Portals Design",
     "description": "Organiza, presenta y entrega proyectos de branding mediante portales profesionales para clientes."
+  },
+  "Landing": {
+    "titleLine1": "Diseña la marca.",
+    "titleLine2": "Entrega la experiencia.",
+    "description": "Portals Design convierte tus sistemas de marca en portales profesionales donde puedes presentar el proyecto, organizar recursos y entregar cada archivo en un solo lugar.",
+    "cta": "Crear un portal",
+    "header": {
+      "createAccount": "Crear cuenta",
+      "enter": "Entrar",
+      "signIn": "Ingresar"
+    },
+    "details": {
+      "title": "Una mejor entrega también forma parte del diseño.",
+      "description": "Portals Design ofrece a los diseñadores de marca un espacio cuidado para presentar el concepto, organizar el sistema y entregar cada recurso final sin romper la experiencia.",
+      "benefits": [
+        {
+          "title": "Cuenta la historia detrás del sistema",
+          "description": "Guía al cliente por la estrategia, el lenguaje visual y las decisiones que hacen funcionar la identidad."
+        },
+        {
+          "title": "Dale un lugar claro a cada recurso",
+          "description": "Estructura logotipos, guías, colores, tipografías y archivos finales en un portal fácil de entender."
+        },
+        {
+          "title": "Diseña también el momento final",
+          "description": "Convierte la entrega en una extensión pulida de la marca, no en una última carpeta para descargar."
+        }
+      ],
+      "ctaTitle": "Tu trabajo merece más que un enlace de descarga.",
+      "ctaDescription": "Crea un portal y haz que la entrega sea tan intencional como la identidad.",
+      "ctaLabel": "Crear cuenta"
+    }
+  },
+  "Home": {
+    "header": {
+      "createPortal": "Crear portal",
+      "signOut": "Cerrar sesión"
+    },
+    "intro": {
+      "title": "Tus portales",
+      "portalCount": "{count, plural, =0 {Sin portales} one {# portal} other {# portales}}"
+    },
+    "create": {
+      "title": "Crear portal",
+      "description": "Dale un nombre al proyecto. Podrás diseñar toda la experiencia dentro del portal.",
+      "nameLabel": "Nombre",
+      "namePlaceholder": "Nombre del portal",
+      "submit": "Crear"
+    },
+    "settings": {
+      "trigger": "Configurar {name}",
+      "title": "Configuración de {name}",
+      "description": "Actualiza el nombre del portal y su dirección pública.",
+      "nameLabel": "Nombre",
+      "slugLabel": "Dirección pública",
+      "save": "Guardar cambios"
+    },
+    "portal": {
+      "lastEdited": "Última edición",
+      "edit": "Editar portal",
+      "view": "Ver portal",
+      "visibility": {
+        "public": "Público",
+        "private": "Privado"
+      }
+    },
+    "empty": {
+      "title": "Aún no tienes portales",
+      "description": "Crea tu primer portal y dale a tu próxima entrega un espacio cuidadosamente diseñado."
+    },
+    "backendDisabled": {
+      "title": "Conecta Supabase",
+      "description": "Configura el backend para crear y administrar portales para clientes."
+    },
+    "errorGeneric": "No se pudo completar la acción."
   }
 }

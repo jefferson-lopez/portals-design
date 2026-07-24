@@ -7,6 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-brand: var(--brand);
+  --color-brand-surface: var(--brand-surface);
+  --color-brand-surface-strong: var(--brand-surface-strong);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-geist-sans);
@@ -55,6 +58,9 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
+  --brand: oklch(0.56 0.16 292);
+  --brand-surface: oklch(0.56 0.18 292 / 18%);
+  --brand-surface-strong: oklch(0.5 0.19 292 / 22%);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
@@ -90,6 +96,9 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
+  --brand: oklch(0.72 0.14 292);
+  --brand-surface: oklch(0.72 0.14 292 / 10%);
+  --brand-surface-strong: oklch(0.72 0.14 292 / 10%);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
@@ -132,4 +141,46 @@
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
+}
+
+.portal-obsidian-frame {
+  border: 20px solid #100f16;
+  border-color: #17151f #0c0b10 #09080d #121019;
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.045),
+    inset 0 0 0 1px rgb(255 255 255 / 0.055),
+    inset 0 0 18px rgb(0 0 0 / 0.95),
+    0 24px 70px rgb(0 0 0 / 0.85);
+}
+
+.portal-obsidian-frame::before {
+  position: absolute;
+  inset: 4px;
+  content: "";
+  border: 1px solid rgb(255 255 255 / 0.035);
+  background:
+    linear-gradient(
+      110deg,
+      transparent 22%,
+      rgb(119 105 145 / 0.1),
+      transparent 38%
+    )
+    top / 100% 20px no-repeat,
+    linear-gradient(
+      290deg,
+      transparent 58%,
+      rgb(103 90 129 / 0.08),
+      transparent 74%
+    )
+    bottom / 100% 20px no-repeat;
+}
+
+.portal-landing-fallback {
+  position: absolute;
+  inset: 0;
+  opacity: 0.9;
+  background:
+    radial-gradient(ellipse at 58% 42%, rgb(141 118 190 / 0.9), transparent 46%),
+    radial-gradient(ellipse at 30% 72%, rgb(70 50 108 / 0.82), transparent 58%),
+    linear-gradient(145deg, #0b0910, #332448 48%, #08070b);
 }
