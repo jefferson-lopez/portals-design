@@ -1,11 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { type ReactNode, useEffect, useRef, useTransition } from "react";
-import {
-  updatePortalDocument,
-  updatePortalSummary,
-} from "@/app/[locale]/_actions/portals";
+import { type ReactNode, useEffect, useRef } from "react";
+import { updatePortalDocument } from "@/app/[locale]/_actions/portals";
 import {
   SectionActionToolbar,
   SectionContentEditor,
@@ -14,6 +11,13 @@ import {
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  ensurePortalAutosave,
+  flushPortalAutosave,
+  releasePortalAutosave,
+  schedulePortalAutosave,
+} from "@/lib/portal/autosave-coordinator";
+import { AutosaveQueue } from "@/lib/portal/autosave-queue";
 import {
   createPortalSection,
   hasPublicSectionContent,
@@ -215,10 +219,12 @@ function PortalSummary({
   document,
   editable,
   onPortalChange,
+  onSaveNow,
 }: {
   document: PortalDocument;
   editable?: boolean;
-  onPortalChange: (portal: PortalDocument["portal"]) => void;
+  onPortalChange: (portal: Partial<PortalDocument["portal"]>) => void;
+  onSaveNow: () => void;
 }) {
   const t = useTranslations("PortalViewer.summary");
   const portal = document.portal;
@@ -232,14 +238,13 @@ function PortalSummary({
             "border-none bg-transparent! px-0 text-2xl! font-medium shadow-none focus-visible:ring-0",
             !editable && "pointer-events-none",
           )}
-          defaultValue={editable ? portal.name : undefined}
-          onBlur={(event) =>
-            editable &&
-            onPortalChange?.({ ...portal, name: event.currentTarget.value })
+          onBlur={editable ? onSaveNow : undefined}
+          onChange={(event) =>
+            editable && onPortalChange({ name: event.currentTarget.value })
           }
           readOnly={!editable}
           tabIndex={editable ? undefined : -1}
-          value={editable ? undefined : portal.name}
+          value={portal.name}
         />
       </Field>
       <Field>
@@ -249,18 +254,15 @@ function PortalSummary({
             "resize-none whitespace-pre-wrap border-none bg-transparent! px-0 text-muted-foreground shadow-none focus-visible:ring-0",
             !editable && "pointer-events-none",
           )}
-          defaultValue={editable ? portal.description : undefined}
-          onBlur={(event) =>
+          onBlur={editable ? onSaveNow : undefined}
+          onChange={(event) =>
             editable &&
-            onPortalChange?.({
-              ...portal,
-              description: event.currentTarget.value,
-            })
+            onPortalChange({ description: event.currentTarget.value })
           }
           readOnly={!editable}
           rows={2}
           tabIndex={editable ? undefined : -1}
-          value={editable ? undefined : (portal.description ?? "")}
+          value={portal.description ?? ""}
         />
       </Field>
     </div>
@@ -272,14 +274,21 @@ function PortalSectionHeading({
   controls,
   editable,
   onSectionTitleChange,
+  onSaveNow,
   section,
 }: {
   actions: PortalAction[];
   controls?: ReactNode;
   editable?: boolean;
   onSectionTitleChange?: (
-    section: RenderPortalProps["document"]["sections"][number],
+    patch: Partial<
+      Pick<
+        RenderPortalProps["document"]["sections"][number],
+        "description" | "title"
+      >
+    >,
   ) => void;
+  onSaveNow?: () => void;
   section: RenderPortalProps["document"]["sections"][number];
 }) {
   const t = useTranslations("PortalViewer.section");
@@ -291,16 +300,14 @@ function PortalSectionHeading({
           <input
             className="w-full border-none bg-transparent px-0 font-heading font-medium text-lg text-primary! tracking-tight outline-none placeholder:text-muted-foreground"
             data-portal-section-title
-            defaultValue={section.title}
             maxLength={70}
             minLength={1}
-            onBlur={(event) =>
-              onSectionTitleChange?.({
-                ...section,
-                title: event.currentTarget.value,
-              })
+            onBlur={onSaveNow}
+            onChange={(event) =>
+              onSectionTitleChange?.({ title: event.currentTarget.value })
             }
             placeholder={t("titlePlaceholder")}
+            value={section.title}
           />
         ) : section.title ? (
           <h2 className="px-0 font-heading font-medium text-lg text-primary tracking-tight">
@@ -319,15 +326,15 @@ function PortalSectionHeading({
       {editable ? (
         <Textarea
           className="resize-none border-none bg-transparent! px-0 text-muted-foreground text-sm shadow-none outline-none focus-visible:ring-0"
-          defaultValue={section.description}
           maxLength={1500}
-          onBlur={(event) =>
+          onBlur={onSaveNow}
+          onChange={(event) =>
             onSectionTitleChange?.({
-              ...section,
               description: event.currentTarget.value,
             })
           }
           placeholder={t("descriptionPlaceholder")}
+          value={section.description}
         />
       ) : section.description ? (
         <Textarea
@@ -361,79 +368,123 @@ export function RenderPortal({
   const storeDocument = usePortalEditorStore((state) =>
     editor ? state.documentsByPortalId[editor.portalId] : undefined,
   );
-  const setStoreDocument = usePortalEditorStore((state) => state.setDocument);
-  const setHasUnpublishedChanges = usePortalEditorStore(
-    (state) => state.setHasUnpublishedChanges,
+  const hydrateDocument = usePortalEditorStore(
+    (state) => state.hydrateDocument,
   );
-  const [, startTransition] = useTransition();
+  const setAutosaveState = usePortalEditorStore(
+    (state) => state.setAutosaveState,
+  );
+  const resetAutosaveState = usePortalEditorStore(
+    (state) => state.resetAutosaveState,
+  );
+  const updateStoreDocument = usePortalEditorStore(
+    (state) => state.updateDocument,
+  );
   const pendingSectionIdRef = useRef<string | null>(null);
+  const editorLocale = editor?.locale;
+  const editorPortalId = editor?.portalId;
 
   useEffect(() => {
-    if (!editor) return;
-    setStoreDocument(editor.portalId, document);
-  }, [document, editor, setStoreDocument]);
+    if (!editorPortalId) return;
+    hydrateDocument(editorPortalId, document);
+  }, [document, editorPortalId, hydrateDocument]);
+
+  useEffect(() => {
+    if (!editorLocale || !editorPortalId) return;
+    ensurePortalAutosave(editorPortalId, ({ hasPredecessor }) => {
+      if (!hasPredecessor) resetAutosaveState(editorPortalId);
+      return new AutosaveQueue<PortalDocument>({
+        delay: 700,
+        onStatusChange: (status, error) => {
+          setAutosaveState(editorPortalId, {
+            error:
+              error instanceof Error
+                ? error.message
+                : error
+                  ? "Autosave failed"
+                  : null,
+            status,
+          });
+        },
+        save: async (nextDocument) => {
+          const fd = new FormData();
+          fd.set("locale", editorLocale);
+          fd.set("portal_id", editorPortalId);
+          fd.set("document_json", JSON.stringify(nextDocument));
+          await updatePortalDocument(fd);
+        },
+      });
+    });
+    return () => releasePortalAutosave(editorPortalId);
+  }, [editorLocale, editorPortalId, resetAutosaveState, setAutosaveState]);
 
   const activeDocument = editor ? (storeDocument ?? document) : document;
 
-  function saveEditableDocument(next: PortalDocument) {
+  function changeEditableDocument(
+    update: (current: PortalDocument) => PortalDocument,
+  ) {
     if (!editor) return;
-    setStoreDocument(editor.portalId, next);
-    setHasUnpublishedChanges(editor.portalId, true);
-    startTransition(() => {
-      const fd = new FormData();
-      fd.set("locale", editor.locale);
-      fd.set("portal_id", editor.portalId);
-      fd.set("document_json", JSON.stringify(next));
-      updatePortalDocument(fd);
-    });
+    const next = updateStoreDocument(editor.portalId, update);
+    if (next) schedulePortalAutosave(editor.portalId, next);
   }
 
-  function saveEditablePortal(nextPortal: PortalDocument["portal"]) {
+  function saveEditablePortal(patch: Partial<PortalDocument["portal"]>) {
+    changeEditableDocument((current) => ({
+      ...current,
+      portal: { ...current.portal, ...patch },
+    }));
+  }
+
+  function flushAutosave() {
     if (!editor) return;
-    setStoreDocument(editor.portalId, {
-      ...activeDocument,
-      portal: nextPortal,
-    });
-    setHasUnpublishedChanges(editor.portalId, true);
-    startTransition(() => {
-      const fd = new FormData();
-      fd.set("locale", editor.locale);
-      fd.set("portal_id", editor.portalId);
-      fd.set("name", nextPortal.name);
-      fd.set("short_description", nextPortal.description ?? "");
-      updatePortalSummary({ error: null, saved: false }, fd);
+    void flushPortalAutosave(editor.portalId).catch(() => {
+      // The shared status exposes the failure and offers explicit retry.
     });
   }
 
   function updateEditableSection(nextSection: PortalSection) {
     if (!editor) return;
-    saveEditableDocument({
-      ...activeDocument,
-      sections: activeDocument.sections.map((section) =>
+    changeEditableDocument((current) => ({
+      ...current,
+      sections: current.sections.map((section) =>
         section.id === nextSection.id ? nextSection : section,
       ),
-    });
+    }));
+  }
+
+  function updateEditableSectionHeading(
+    sectionId: string,
+    patch: Partial<Pick<PortalSection, "description" | "title">>,
+  ) {
+    changeEditableDocument((current) => ({
+      ...current,
+      sections: current.sections.map((section) =>
+        section.id === sectionId ? { ...section, ...patch } : section,
+      ),
+    }));
   }
 
   function removeEditableSection(sectionId: string) {
     if (!editor) return;
-    saveEditableDocument({
-      ...activeDocument,
+    changeEditableDocument((current) => ({
+      ...current,
       sections: reindex(
-        activeDocument.sections.filter((section) => section.id !== sectionId),
+        current.sections.filter((section) => section.id !== sectionId),
       ),
-    });
+    }));
   }
 
   function addEditableSection(
     type: Exclude<PortalSectionType, "empty"> = "text",
   ) {
     if (!editor) return;
-    const section = createPortalSection(type, activeDocument.sections.length);
-    pendingSectionIdRef.current = section.id;
-    saveEditableDocument({
-      ...activeDocument,
-      sections: [...activeDocument.sections, section],
+    changeEditableDocument((current) => {
+      const section = createPortalSection(type, current.sections.length);
+      pendingSectionIdRef.current = section.id;
+      return {
+        ...current,
+        sections: [...current.sections, section],
+      };
     });
   }
 
@@ -503,6 +554,7 @@ export function RenderPortal({
           document={renderDocument}
           editable={editable}
           onPortalChange={saveEditablePortal}
+          onSaveNow={flushAutosave}
         />
         <div className="flex flex-col gap-30 pt-10">
           {visibleSections.map((section) => (
@@ -523,7 +575,10 @@ export function RenderPortal({
                   ) : null
                 }
                 editable={editable}
-                onSectionTitleChange={updateEditableSection}
+                onSaveNow={flushAutosave}
+                onSectionTitleChange={(patch) =>
+                  updateEditableSectionHeading(section.id, patch)
+                }
                 section={section}
               />
               {editor ? (

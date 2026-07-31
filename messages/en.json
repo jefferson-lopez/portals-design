@@ -224,6 +224,12 @@
     "specialized": "This section is ready for specialized content. Detailed rendering for {type} will be expanded in a future iteration."
   },
   "PortalEditor": {
+    "autosave": {
+      "saving": "Saving changes…",
+      "error": "Changes could not be saved",
+      "errorDescription": "Your latest changes are still available. Retry saving before publishing.",
+      "retry": "Retry saving"
+    },
     "upload": {
       "authRequired": "Log in to upload files."
     },

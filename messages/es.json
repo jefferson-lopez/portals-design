@@ -224,6 +224,12 @@
     "specialized": "Esta sección está lista para contenido especializado. La representación detallada de {type} se ampliará en una próxima iteración."
   },
   "PortalEditor": {
+    "autosave": {
+      "saving": "Guardando cambios…",
+      "error": "No se pudieron guardar los cambios",
+      "errorDescription": "Tus últimos cambios siguen disponibles. Vuelve a intentar guardarlos antes de publicar.",
+      "retry": "Reintentar guardado"
+    },
     "upload": {
       "authRequired": "Inicia sesión para subir archivos."
     },

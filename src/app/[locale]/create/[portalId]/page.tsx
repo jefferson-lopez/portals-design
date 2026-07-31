@@ -259,11 +259,7 @@ export default async function CreatePortalPage({
               <TooltipContent>{t("openPreview")}</TooltipContent>
             </Tooltip>
           ) : null}
-          <SectionOrderPopover
-            document={document}
-            locale={locale}
-            portalId={portal.id}
-          />
+          <SectionOrderPopover document={document} portalId={portal.id} />
           <div aria-hidden="true" className="h-6 w-px bg-border" />
           <PublishPortalButton
             initialHasUnpublishedChanges={hasUnpublishedChanges}

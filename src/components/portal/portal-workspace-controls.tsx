@@ -4,11 +4,13 @@ import { move } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/react";
 import { useSortable } from "@dnd-kit/react/sortable";
 import {
+  IconAlertCircle,
   IconDeviceFloppy,
   IconFiles,
   IconGripVertical,
   IconInfoCircle,
   IconLayoutGrid,
+  IconLoader2,
   IconLock,
   IconMoon,
   IconPackageExport,
@@ -31,7 +33,6 @@ import { parseColor } from "react-aria-components";
 import {
   checkPortalSlugAvailability,
   savePrivacySettings,
-  updatePortalDocument,
   updatePortalSettings,
 } from "@/app/[locale]/_actions/portals";
 import {
@@ -105,6 +106,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  flushPortalAutosave,
+  schedulePortalAutosave,
+} from "@/lib/portal/autosave-coordinator";
 import {
   createImageItem,
   createPortalSection,
@@ -2782,11 +2787,13 @@ function usePortalDocumentDraft(portalId: string, document: PortalDocument) {
   const storeDocument = usePortalEditorStore(
     (state) => state.documentsByPortalId[portalId],
   );
-  const setStoreDocument = usePortalEditorStore((state) => state.setDocument);
+  const hydrateDocument = usePortalEditorStore(
+    (state) => state.hydrateDocument,
+  );
 
   useEffect(() => {
-    setStoreDocument(portalId, document);
-  }, [document, portalId, setStoreDocument]);
+    hydrateDocument(portalId, document);
+  }, [document, hydrateDocument, portalId]);
 
   return storeDocument ?? document;
 }
@@ -3092,20 +3099,14 @@ function SectionOrderItem({
 
 export function SectionOrderPopover({
   document,
-  locale,
   portalId,
 }: {
   document: PortalDocument;
-  locale: string;
   portalId: string;
 }) {
   const t = useTranslations("PortalEditor.sections");
   const draft = usePortalDocumentDraft(portalId, document);
-  const setDraft = usePortalEditorStore((state) => state.setDocument);
-  const setHasUnpublishedChanges = usePortalEditorStore(
-    (state) => state.setHasUnpublishedChanges,
-  );
-  const [, startTransition] = useTransition();
+  const updateDraft = usePortalEditorStore((state) => state.updateDocument);
   const [open, setOpen] = useState(false);
   const pendingSectionIdRef = useRef<string | null>(null);
   const sections = uniqueForRender(
@@ -3115,22 +3116,17 @@ export function SectionOrderPopover({
     "sec",
   );
 
-  function save(next: PortalDocument) {
-    setDraft(portalId, next);
-    setHasUnpublishedChanges(portalId, true);
-    startTransition(() => {
-      const fd = new FormData();
-      fd.set("locale", locale);
-      fd.set("portal_id", portalId);
-      fd.set("document_json", JSON.stringify(next));
-      updatePortalDocument(fd);
-    });
+  function save(update: (current: PortalDocument) => PortalDocument) {
+    const updated = updateDraft(portalId, update);
+    if (updated) schedulePortalAutosave(portalId, updated);
   }
 
   function addSection(type: Exclude<PortalSectionType, "empty">) {
-    const section = createPortalSection(type, draft.sections.length);
-    save({ ...draft, sections: [...draft.sections, section] });
-    pendingSectionIdRef.current = section.id;
+    save((current) => {
+      const section = createPortalSection(type, current.sections.length);
+      pendingSectionIdRef.current = section.id;
+      return { ...current, sections: [...current.sections, section] };
+    });
   }
 
   return (
@@ -3189,12 +3185,33 @@ export function SectionOrderPopover({
           onDragEnd={(event) => {
             if (!event.canceled) {
               const nextSections = move(sections, event);
-              const hiddenSections = draft.sections.filter(
-                (section) => section.type === "empty" || !section.visible,
-              );
-              save({
-                ...draft,
-                sections: reindex([...nextSections, ...hiddenSections]),
+              const orderedIds = nextSections.map((section) => section.id);
+              save((current) => {
+                const sectionsById = new Map(
+                  current.sections.map((section) => [section.id, section]),
+                );
+                const orderedSections = orderedIds.flatMap((id) => {
+                  const section = sectionsById.get(id);
+                  return section ? [section] : [];
+                });
+                const orderedIdSet = new Set(orderedIds);
+                const remainingVisibleSections = current.sections.filter(
+                  (section) =>
+                    section.visible &&
+                    section.type !== "empty" &&
+                    !orderedIdSet.has(section.id),
+                );
+                const hiddenSections = current.sections.filter(
+                  (section) => section.type === "empty" || !section.visible,
+                );
+                return {
+                  ...current,
+                  sections: reindex([
+                    ...orderedSections,
+                    ...remainingVisibleSections,
+                    ...hiddenSections,
+                  ]),
+                };
               });
             }
           }}
@@ -3531,24 +3548,35 @@ export function UnpublishedChangesIndicator({
   portalId: string;
 }) {
   const t = useTranslations("PortalEditor.workspace");
+  const autosaveT = useTranslations("PortalEditor.autosave");
   const storeValue = usePortalEditorStore(
     (state) => state.hasUnpublishedChangesByPortalId[portalId],
   );
-  const setHasUnpublishedChanges = usePortalEditorStore(
-    (state) => state.setHasUnpublishedChanges,
+  const autosave = usePortalEditorStore(
+    (state) => state.autosaveByPortalId[portalId],
+  ) ?? { error: null, status: "idle" as const };
+  const initializeHasUnpublishedChanges = usePortalEditorStore(
+    (state) => state.initializeHasUnpublishedChanges,
   );
   const hasUnpublishedChanges = storeValue ?? initialHasUnpublishedChanges;
 
   useEffect(() => {
-    setHasUnpublishedChanges(portalId, initialHasUnpublishedChanges);
-  }, [initialHasUnpublishedChanges, portalId, setHasUnpublishedChanges]);
+    initializeHasUnpublishedChanges(portalId, initialHasUnpublishedChanges);
+  }, [initialHasUnpublishedChanges, initializeHasUnpublishedChanges, portalId]);
+
+  const actionLabel =
+    autosave.status === "saving"
+      ? autosaveT("saving")
+      : autosave.status === "error"
+        ? autosaveT("error")
+        : t("unpublishedAction");
 
   return (
     <AnimatePresence initial={false}>
       {hasUnpublishedChanges ? (
         <motion.div
           animate={{ opacity: 1, scale: 1, width: "auto" }}
-          className="hidden overflow-hidden rounded-full border border-border/80 bg-background/80 shadow-lg backdrop-blur md:block"
+          className="overflow-hidden rounded-full border border-border/80 bg-background/80 shadow-lg backdrop-blur"
           exit={{ opacity: 0, scale: 0.96, width: 0 }}
           initial={{ opacity: 0, scale: 0.96, width: 0 }}
           transition={{
@@ -3561,7 +3589,7 @@ export function UnpublishedChangesIndicator({
             <PopoverTrigger
               render={
                 <Button
-                  aria-label={t("unpublishedAction")}
+                  aria-label={actionLabel}
                   className="rounded-full"
                   size="icon-lg"
                   type="button"
@@ -3569,16 +3597,44 @@ export function UnpublishedChangesIndicator({
                 />
               }
             >
-              <IconInfoCircle className="text-blue-500" />
-              <span className="sr-only">{t("unpublishedAction")}</span>
+              {autosave.status === "saving" ? (
+                <IconLoader2 className="animate-spin" />
+              ) : autosave.status === "error" ? (
+                <IconAlertCircle />
+              ) : (
+                <IconInfoCircle />
+              )}
+              <output aria-atomic="true" className="sr-only">
+                {actionLabel}
+              </output>
             </PopoverTrigger>
             <PopoverContent align="center" className="w-72" side="top">
               <PopoverHeader>
-                <PopoverTitle>{t("unpublishedTitle")}</PopoverTitle>
+                <PopoverTitle>
+                  {autosave.status === "error"
+                    ? autosaveT("error")
+                    : t("unpublishedTitle")}
+                </PopoverTitle>
                 <PopoverDescription>
-                  {t("unpublishedDescription")}
+                  {autosave.status === "error"
+                    ? autosaveT("errorDescription")
+                    : t("unpublishedDescription")}
                 </PopoverDescription>
               </PopoverHeader>
+              {autosave.status === "error" ? (
+                <Button
+                  onClick={() => {
+                    void flushPortalAutosave(portalId).catch(() => {
+                      // The retained snapshot remains available for another retry.
+                    });
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  {autosaveT("retry")}
+                </Button>
+              ) : null}
             </PopoverContent>
           </Popover>
         </motion.div>

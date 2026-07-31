@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { useEffect } from "react";
 import { publishPortalById } from "@/app/[locale]/_actions/portals";
 import { Button } from "@/components/ui/button";
+import { flushPortalAutosave } from "@/lib/portal/autosave-coordinator";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
 
 export function PublishPortalButton({
@@ -27,8 +28,11 @@ export function PublishPortalButton({
   );
   const hasUnpublishedChanges =
     storeHasUnpublishedChanges ?? initialHasUnpublishedChanges;
-  const setHasUnpublishedChanges = usePortalEditorStore(
-    (state) => state.setHasUnpublishedChanges,
+  const initializeHasUnpublishedChanges = usePortalEditorStore(
+    (state) => state.initializeHasUnpublishedChanges,
+  );
+  const markPublishedIfRevision = usePortalEditorStore(
+    (state) => state.markPublishedIfRevision,
   );
   const setLastPublishedPortalId = usePortalEditorStore(
     (state) => state.setLastPublishedPortalId,
@@ -41,16 +45,22 @@ export function PublishPortalButton({
   );
 
   useEffect(() => {
-    setHasUnpublishedChanges(portalId, initialHasUnpublishedChanges);
-  }, [initialHasUnpublishedChanges, portalId, setHasUnpublishedChanges]);
+    initializeHasUnpublishedChanges(portalId, initialHasUnpublishedChanges);
+  }, [initialHasUnpublishedChanges, initializeHasUnpublishedChanges, portalId]);
 
   const publishMutation = useMutation({
-    mutationFn: () =>
-      publishPortalById({
+    mutationFn: async () => {
+      await flushPortalAutosave(portalId);
+      const publishedRevision =
+        usePortalEditorStore.getState().documentRevisionByPortalId[portalId] ??
+        0;
+      await publishPortalById({
         locale,
         portalId,
         returnTo: `/${locale}/create/${portalId}`,
-      }),
+      });
+      return publishedRevision;
+    },
     onError: (error) => {
       setPublishError(
         error instanceof Error ? error.message : t("publishError"),
@@ -61,8 +71,8 @@ export function PublishPortalButton({
       setPublishError(null);
       setPublishingPortalId(portalId);
     },
-    onSuccess: async () => {
-      setHasUnpublishedChanges(portalId, false);
+    onSuccess: async (publishedRevision) => {
+      markPublishedIfRevision(portalId, publishedRevision);
       setLastPublishedPortalId(portalId);
       setPublishingPortalId(null);
       await queryClient.invalidateQueries({ queryKey: ["portal", portalId] });
