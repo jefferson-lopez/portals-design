@@ -317,6 +317,13 @@
       "settingsDescription": "Ajusta la presentación, visibilidad y descarga.",
       "fit": "Ajuste",
       "ratio": "Proporción",
+      "fitOptions": {
+        "cover": "Recortar",
+        "contain": "Contener",
+        "fill": "Rellenar",
+        "auto": "Automático"
+      },
+      "ratioAuto": "Automática",
       "altPlaceholder": "Descripción de la imagen",
       "uploadError": "No se pudo subir la imagen.",
       "remove": "Remover imagen"
@@ -339,6 +346,16 @@
       "dialogTitle": "Color",
       "dialogDescription": "Define el nombre, el formato y la vista previa del color.",
       "format": "Formato",
+      "formats": {
+        "hex": "Hex",
+        "hexa": "Hex + alfa",
+        "hsb": "HSB",
+        "hsba": "HSBA",
+        "hsl": "HSL",
+        "hsla": "HSLA",
+        "rgb": "RGB",
+        "rgba": "RGBA"
+      },
       "picker": "Selector",
       "choose": "Elegir color",
       "code": "Código",

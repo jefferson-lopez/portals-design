@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { routing } from "@/i18n/routing";
+import { getSiteUrl, SITE_NAME } from "@/lib/public-metadata";
 import "../globals.css";
 
 type Props = Readonly<{
@@ -27,8 +28,16 @@ export async function generateMetadata({
   const t = await getTranslations({ locale, namespace: "Metadata" });
 
   return {
-    title: t("title"),
+    applicationName: SITE_NAME,
+    category: "design",
+    creator: SITE_NAME,
     description: t("description"),
+    metadataBase: getSiteUrl(
+      process.env.NEXT_PUBLIC_SITE_URL ??
+        process.env.VERCEL_PROJECT_PRODUCTION_URL ??
+        process.env.VERCEL_URL,
+    ),
+    title: t("title"),
   };
 }
 

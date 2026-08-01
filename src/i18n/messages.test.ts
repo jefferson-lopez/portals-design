@@ -45,6 +45,20 @@ describe("translation catalogs", () => {
     expect(en).toHaveProperty("PublicPortal.password.label");
     expect(en).toHaveProperty("PortalEditor.sections.addTitle");
     expect(en).toHaveProperty("PortalViewer.actions.exportAll");
+    expect(es).toHaveProperty(
+      "PortalEditor.image.fitOptions.cover",
+      "Recortar",
+    );
+    expect(es).toHaveProperty(
+      "PortalEditor.image.fitOptions.contain",
+      "Contener",
+    );
+    expect(es).toHaveProperty("PortalEditor.image.fitOptions.fill", "Rellenar");
+    expect(es).toHaveProperty(
+      "PortalEditor.image.fitOptions.auto",
+      "Automático",
+    );
+    expect(es).toHaveProperty("PortalEditor.image.ratioAuto", "Automática");
   });
 
   test("does not leave Spanish UI copy hardcoded in app or components", () => {
@@ -73,5 +87,24 @@ describe("translation catalogs", () => {
     expect(renderer).not.toContain("section.title || section.type");
     expect(workspace).not.toContain("t(`weights.$" + "{weight}`)");
     expect(renderer).not.toContain("t(`sectionTypes.$" + "{section.type}`)");
+  });
+
+  test("provides localized item models to Base UI selects", () => {
+    const workspace = readFileSync(
+      "src/components/portal/portal-workspace-controls.tsx",
+      "utf8",
+    );
+
+    expect(workspace).toContain("items={imageFitItems}");
+    expect(workspace).toContain("items={aspectRatioItems}");
+    expect(workspace).toContain("items={layoutModeItems}");
+    expect(workspace).toContain("items={colorFormatItems}");
+    expect(workspace).toContain("items={visibilityItems}");
+
+    const selectOpeningTags = workspace.match(/<Select\n[\s\S]*?>/g) ?? [];
+    expect(selectOpeningTags.length).toBeGreaterThan(0);
+    expect(selectOpeningTags.filter((tag) => !tag.includes("items="))).toEqual(
+      [],
+    );
   });
 });

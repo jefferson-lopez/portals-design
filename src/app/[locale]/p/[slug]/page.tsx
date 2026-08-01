@@ -30,6 +30,10 @@ import {
   resolvePortalAccess,
 } from "@/lib/portal/server-access";
 import { prepareDocumentForRendering } from "@/lib/portal/server-assets";
+import {
+  buildPortalMetadata,
+  resolvePortalSharePresentation,
+} from "@/lib/public-metadata";
 import type { Json } from "@/lib/supabase/database.types";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -188,16 +192,35 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   });
   const genericMetadata: Metadata = {
     description: t("description"),
+    robots: { follow: false, index: false },
     title: t("title"),
   };
   if (!hasSupabaseEnv()) return genericMetadata;
   try {
     const access = await resolvePortalAccess(slug);
-    if (access.decision !== "allowed" || !access.portal) return genericMetadata;
-    return {
-      description: `${access.portal.short_description || t("discover", { name: access.portal.name })} · Portals Design`,
-      title: `${access.portal.name} · Portals Design`,
-    };
+    const presentation = resolvePortalSharePresentation({
+      decision: access.decision,
+      fallback: {
+        description: t("description"),
+        title: t("title"),
+      },
+      portal: access.portal
+        ? {
+            description: access.portal.short_description,
+            fallbackDescription: t("discover", {
+              name: access.portal.name,
+            }),
+            name: access.portal.name,
+          }
+        : null,
+    });
+    if (!presentation.indexable) return genericMetadata;
+    return buildPortalMetadata({
+      description: presentation.description,
+      locale,
+      name: presentation.title,
+      slug,
+    });
   } catch {
     return genericMetadata;
   }

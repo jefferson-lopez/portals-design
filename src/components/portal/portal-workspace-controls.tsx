@@ -187,15 +187,15 @@ type ColorFormat =
   | "rgb"
   | "rgba";
 
-const colorFormatItems: { label: string; value: ColorFormat }[] = [
-  { label: "Hex", value: "hex" },
-  { label: "Hex + Alpha", value: "hexa" },
-  { label: "HSB", value: "hsb" },
-  { label: "HSBA", value: "hsba" },
-  { label: "HSL", value: "hsl" },
-  { label: "HSLA", value: "hsla" },
-  { label: "RGB", value: "rgb" },
-  { label: "RGBA", value: "rgba" },
+const colorFormats: ColorFormat[] = [
+  "hex",
+  "hexa",
+  "hsb",
+  "hsba",
+  "hsl",
+  "hsla",
+  "rgb",
+  "rgba",
 ];
 
 function clampNumber(value: string, min: number, max: number) {
@@ -488,6 +488,14 @@ function ImageSettingsPopover({
   trigger: ReactElement;
 }) {
   const t = useTranslations("PortalEditor");
+  const imageFitItems = imageFits.map((value) => ({
+    label: t(`image.fitOptions.${value}`),
+    value,
+  }));
+  const aspectRatioItems = aspectRatios.map((value) => ({
+    label: value === "auto" ? t("image.ratioAuto") : value,
+    value,
+  }));
   function updateImage(nextImage: PortalImageItem) {
     onSave(nextImage);
   }
@@ -507,6 +515,7 @@ function ImageSettingsPopover({
             <Field>
               <FieldLabel>{t("image.fit")}</FieldLabel>
               <Select
+                items={imageFitItems}
                 value={image.fit}
                 onValueChange={(value) =>
                   value && updateImage({ ...image, fit: value as ImageFit })
@@ -517,9 +526,9 @@ function ImageSettingsPopover({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {imageFits.map((fit) => (
-                      <SelectItem key={fit} value={fit}>
-                        {fit}
+                    {imageFitItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -529,6 +538,7 @@ function ImageSettingsPopover({
             <Field>
               <FieldLabel>{t("image.ratio")}</FieldLabel>
               <Select
+                items={aspectRatioItems}
                 value={image.aspect_ratio}
                 onValueChange={(value) =>
                   value &&
@@ -543,9 +553,9 @@ function ImageSettingsPopover({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {aspectRatios.map((ratio) => (
-                      <SelectItem key={ratio} value={ratio}>
-                        {ratio}
+                    {aspectRatioItems.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -781,9 +791,12 @@ function GalleryLayoutControls({
   const selectedColumns = [3, 4].includes(section.layout.columns ?? 3)
     ? (section.layout.columns ?? 3)
     : 3;
-  const fitItems = imageFits.map((fit) => ({ label: fit, value: fit }));
+  const imageFitItems = imageFits.map((value) => ({
+    label: t(`image.fitOptions.${value}`),
+    value,
+  }));
   const aspectRatioItems = aspectRatios.map((ratio) => ({
-    label: ratio,
+    label: ratio === "auto" ? t("image.ratioAuto") : ratio,
     value: ratio,
   }));
 
@@ -877,7 +890,7 @@ function GalleryLayoutControls({
       <Field>
         <FieldLabel>{t("gallery.globalFit")}</FieldLabel>
         <Select
-          items={fitItems}
+          items={imageFitItems}
           value={sharedFit}
           onValueChange={(value) =>
             value &&
@@ -891,7 +904,7 @@ function GalleryLayoutControls({
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              {fitItems.map((item) => (
+              {imageFitItems.map((item) => (
                 <SelectItem key={item.value} value={item.value}>
                   {item.label}
                 </SelectItem>
@@ -1096,6 +1109,7 @@ function ColorsSettingsPopover({
             <Field>
               <FieldLabel>{t("common.layout")}</FieldLabel>
               <Select
+                items={layoutModeItems}
                 value={section.layout.mode ?? "palette"}
                 onValueChange={(value) =>
                   value &&
@@ -1126,6 +1140,7 @@ function ColorsSettingsPopover({
               <FieldLabel>{t("common.columnsLabel")}</FieldLabel>
               <Select
                 disabled={isStackLayout}
+                items={columnItems}
                 value={String(section.layout.columns ?? 4)}
                 onValueChange={(value) =>
                   value &&
@@ -1400,6 +1415,10 @@ function ColorDialog({
     ? normalizeHexInput(draft.color_code)
     : "";
   const pickerValue = getPickerValue(draft);
+  const colorFormatItems = colorFormats.map((value) => ({
+    label: t(`colors.formats.${value}`),
+    value,
+  }));
 
   function updateFormat(value: ColorFormat) {
     setFormat(value);
@@ -1423,6 +1442,7 @@ function ColorDialog({
             <Field>
               <FieldLabel>{t("colors.format")}</FieldLabel>
               <Select
+                items={colorFormatItems}
                 value={format}
                 onValueChange={(value) =>
                   value && updateFormat(value as ColorFormat)
@@ -3289,6 +3309,11 @@ export function PrivacySettingsDialog({
   const [visibility, setVisibility] = useState<PortalVisibility>(
     portal.visibility,
   );
+  const visibilityItems: { label: string; value: PortalVisibility }[] = [
+    { label: t("public"), value: "public" },
+    { label: t("private"), value: "private" },
+    { label: t("password"), value: "password" },
+  ];
   return (
     <SettingsModal
       action={savePrivacySettings}
@@ -3303,6 +3328,7 @@ export function PrivacySettingsDialog({
         <Field>
           <FieldLabel>{t("privacy")}</FieldLabel>
           <Select
+            items={visibilityItems}
             name="visibility"
             onValueChange={(value) =>
               value && setVisibility(value as PortalVisibility)
@@ -3314,9 +3340,11 @@ export function PrivacySettingsDialog({
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectItem value="public">{t("public")}</SelectItem>
-                <SelectItem value="private">{t("private")}</SelectItem>
-                <SelectItem value="password">{t("password")}</SelectItem>
+                {visibilityItems.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
               </SelectGroup>
             </SelectContent>
           </Select>
