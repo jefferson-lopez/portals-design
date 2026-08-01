@@ -9,19 +9,14 @@ import type {
   PortalFileItem,
   PortalImageItem,
   PortalSection,
-  PortalTypeScaleSettings,
 } from "@/lib/portal/document";
 import { cn } from "@/lib/utils";
+import { fontFaceFor, fontWeightMessageKey } from "./font-utils";
 import {
-  fontFaceFor,
-  fontFamilyFor,
-  fontWeightMessageKey,
-  fontWeightSpec,
-  groupedFonts,
-  representativeFont,
-  typeScaleSize,
-} from "./font-utils";
-import { PortalItemActionButtonsOverlay } from "./portal-actions";
+  PortalActionButtons,
+  PortalItemActionButtonsOverlay,
+} from "./portal-actions";
+import { PortalTypographyShowcase } from "./portal-typography-showcase";
 import type { PortalAction, PortalRenderActions } from "./types";
 
 function imageFitClass(image: PortalImageItem) {
@@ -220,106 +215,34 @@ function PortalFontsVisual({
     return key ? t(key) : t("weightFallback");
   };
   const fonts = section.content.fonts ?? [];
-  const groups = groupedFonts(fonts, t("undetectedFamily"));
-  const settings: PortalTypeScaleSettings = section.content
-    .type_scale_settings ?? {
-    base_size: 20,
-    ratio: 1.03,
-  };
   const fontFaces = fonts.map(fontFaceFor).filter(Boolean).join("\n");
 
   return (
-    <div className="group relative flex flex-col gap-8">
+    <div className="group relative">
       {fontFaces ? <style>{fontFaces}</style> : null}
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-10">
-          {groups.map((group) => {
-            const font = representativeFont(group.items);
-            if (!font) return null;
-            const family = fontFamilyFor(font);
-            return (
-              <div
-                className="group/item relative flex items-start"
-                key={group.family}
-              >
-                <div className="relative min-w-0 flex-1">
-                  <PortalItemActionButtonsOverlay
-                    actions={actions?.font?.({ item: font, section })}
-                    position="top-0-right"
-                  />
-                  <p
-                    className="text-3xl font-semibold tracking-tight"
-                    style={family ? { fontFamily: `"${family}"` } : undefined}
-                  >
-                    {font.sample_text || t("sampleTitle")}
-                  </p>
-                  <p
-                    className="mt-3 max-w-2xl text-muted-foreground text-sm leading-6"
-                    style={family ? { fontFamily: `"${family}"` } : undefined}
-                  >
-                    {font.sample_description || t("sampleDescription")}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-      {groups.length ? (
-        <section className="flex flex-col gap-5">
-          <div className="flex flex-col gap-1">
-            <h3 className="font-heading font-medium text-lg tracking-tight">
-              {t("typeScale")}
-            </h3>
-          </div>
-          <div className="flex flex-col gap-6">
-            {groups.map((group) => (
-              <div className="flex flex-col gap-3" key={group.family}>
-                <div className="flex items-baseline justify-between gap-4">
-                  <h4 className="font-heading font-semibold tracking-tight">
-                    {group.family}
-                  </h4>
-                </div>
-                <div className="flex flex-col divide-y">
-                  {group.items.map((font, index) => {
-                    const family = fontFamilyFor(font);
-                    const size = typeScaleSize(
-                      settings,
-                      group.items.length,
-                      index,
-                    );
-                    return (
-                      <div
-                        className="group/item relative flex flex-col gap-3 py-4"
-                        key={font.id}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-[10px] text-muted-foreground uppercase">
-                            {fontWeightSpec(
-                              font,
-                              weightName(font.weight ?? 400),
-                            )}
-                          </span>
-                        </div>
-                        <p
-                          className="min-w-0 tracking-tight"
-                          style={{
-                            fontFamily: family ? `"${family}"` : undefined,
-                            fontSize: size,
-                            fontWeight: font.weight,
-                          }}
-                        >
-                          {font.sample_text || "Aa Bb Cc 123"}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
+      <PortalTypographyShowcase
+        alphabetSample={t("alphabetSample")}
+        familiesLabel={t("familiesLabel")}
+        fonts={fonts}
+        renderActions={(font) => {
+          const fontActions = actions?.font?.({ item: font, section }) ?? [];
+          return fontActions.length ? (
+            <div className="flex gap-2">
+              <PortalActionButtons actions={fontActions} />
+            </div>
+          ) : null;
+        }}
+        sampleLabels={[
+          t("styles.heading1"),
+          t("styles.heading2"),
+          t("styles.heading3"),
+          t("styles.heading4"),
+          t("styles.body"),
+          t("styles.caption"),
+        ]}
+        undetectedFamily={t("undetectedFamily")}
+        weightName={weightName}
+      />
     </div>
   );
 }

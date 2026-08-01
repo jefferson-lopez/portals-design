@@ -1,7 +1,4 @@
-import type {
-  PortalFontItem,
-  PortalTypeScaleSettings,
-} from "@/lib/portal/document";
+import type { PortalFontItem } from "@/lib/portal/document";
 
 export function fontFamilyFor(font: PortalFontItem) {
   return font.file_url ? `portal-font-${font.id}` : undefined;
@@ -63,18 +60,5 @@ export function representativeFont(fonts: PortalFontItem[]) {
   return (
     fonts.find((font) => (font.weight ?? 400) === 400) ??
     [...fonts].sort((a, b) => (b.weight ?? 400) - (a.weight ?? 400))[0]
-  );
-}
-
-export function typeScaleSize(
-  settings: PortalTypeScaleSettings,
-  count: number,
-  index: number,
-) {
-  return Number(
-    (
-      settings.base_size *
-      settings.ratio ** Math.max(count - index - 1, 0)
-    ).toFixed(1),
   );
 }

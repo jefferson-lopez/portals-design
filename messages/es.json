@@ -37,18 +37,18 @@
   },
   "Home": {
     "header": {
-      "createPortal": "Crear portal",
+      "createPortal": "Crear proyecto",
       "signOut": "Cerrar sesión"
     },
     "intro": {
-      "title": "Tus portales",
-      "portalCount": "{count, plural, =0 {Sin portales} one {# portal} other {# portales}}"
+      "title": "Proyectos",
+      "portalCount": "{count, plural, =0 {Sin proyectos} one {# proyecto} other {# proyectos}}"
     },
     "create": {
-      "title": "Crear portal",
+      "title": "Crear proyecto",
       "description": "Dale un nombre al proyecto. Podrás diseñar toda la experiencia dentro del portal.",
       "nameLabel": "Nombre",
-      "namePlaceholder": "Nombre del portal",
+      "namePlaceholder": "Nombre del proyecto",
       "submit": "Crear"
     },
     "settings": {
@@ -61,16 +61,16 @@
     },
     "portal": {
       "lastEdited": "Última edición",
-      "edit": "Editar portal",
-      "view": "Ver portal",
+      "edit": "Editar",
+      "view": "Ver",
       "visibility": {
         "public": "Público",
         "private": "Privado"
       }
     },
     "empty": {
-      "title": "Aún no tienes portales",
-      "description": "Crea tu primer portal y dale a tu próxima entrega un espacio cuidadosamente diseñado."
+      "title": "Aún no tienes proyectos",
+      "description": "Crea tu primer proyecto y dale a tu próxima entrega un espacio cuidadosamente diseñado."
     },
     "backendDisabled": {
       "title": "Conecta Supabase",
@@ -145,6 +145,10 @@
     }
   },
   "PortalViewer": {
+    "branding": {
+      "credit": "Este portal ha sido creado o potenciado por",
+      "brand": "Portals Design"
+    },
     "sidebar": {
       "theme": "Cambiar tema de color",
       "exportAssets": "Exportar recursos"
@@ -187,6 +191,16 @@
     "fonts": {
       "sampleTitle": "Tu asistente, directamente en tu aplicación de mensajes",
       "sampleDescription": "Un párrafo claro y legible para pantallas de producto, presentaciones de marca y momentos de comunicación.",
+      "alphabetSample": "Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kk Ll Mm Nn Oo Pp Qq Rr Ss Tt Uu Vv Ww Xx Yy Zz",
+      "familiesLabel": "Familias tipográficas",
+      "styles": {
+        "heading1": "Encabezado 1",
+        "heading2": "Encabezado 2",
+        "heading3": "Encabezado 3",
+        "heading4": "Encabezado 4",
+        "body": "Cuerpo",
+        "caption": "Leyenda"
+      },
       "typeScale": "Escala tipográfica",
       "undetectedFamily": "Familia sin detectar",
       "weightFallback": "Peso",

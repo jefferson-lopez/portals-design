@@ -37,18 +37,18 @@
   },
   "Home": {
     "header": {
-      "createPortal": "Create portal",
+      "createPortal": "Create project",
       "signOut": "Sign out"
     },
     "intro": {
-      "title": "Your Portals",
-      "portalCount": "{count, plural, =0 {No portals} one {# portal} other {# portals}}"
+      "title": "Projects",
+      "portalCount": "{count, plural, =0 {No projects} one {# project} other {# projects}}"
     },
     "create": {
-      "title": "Create portal",
+      "title": "Create project",
       "description": "Give the project a name. You can shape the full experience inside the portal.",
       "nameLabel": "Name",
-      "namePlaceholder": "Portal name",
+      "namePlaceholder": "Project name",
       "submit": "Create"
     },
     "settings": {
@@ -61,16 +61,16 @@
     },
     "portal": {
       "lastEdited": "Last edited",
-      "edit": "Edit portal",
-      "view": "View portal",
+      "edit": "Edit",
+      "view": "View",
       "visibility": {
         "public": "Public",
         "private": "Private"
       }
     },
     "empty": {
-      "title": "No portals yet",
-      "description": "Create your first portal and give your next client handoff a considered home."
+      "title": "No projects yet",
+      "description": "Create your first project and give your next client handoff a considered home."
     },
     "backendDisabled": {
       "title": "Connect Supabase",
@@ -145,6 +145,10 @@
     }
   },
   "PortalViewer": {
+    "branding": {
+      "credit": "This portal was created or powered by",
+      "brand": "Portals Design"
+    },
     "sidebar": {
       "theme": "Toggle color theme",
       "exportAssets": "Export assets"
@@ -187,6 +191,16 @@
     "fonts": {
       "sampleTitle": "Your assistant, right in your messages app",
       "sampleDescription": "A clear, readable paragraph preview for everyday product screens, brand decks, and messaging moments.",
+      "alphabetSample": "Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kk Ll Mm Nn Oo Pp Qq Rr Ss Tt Uu Vv Ww Xx Yy Zz",
+      "familiesLabel": "Typography families",
+      "styles": {
+        "heading1": "Heading 1",
+        "heading2": "Heading 2",
+        "heading3": "Heading 3",
+        "heading4": "Heading 4",
+        "body": "Body",
+        "caption": "Caption"
+      },
       "typeScale": "Type scale",
       "undetectedFamily": "Undetected family",
       "weightFallback": "Weight",

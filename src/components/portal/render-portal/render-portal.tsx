@@ -11,6 +11,7 @@ import {
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Link } from "@/i18n/navigation";
 import {
   ensurePortalAutosave,
   flushPortalAutosave,
@@ -354,6 +355,37 @@ function PortalSectionHeading({
   );
 }
 
+export type PortalBrandFooterProps = Pick<
+  RenderPortalProps,
+  "actionConfig" | "editor"
+> & {
+  brand: string;
+  credit: string;
+};
+
+export function PortalBrandFooter({
+  actionConfig,
+  brand,
+  credit,
+  editor,
+}: PortalBrandFooterProps) {
+  if (!actionConfig?.public || editor) return null;
+
+  return (
+    <footer className="flex justify-center lg:col-start-2">
+      <p className="text-sm text-muted-foreground">
+        {credit}{" "}
+        <Link
+          className="underline underline-offset-4 transition-colors hover:text-blue-600"
+          href="/"
+        >
+          {brand}
+        </Link>
+      </p>
+    </footer>
+  );
+}
+
 export function RenderPortal({
   actionConfig,
   className,
@@ -613,6 +645,12 @@ export function RenderPortal({
           </div>
         ) : null}
       </section>
+      <PortalBrandFooter
+        actionConfig={actionConfig}
+        brand={t("PortalViewer.branding.brand")}
+        credit={t("PortalViewer.branding.credit")}
+        editor={editor}
+      />
     </PortalShell>
   );
 }

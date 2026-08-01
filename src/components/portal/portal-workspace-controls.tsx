@@ -45,6 +45,7 @@ import {
   PortalActionTriggerButton,
   PortalItemActionsOverlay,
 } from "@/components/portal/render-portal/portal-actions";
+import { PortalTypographyShowcase } from "@/components/portal/render-portal/portal-typography-showcase";
 import {
   Attachment,
   AttachmentAction,
@@ -98,7 +99,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -124,7 +124,6 @@ import {
   type PortalImageItem,
   type PortalSection,
   type PortalSectionType,
-  type PortalTypeScaleSettings,
 } from "@/lib/portal/document";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
 import {
@@ -2185,10 +2184,6 @@ function fontWeightLabel(font: PortalFontItem, fallback: string) {
   return `${weight} ${fallback}`;
 }
 
-function fontWeightSpec(font: PortalFontItem, fallback: string) {
-  return fontWeightLabel(font, fallback);
-}
-
 function groupedFonts(fonts: PortalFontItem[], undetectedFamily: string) {
   const groups = new Map<string, PortalFontItem[]>();
   for (const font of fonts.filter((item) => item.visible)) {
@@ -2220,169 +2215,7 @@ function exceedsFontFamilyLimit(
   return familyNames.size > maxFontFamilies;
 }
 
-function representativeFont(fonts: PortalFontItem[]) {
-  return (
-    fonts.find((font) => (font.weight ?? 400) === 400) ??
-    [...fonts].sort((a, b) => (b.weight ?? 400) - (a.weight ?? 400))[0]
-  );
-}
-
-function typeScaleSize(
-  settings: PortalTypeScaleSettings,
-  count: number,
-  index: number,
-) {
-  return Number(
-    (
-      settings.base_size *
-      settings.ratio ** Math.max(count - index - 1, 0)
-    ).toFixed(1),
-  );
-}
-
-function sliderNumber(value: number | readonly number[], fallback: number) {
-  return Array.isArray(value) ? (value[0] ?? fallback) : value;
-}
-
-function TypeScalePreview({
-  fonts,
-  onSettingsChange,
-  settings,
-}: {
-  fonts: PortalFontItem[];
-  onSettingsChange: (settings: PortalTypeScaleSettings) => void;
-  settings: PortalTypeScaleSettings;
-}) {
-  const t = useTranslations("PortalEditor.fonts");
-  const weightName = (weight: number) => {
-    const key = fontWeightMessageKey(weight);
-    return key ? t(key) : t("weightFallback");
-  };
-  const groups = groupedFonts(fonts, t("undetectedFamily"));
-  const [draftSettings, setDraftSettings] = useState(settings);
-
-  useEffect(() => {
-    setDraftSettings(settings);
-  }, [settings]);
-
-  function commitSettings(nextSettings: PortalTypeScaleSettings) {
-    onSettingsChange(nextSettings);
-  }
-
-  return (
-    <section className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1">
-        <h3 className="font-heading font-medium text-lg tracking-tight">
-          {t("typeScale")}
-        </h3>
-      </div>
-      <div className="flex flex-col gap-5">
-        <Field>
-          <div className="flex items-center justify-between gap-4">
-            <FieldLabel>{t("base")}</FieldLabel>
-            <span className="font-medium text-sm">
-              {draftSettings.base_size}px
-            </span>
-          </div>
-          <Slider
-            max={30}
-            min={12}
-            step={1}
-            value={[draftSettings.base_size]}
-            onValueChange={(value) =>
-              setDraftSettings({
-                ...draftSettings,
-                base_size: sliderNumber(value, draftSettings.base_size),
-              })
-            }
-            onValueCommitted={(value) =>
-              commitSettings({
-                ...draftSettings,
-                base_size: sliderNumber(value, draftSettings.base_size),
-              })
-            }
-          />
-        </Field>
-        <Field>
-          <div className="flex items-center justify-between gap-4">
-            <FieldLabel>{t("ratio")}</FieldLabel>
-            <span className="font-medium text-sm">
-              {draftSettings.ratio.toFixed(2)}
-            </span>
-          </div>
-          <Slider
-            max={1.2}
-            min={1}
-            step={0.01}
-            value={[draftSettings.ratio]}
-            onValueChange={(value) =>
-              setDraftSettings({
-                ...draftSettings,
-                ratio: sliderNumber(value, draftSettings.ratio),
-              })
-            }
-            onValueCommitted={(value) =>
-              commitSettings({
-                ...draftSettings,
-                ratio: sliderNumber(value, draftSettings.ratio),
-              })
-            }
-          />
-        </Field>
-      </div>
-      {groups.length ? (
-        <div className="flex flex-col gap-6">
-          {groups.map((group) => (
-            <div className="flex flex-col gap-3" key={group.family}>
-              <div className="flex items-baseline justify-between gap-4">
-                <h4 className="font-heading font-semibold tracking-tight">
-                  {group.family}
-                </h4>
-              </div>
-              <div className="flex flex-col divide-y">
-                {group.items.map((font, index) => {
-                  const family = font.file_url
-                    ? fontFamilyFor(font)
-                    : undefined;
-                  const size = typeScaleSize(
-                    draftSettings,
-                    group.items.length,
-                    index,
-                  );
-                  return (
-                    <div className=" gap-3 py-4 flex flex-col" key={font.id}>
-                      <div className="flex justify-between gap-3 items-center">
-                        <span className="text-muted-foreground text-[10px] uppercase">
-                          {fontWeightSpec(font, weightName(font.weight ?? 400))}
-                        </span>
-                      </div>
-                      <p
-                        className="min-w-0 tracking-tight"
-                        style={{
-                          fontFamily: family ? `"${family}"` : undefined,
-                          fontSize: size,
-                          fontWeight: font.weight,
-                        }}
-                      >
-                        {font.sample_text || "Aa Bb Cc 123"}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="rounded-xl border border-dashed p-4 text-muted-foreground text-sm">
-          {t("typeScaleEmpty")}
-        </p>
-      )}
-    </section>
-  );
-}
-
-function FontsEditor({
+export function FontsEditor({
   portalId,
   section,
   updateSection,
@@ -2408,16 +2241,6 @@ function FontsEditor({
       },
     });
   }
-  function saveTypeScaleSettings(nextSettings: PortalTypeScaleSettings) {
-    updateSection({
-      ...section,
-      content: {
-        ...section.content,
-        fonts,
-        type_scale_settings: nextSettings,
-      },
-    });
-  }
   const fontGroups = groupedFonts(fonts, t("undetectedFamily"));
   const canAddFontFamily = fontGroups.length < maxFontFamilies;
   const fontFaces = fonts.map(fontFaceFor).filter(Boolean).join("\n");
@@ -2426,71 +2249,70 @@ function FontsEditor({
     <div className="flex flex-col gap-8">
       {fontFaces ? <style>{fontFaces}</style> : null}
       <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-10">
-          {fontGroups.map((group) => {
-            const font = representativeFont(group.items);
-            if (!font) return null;
-            const family = font.file_url ? fontFamilyFor(font) : undefined;
+        <PortalTypographyShowcase
+          alphabetSample={viewerT("alphabetSample")}
+          familiesLabel={viewerT("familiesLabel")}
+          fonts={fonts}
+          renderActions={(font) => {
+            const group = fontGroups.find((candidate) =>
+              candidate.items.some((item) => item.id === font.id),
+            );
+            if (!group) return null;
+
             return (
-              <div
-                className="group/item flex items-start relative"
-                key={group.family}
-              >
-                <div className="min-w-0">
-                  <PortalItemActionsOverlay
-                    position="top-0-right"
-                    className="right-3"
-                  >
-                    <FontFamilyDialog
-                      family={group.family}
-                      fonts={group.items}
-                      onSave={(nextGroupFonts) =>
-                        saveFonts([
-                          ...fonts.filter(
-                            (item) => item.font_name !== group.family,
-                          ),
-                          ...nextGroupFonts,
-                        ])
-                      }
-                      trigger={
-                        <PortalActionTriggerButton
-                          icon="edit"
-                          label={t("editFamily")}
-                          variant="secondary"
-                        />
-                      }
-                    />
-                    <Button
-                      onClick={() =>
-                        saveFonts(
-                          fonts.filter(
-                            (item) => item.font_name !== group.family,
-                          ),
-                        )
-                      }
-                      size="icon-sm"
-                      type="button"
+              <div className="flex gap-2">
+                <FontFamilyDialog
+                  family={group.family}
+                  fonts={group.items}
+                  onSave={(nextGroupFonts) =>
+                    saveFonts([
+                      ...fonts.filter(
+                        (item) => !group.items.some(({ id }) => id === item.id),
+                      ),
+                      ...nextGroupFonts,
+                    ])
+                  }
+                  trigger={
+                    <PortalActionTriggerButton
+                      icon="edit"
+                      label={t("editFamily")}
                       variant="secondary"
-                    >
-                      <IconX data-icon="inline-start" />
-                    </Button>
-                  </PortalItemActionsOverlay>
-                  <p
-                    className="text-3xl font-semibold tracking-tight"
-                    style={family ? { fontFamily: `"${family}"` } : undefined}
-                  >
-                    {font.sample_text || viewerT("sampleTitle")}
-                  </p>
-                  <p
-                    className="mt-3 max-w-2xl text-muted-foreground text-sm leading-6"
-                    style={family ? { fontFamily: `"${family}"` } : undefined}
-                  >
-                    {font.sample_description || viewerT("sampleDescription")}
-                  </p>
-                </div>
+                    />
+                  }
+                />
+                <Button
+                  aria-label={t("delete", { name: group.family })}
+                  onClick={() =>
+                    saveFonts(
+                      fonts.filter(
+                        (item) => !group.items.some(({ id }) => id === item.id),
+                      ),
+                    )
+                  }
+                  size="icon-sm"
+                  type="button"
+                  variant="secondary"
+                >
+                  <IconX data-icon="inline-start" />
+                </Button>
               </div>
             );
-          })}
+          }}
+          sampleLabels={[
+            viewerT("styles.heading1"),
+            viewerT("styles.heading2"),
+            viewerT("styles.heading3"),
+            viewerT("styles.heading4"),
+            viewerT("styles.body"),
+            viewerT("styles.caption"),
+          ]}
+          undetectedFamily={t("undetectedFamily")}
+          weightName={(weight) => {
+            const key = fontWeightMessageKey(weight);
+            return key ? t(key) : t("weightFallback");
+          }}
+        />
+        <div className="flex flex-col gap-10">
           {canAddFontFamily ? (
             <FontDialog
               portalId={portalId}
@@ -2525,13 +2347,6 @@ function FontsEditor({
           ) : null}
         </div>
       </section>
-      {fontGroups.length ? (
-        <TypeScalePreview
-          fonts={fonts}
-          settings={typeScaleSettings}
-          onSettingsChange={saveTypeScaleSettings}
-        />
-      ) : null}
     </div>
   );
 }
