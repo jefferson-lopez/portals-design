@@ -304,7 +304,7 @@
       "limitTitle": "Portal limit reached",
       "buy": "Unlock for {price}",
       "cancelled": "Premium checkout was cancelled. No charge was made.",
-      "checkoutUnavailable": "Checkout is temporarily unavailable. Check the payment configuration and try again.",
+      "checkoutUnavailable": "Checkout could not start. Diagnostic: {reason}",
       "ownerRequired": "Only the portal owner can unlock Premium.",
       "violations": {
         "colors_items": "Free portals can include up to 10 colors in a section.",

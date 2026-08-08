@@ -41,4 +41,13 @@ describe("Portal Premium Checkout contract", () => {
     expect(route).toContain("resolveSiteOrigin(");
     expect(route).toContain("process.env.NODE_ENV");
   });
+
+  test("returns a diagnostic reason when checkout setup fails", async () => {
+    const route = await Bun.file(checkoutRoute).text();
+
+    expect(route).toContain("function checkoutFailure");
+    expect(route).toContain("stripe_session_failed");
+    expect(route).toContain("checkout_attempt_failed");
+    expect(route).toContain("details");
+  });
 });

@@ -304,7 +304,7 @@
       "limitTitle": "Límite del portal alcanzado",
       "buy": "Desbloquear por {price}",
       "cancelled": "El pago de Premium fue cancelado. No se realizó ningún cargo.",
-      "checkoutUnavailable": "El pago no está disponible temporalmente. Revisa la configuración de pagos e inténtalo de nuevo.",
+      "checkoutUnavailable": "No se pudo iniciar el pago. Diagnóstico: {reason}",
       "ownerRequired": "Solo el propietario del portal puede desbloquear Premium.",
       "violations": {
         "colors_items": "Los portales gratis pueden incluir hasta 10 colores por sección.",

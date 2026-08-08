@@ -307,18 +307,28 @@ export function PortalPlanProvider({
       });
       const body = (await response.json().catch(() => null)) as {
         checkoutUrl?: string;
+        details?: string;
         error?: string;
+        reason?: string;
       } | null;
       if (!response.ok || !body?.checkoutUrl) {
-        throw new Error(body?.error ?? `checkout_http_${response.status}`);
+        const details = [body?.reason, body?.details ?? body?.error].filter(
+          Boolean,
+        );
+        throw new Error(
+          details.join(": ") || `checkout_http_${response.status}`,
+        );
       }
       window.location.assign(body.checkoutUrl);
     } catch (error) {
       console.error("Portal Premium checkout failed", { error, portalId });
       setCheckoutPending(false);
-      toast.error(t("checkoutUnavailable"), {
-        id: `portal-checkout-error:${portalId}`,
-      });
+      toast.error(
+        t("checkoutUnavailable", {
+          reason: error instanceof Error ? error.message : "unknown_error",
+        }),
+        { id: `portal-checkout-error:${portalId}` },
+      );
     }
   }
 

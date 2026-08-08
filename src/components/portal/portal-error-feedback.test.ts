@@ -19,8 +19,10 @@ describe("portal operation error feedback", () => {
   });
 
   test("keeps actionable file-format validation next to the input", () => {
-    expect(controls).toContain("setFileValidationError(t(\"invalidFormat\"))");
-    expect(controls).toContain("<FieldError>{fileValidationError}</FieldError>");
+    expect(controls).toContain('setFileValidationError(t("invalidFormat"))');
+    expect(controls).toContain(
+      "<FieldError>{fileValidationError}</FieldError>",
+    );
     expect(controls).not.toContain('toast.error(t("invalidFormat"))');
   });
 
@@ -31,7 +33,8 @@ describe("portal operation error feedback", () => {
 
   test("reports plan and checkout failures with localized toasts, not red text", () => {
     expect(planProvider).toContain('toast.error(t("unavailable")');
-    expect(planProvider).toContain('toast.error(t("checkoutUnavailable")');
+    expect(planProvider).toContain('t("checkoutUnavailable",');
+    expect(planProvider).toContain("reason: error instanceof Error");
     expect(planProvider).not.toContain("checkoutError");
     expect(planProvider).not.toContain('className="text-destructive text-sm"');
   });

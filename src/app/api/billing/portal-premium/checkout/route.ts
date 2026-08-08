@@ -18,6 +18,13 @@ function getSiteOrigin() {
   );
 }
 
+function checkoutFailure(reason: string, details: string, status = 503) {
+  return NextResponse.json(
+    { details, error: "checkout_unavailable", reason },
+    { status },
+  );
+}
+
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     locale?: string;
@@ -59,9 +66,9 @@ export async function POST(request: Request) {
     console.error("Premium checkout site URL unavailable", {
       reason: error instanceof Error ? error.message : "unknown",
     });
-    return NextResponse.json(
-      { error: "checkout_unavailable" },
-      { status: 503 },
+    return checkoutFailure(
+      "site_url_invalid",
+      error instanceof Error ? error.message : "Site URL is unavailable",
     );
   }
   const { data: attempt, error: attemptError } = await supabase.rpc(
@@ -69,9 +76,9 @@ export async function POST(request: Request) {
     { target_portal_id: portal.id },
   );
   if (attemptError || !attempt) {
-    return NextResponse.json(
-      { error: "checkout_unavailable" },
-      { status: 503 },
+    return checkoutFailure(
+      "checkout_attempt_failed",
+      attemptError?.message ?? "Could not create the checkout attempt",
     );
   }
   const expireAttempt = () =>
@@ -126,16 +133,17 @@ export async function POST(request: Request) {
     console.error("Premium checkout unavailable", {
       reason: error instanceof Error ? error.message : "unknown",
     });
-    return NextResponse.json(
-      { error: "checkout_unavailable" },
-      { status: 503 },
+    return checkoutFailure(
+      "stripe_session_failed",
+      error instanceof Error ? error.message : "Stripe rejected the session",
     );
   }
   if (!session.url) {
     await expireAttempt();
-    return NextResponse.json(
-      { error: "checkout_unavailable" },
-      { status: 502 },
+    return checkoutFailure(
+      "stripe_session_missing_url",
+      "Stripe did not return a checkout URL",
+      502,
     );
   }
   await createAdminClient()
