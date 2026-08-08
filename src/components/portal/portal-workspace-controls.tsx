@@ -1946,6 +1946,7 @@ function FontDialog({
         },
   );
   const [uploadedFonts, setUploadedFonts] = useState<PortalFontItem[]>([]);
+  const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const optimistic = useOptimisticUploads<PortalFontItem>();
   const isUploading = optimistic.pending.length > 0;
@@ -1959,6 +1960,13 @@ function FontDialog({
     .map(fontFaceFor)
     .filter(Boolean)
     .join("\n");
+
+  function handleSave() {
+    onSave(font ? draft : uploadedFonts);
+    setUploadedFonts([]);
+    if (inputRef.current) inputRef.current.value = "";
+    setOpen(false);
+  }
 
   function handleFontFiles(fileList: FileList | null | undefined) {
     const files = Array.from(fileList ?? []);
@@ -2112,7 +2120,7 @@ function FontDialog({
   }
 
   return (
-    <Dialog>
+    <Dialog onOpenChange={setOpen} open={open}>
       <DialogTrigger render={trigger} />
       <DialogContent>
         {dialogFontFaces ? <style>{dialogFontFaces}</style> : null}
@@ -2290,11 +2298,7 @@ function FontDialog({
           ) : null}
         </FieldGroup>
         <DialogFooter>
-          <Button
-            disabled={!canSave}
-            onClick={() => onSave(font ? draft : uploadedFonts)}
-            type="button"
-          >
+          <Button disabled={!canSave} onClick={handleSave} type="button">
             {t("save")}
           </Button>
         </DialogFooter>

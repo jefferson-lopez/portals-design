@@ -2,6 +2,7 @@
 
 import {
   IconArrowUpRight,
+  IconCheck,
   IconFoldersFilled,
   IconPresentationFilled,
   IconSparklesFilled,
@@ -17,6 +18,14 @@ import { useEffect, useState } from "react";
 import { ShaderBackground } from "@/components/motion/shader-background";
 import { TextReveal } from "@/components/motion/text-reveal";
 import { buttonVariants } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
@@ -36,7 +45,21 @@ type LandingDetails = {
   ctaLabel: string;
   ctaTitle: string;
   description: string;
+  plans: {
+    description: string;
+    free: LandingPlan;
+    perPortal: string;
+    premium: LandingPlan;
+    title: string;
+  };
   title: string;
+};
+
+type LandingPlan = {
+  cta: string;
+  description: string;
+  features: string[];
+  name: string;
 };
 
 type PortalLandingProps = {
@@ -435,6 +458,89 @@ export function PortalLanding({
                 </article>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      <section
+        aria-labelledby="landing-plans-title"
+        className="relative z-20 px-5 py-24 sm:px-8 sm:py-32 lg:py-40"
+      >
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-12 sm:gap-16">
+          <header className="w-full max-w-4xl text-center">
+            <div className="flex flex-col gap-4">
+              <h2
+                className="text-balance text-3xl font-medium tracking-tight sm:text-5xl lg:text-6xl"
+                id="landing-plans-title"
+              >
+                {details.plans.title}
+              </h2>
+              <p className="mx-auto max-w-3xl text-balance text-base leading-relaxed text-muted-foreground sm:text-lg">
+                {details.plans.description}
+              </p>
+            </div>
+          </header>
+
+          <div className="grid w-full gap-4 lg:grid-cols-2">
+            {(
+              [
+                ["free", details.plans.free],
+                ["premium", details.plans.premium],
+              ] as const
+            ).map(([key, plan]) => (
+              <Card
+                className={cn(
+                  "flex h-full flex-col",
+                  key === "premium" && "border-primary shadow-lg",
+                )}
+                key={key}
+              >
+                <CardHeader className="gap-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col gap-2">
+                      <CardTitle className="text-2xl">{plan.name}</CardTitle>
+                      <CardDescription className="text-base">
+                        {plan.description}
+                      </CardDescription>
+                    </div>
+                    <span className="shrink-0 rounded-full border px-3 py-1 text-xs text-muted-foreground">
+                      {details.plans.perPortal}
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1">
+                  <ul className="flex flex-col gap-4">
+                    {plan.features.map((feature) => (
+                      <li
+                        className="flex items-start gap-3 text-sm leading-relaxed"
+                        key={feature}
+                      >
+                        <IconCheck
+                          aria-hidden="true"
+                          className="mt-0.5 size-4 shrink-0 text-primary"
+                        />
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+                <CardFooter>
+                  <Link
+                    className={cn(
+                      buttonVariants({
+                        size: "lg",
+                        variant: key === "premium" ? "default" : "outline",
+                      }),
+                      "w-full rounded-full",
+                    )}
+                    href="/auth/sign-up"
+                  >
+                    {plan.cta}
+                    <IconArrowUpRight data-icon="inline-end" />
+                  </Link>
+                </CardFooter>
+              </Card>
+            ))}
           </div>
         </div>
       </section>

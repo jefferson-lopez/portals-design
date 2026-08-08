@@ -30,6 +30,34 @@
           "description": "Convierte la entrega en una extensión pulida de la marca, no en una última carpeta para descargar."
         }
       ],
+      "plans": {
+        "title": "Elige el alcance de cada portal.",
+        "description": "Empieza gratis y desbloquea Premium solo en los portales que necesiten más capacidad.",
+        "perPortal": "Por portal",
+        "free": {
+          "name": "Gratis",
+          "description": "Para presentar proyectos pequeños y empezar sin fricción.",
+          "features": [
+            "100 MB compartidos entre portales Gratis",
+            "1 sección de archivos, tipografías, colores y galería",
+            "Hasta 2 secciones de texto",
+            "Hasta 10 elementos por sección"
+          ],
+          "cta": "Empezar gratis"
+        },
+        "premium": {
+          "name": "Premium",
+          "description": "Para entregas más completas y portales con identidad propia.",
+          "features": [
+            "2 GB dedicados a este portal",
+            "Protección del portal con contraseña",
+            "Hasta 100 secciones en total",
+            "Hasta 2 secciones de archivos y tipografías",
+            "Hasta 3 galerías de 15 imágenes"
+          ],
+          "cta": "Crear un portal Premium"
+        }
+      },
       "ctaTitle": "Tu trabajo merece más que un enlace de descarga.",
       "ctaDescription": "Crea un portal y haz que la entrega sea tan intencional como la identidad.",
       "ctaLabel": "Crear cuenta"
@@ -266,6 +294,13 @@
       "retry": "Reintentar",
       "upgradeTitle": "Desbloquea Premium para este portal",
       "upgradeDescription": "Premium aumenta los límites profesionales de este portal.",
+      "benefits": {
+        "title": "Ventajas de Premium",
+        "password": "Protege tu portal con una contraseña.",
+        "storage": "Aumenta tu almacenamiento de 100 MB a 2 GB.",
+        "sections": "Añade más secciones de archivos, tipografías y galerías.",
+        "gallery": "Amplía tus galerías hasta 15 imágenes."
+      },
       "limitTitle": "Límite del portal alcanzado",
       "buy": "Desbloquear por {price}",
       "cancelled": "El pago de Premium fue cancelado. No se realizó ningún cargo.",

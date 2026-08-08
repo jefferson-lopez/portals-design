@@ -30,6 +30,34 @@
           "description": "Turn delivery into a polished extension of the brand instead of one last folder download."
         }
       ],
+      "plans": {
+        "title": "Choose the scope for each portal.",
+        "description": "Start free and unlock Premium only for the portals that need more capacity.",
+        "perPortal": "Per portal",
+        "free": {
+          "name": "Free",
+          "description": "For presenting smaller projects and getting started without friction.",
+          "features": [
+            "100 MB shared across Free portals",
+            "1 section each for files, typography, colors, and galleries",
+            "Up to 2 text sections",
+            "Up to 10 items per section"
+          ],
+          "cta": "Start free"
+        },
+        "premium": {
+          "name": "Premium",
+          "description": "For fuller handoffs and portals with a distinct identity.",
+          "features": [
+            "2 GB dedicated to this portal",
+            "Password protection for the portal",
+            "Up to 100 sections in total",
+            "Up to 2 files and typography sections",
+            "Up to 3 galleries with 15 images"
+          ],
+          "cta": "Create a Premium portal"
+        }
+      },
       "ctaTitle": "Your work deserves more than a download link.",
       "ctaDescription": "Create a portal and make the handoff as intentional as the identity.",
       "ctaLabel": "Create account"
@@ -266,6 +294,13 @@
       "retry": "Retry",
       "upgradeTitle": "Unlock Premium for this portal",
       "upgradeDescription": "Premium raises the professional limits for this portal.",
+      "benefits": {
+        "title": "Premium benefits",
+        "password": "Protect your portal with a password.",
+        "storage": "Increase your storage from 100 MB to 2 GB.",
+        "sections": "Add more file, typography, and gallery sections.",
+        "gallery": "Expand your galleries to 15 images."
+      },
       "limitTitle": "Portal limit reached",
       "buy": "Unlock for {price}",
       "cancelled": "Premium checkout was cancelled. No charge was made.",

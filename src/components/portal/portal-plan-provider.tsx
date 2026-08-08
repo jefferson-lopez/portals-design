@@ -1,6 +1,13 @@
 "use client";
 
-import { IconCrown, IconLoader2 } from "@tabler/icons-react";
+import {
+  IconCloud,
+  IconCrown,
+  IconLayoutGrid,
+  IconLoader2,
+  IconLock,
+  IconPhoto,
+} from "@tabler/icons-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -311,6 +318,13 @@ export function PortalPlanProvider({
     }
   }
 
+  const premiumBenefits = [
+    { icon: IconLock, text: t("benefits.password") },
+    { icon: IconCloud, text: t("benefits.storage") },
+    { icon: IconLayoutGrid, text: t("benefits.sections") },
+    { icon: IconPhoto, text: t("benefits.gallery") },
+  ];
+
   return (
     <PortalPlanContext.Provider value={value}>
       {children}
@@ -358,6 +372,21 @@ export function PortalPlanProvider({
                     : t("upgradeDescription")}
             </DialogDescription>
           </DialogHeader>
+          {snapshot.plan === "free" ? (
+            <ul
+              aria-label={t("benefits.title")}
+              className="m-0 flex list-none flex-col gap-3 p-0"
+            >
+              {premiumBenefits.map(({ icon: Icon, text }) => (
+                <li className="flex items-center gap-3" key={text}>
+                  <span className="shrink-0 text-primary">
+                    <Icon className="size-4" />
+                  </span>
+                  <span>{text}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {status === "loading" ? (
             <DialogFooter>
               <Button disabled type="button">

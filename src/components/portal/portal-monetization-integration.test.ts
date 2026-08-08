@@ -12,6 +12,9 @@ const renderer = await Bun.file(
 const provider = await Bun.file(
   new URL("./portal-plan-provider.tsx", import.meta.url),
 ).text();
+const workspaceControls = await Bun.file(
+  new URL("./portal-workspace-controls.tsx", import.meta.url),
+).text();
 const publicSidebar = await Bun.file(
   new URL("./portal-document-sidebar-read-only.tsx", import.meta.url),
 ).text();
@@ -77,6 +80,30 @@ test("storage status selects copy that explains the quota scope", () => {
   expect(provider).toContain("t(`storageLabels.$" + "{plan}`)");
   expect(provider).not.toContain('t("storageSummary"');
   expect(provider).not.toContain('t("storage")');
+});
+
+test("upgrade dialog explains premium benefits with icon-led copy", () => {
+  expect(provider).toContain("premiumBenefits");
+  expect(provider).toContain('t("benefits.password")');
+  expect(provider).toContain('t("benefits.storage")');
+  expect(provider).toContain('t("benefits.sections")');
+  expect(provider).toContain('t("benefits.gallery")');
+  expect(provider).toContain("IconLock");
+  expect(provider).toContain("IconCloud");
+  expect(provider).toContain("IconLayoutGrid");
+  expect(provider).toContain("IconPhoto");
+});
+
+test("font upload dialog closes and clears staged files after saving", () => {
+  const fontDialog = workspaceControls.slice(
+    workspaceControls.indexOf("function FontDialog("),
+    workspaceControls.indexOf("function FontFamilyDialog("),
+  );
+
+  expect(fontDialog).toContain("const [open, setOpen] = useState(false)");
+  expect(fontDialog).toContain("onOpenChange={setOpen} open={open}");
+  expect(fontDialog).toContain("setUploadedFonts([])");
+  expect(fontDialog).toContain("setOpen(false)");
 });
 
 test("successful asset mutations refresh storage usage without a reload", () => {
