@@ -4,9 +4,39 @@ import {
   deleteManagedPortalAsset,
   releaseManagedPortalAsset,
   uploadManagedPortalAsset,
+  uploadManagedPortalAssetServerOwned,
 } from "./portal-assets-client";
 
 describe("managed portal asset upload", () => {
+  test("sends bytes to the server-owned upload endpoint", async () => {
+    let body: FormData | null = null;
+    const fetcher: typeof fetch = (async (_input, init) => {
+      body = init?.body as FormData;
+      return Response.json(
+        {
+          asset: { size_bytes: 3 },
+          assetId: "asset-server",
+          path: "portal/asset-server/a.png",
+          previewUrl: "https://signed.example/a.png",
+        },
+        { status: 202 },
+      );
+    }) as typeof fetch;
+
+    const result = await uploadManagedPortalAssetServerOwned({
+      category: "image",
+      file: new File(["abc"], "a.png", { type: "image/png" }),
+      fetcher,
+      portalId: "portal-1",
+    });
+
+    const submitted = body as unknown as FormData;
+    expect(submitted.get("portalId")).toBe("portal-1");
+    expect(submitted.get("category")).toBe("image");
+    expect((submitted.get("file") as File).name).toBe("a.png");
+    expect(result.assetId).toBe("asset-server");
+  });
+
   test.each([
     ["brand.ai", "", "application/illustrator"],
     ["guide.pdf", "application/octet-stream", "application/pdf"],

@@ -9,6 +9,17 @@ export type PortalAssetCategory =
   | "icon"
   | "image";
 
+export type PersistedPortalAsset = {
+  assetId: string;
+  category: PortalAssetCategory;
+  mimeType: string;
+  name: string;
+  path: string;
+  previewUrl?: string;
+  sizeBytes: number;
+  state?: "reserved" | "ready";
+};
+
 type StorageClient = {
   from: (bucket: string) => {
     uploadToSignedUrl: (
@@ -155,6 +166,51 @@ export async function uploadManagedPortalAsset({
   }
 }
 
+/** Uploads the bytes to the server before returning, so server finalization can
+ * continue if the editor is reloaded after the request body was received. */
+export async function uploadManagedPortalAssetServerOwned({
+  category,
+  file,
+  fetcher = fetch,
+  portalId,
+  usageEventTarget,
+}: {
+  category: PortalAssetCategory;
+  file: File;
+  fetcher?: typeof fetch;
+  portalId: string;
+  usageEventTarget?: EventTarget;
+}) {
+  const form = new FormData();
+  form.append("category", category);
+  form.append("file", file, file.name);
+  form.append("portalId", portalId);
+  const response = await fetcher("/api/portal-assets", {
+    body: form,
+    method: "POST",
+  });
+  const body = (await response.json().catch(() => null)) as {
+    asset?: { size_bytes?: number };
+    assetId?: string;
+    error?: string;
+    path?: string;
+    previewUrl?: string;
+  } | null;
+  if (!response.ok || !body?.assetId || !body.path || !body.previewUrl) {
+    throw new Error(body?.error ?? "upload_failed");
+  }
+  notifyPortalAssetUsageChanged(portalId, usageEventTarget);
+  return {
+    assetId: body.assetId,
+    path: body.path,
+    previewUrl: body.previewUrl,
+    sizeBytes:
+      typeof body.asset?.size_bytes === "number"
+        ? body.asset.size_bytes
+        : file.size,
+  };
+}
+
 export async function deleteManagedPortalAsset(
   assetId: string | undefined,
   fetcher: typeof fetch = fetch,
@@ -176,4 +232,66 @@ export async function deleteManagedPortalAsset(
 
 export function releaseManagedPortalAsset(assetId: string | undefined) {
   if (assetId) removeActiveReservation(assetId);
+}
+
+export async function reconcilePersistedPortalAssets({
+  fetcher = fetch,
+  portalId,
+}: {
+  fetcher?: typeof fetch;
+  portalId: string;
+}) {
+  const response = await fetcher(
+    `/api/portal-assets?portalId=${encodeURIComponent(portalId)}`,
+    { method: "GET" },
+  );
+  const body = (await response.json().catch(() => null)) as {
+    assets?: PersistedPortalAsset[];
+    error?: string;
+  } | null;
+  if (!response.ok) {
+    throw new Error(body?.error ?? "asset_reconciliation_failed");
+  }
+
+  const assets: PersistedPortalAsset[] = [];
+  const discardedIds: string[] = [];
+  for (const asset of body?.assets ?? []) {
+    if (asset.state === "ready") {
+      assets.push(asset);
+      continue;
+    }
+    const finalized = await fetcher("/api/portal-assets", {
+      body: JSON.stringify({ assetId: asset.assetId }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    });
+    const finalizedBody = (await finalized.json().catch(() => null)) as {
+      asset?: Record<string, unknown>;
+      previewUrl?: string;
+    } | null;
+    if (!finalized.ok || !finalizedBody?.asset) {
+      await fetcher(
+        `/api/portal-assets?assetId=${encodeURIComponent(asset.assetId)}`,
+        { method: "DELETE" },
+      ).catch(() => undefined);
+      discardedIds.push(asset.assetId);
+      continue;
+    }
+    assets.push({
+      ...asset,
+      previewUrl: finalizedBody.previewUrl,
+      state: "ready",
+    });
+  }
+  return { assets, discardedIds };
+}
+
+export function mergePersistedPortalAsset(
+  document: import("./document").PortalDocument,
+  asset: PersistedPortalAsset,
+) {
+  const alreadyReferenced = document.sections.some((section) =>
+    JSON.stringify(section.content).includes(`"asset_id":"${asset.assetId}"`),
+  );
+  return alreadyReferenced ? document : document;
 }

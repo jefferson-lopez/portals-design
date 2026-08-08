@@ -139,8 +139,9 @@ import {
 import {
   deleteManagedPortalAsset,
   type PortalAssetCategory,
+  reconcilePersistedPortalAssets,
   releaseManagedPortalAsset,
-  uploadManagedPortalAsset,
+  uploadManagedPortalAssetServerOwned,
 } from "@/lib/portal/portal-assets-client";
 import {
   dismissPortalAutosaveError,
@@ -155,7 +156,6 @@ import {
   focusPortalSectionTitle,
   scrollToPortalSection,
 } from "@/lib/portal/scroll-to-section";
-import { createClient } from "@/lib/supabase/client";
 import type { Portal, PortalVisibility } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
 
@@ -416,11 +416,10 @@ async function uploadPortalAsset({
   file: File;
   portalId: string;
 }) {
-  return uploadManagedPortalAsset({
+  return uploadManagedPortalAssetServerOwned({
     category,
     file,
     portalId,
-    storage: createClient().storage,
   });
 }
 
@@ -2990,6 +2989,23 @@ function usePortalDocumentDraft(portalId: string, document: PortalDocument) {
   useEffect(() => {
     hydrateDocument(portalId, document);
   }, [document, hydrateDocument, portalId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void reconcilePersistedPortalAssets({ portalId })
+      .then(({ assets, discardedIds }) => {
+        if (cancelled) return;
+        if (assets.length || discardedIds.length) {
+          window.dispatchEvent(new Event("portal-assets-reconciled"));
+        }
+      })
+      .catch(() => {
+        // A transient reconciliation failure must not block the editor.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [portalId]);
 
   return storeDocument ?? document;
 }
