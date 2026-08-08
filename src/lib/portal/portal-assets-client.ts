@@ -68,6 +68,11 @@ export async function uploadManagedPortalAsset({
     throw new Error(String(reservation?.error ?? "reservation_failed"));
   }
 
+  // The reservation is already counted by the plan endpoint. Refresh now so
+  // the optimistic preview and the server-backed storage indicator agree
+  // while the signed upload is still in flight.
+  notifyPortalAssetUsageChanged(portalId, usageEventTarget);
+
   try {
     const bucket = storage.from("portal-assets");
     const uploaded = await bucket.uploadToSignedUrl(
@@ -100,9 +105,12 @@ export async function uploadManagedPortalAsset({
       previewUrl: finalized.previewUrl,
     };
   } catch (error) {
-    await deleteManagedPortalAsset(reservation.assetId, fetcher).catch(
-      () => undefined,
-    );
+    await deleteManagedPortalAsset(
+      reservation.assetId,
+      fetcher,
+      portalId,
+      usageEventTarget,
+    ).catch(() => undefined);
     throw error;
   }
 }

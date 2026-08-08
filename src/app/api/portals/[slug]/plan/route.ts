@@ -66,7 +66,12 @@ export async function GET(
   }
   const { data: assets } = await assetQuery;
   const storageUsedBytes =
-    assets?.reduce((total, asset) => total + (asset.size_bytes ?? 0), 0) ?? 0;
+    assets?.reduce((total, asset) => {
+      const sizeBytes = Number(asset.size_bytes);
+      return (
+        total + (Number.isFinite(sizeBytes) && sizeBytes > 0 ? sizeBytes : 0)
+      );
+    }, 0) ?? 0;
   return NextResponse.json({
     ...getPortalPlanSnapshot(plan),
     available: !entitlementError,

@@ -122,7 +122,7 @@ describe("managed portal asset upload", () => {
       path: "u/p/a.png",
       previewUrl: "https://signed.example/a.png",
     });
-    expect(usageRefreshes).toBe(1);
+    expect(usageRefreshes).toBe(2);
   });
 
   test("uses the server preview and never asks the browser for a read URL", async () => {
