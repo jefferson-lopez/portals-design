@@ -36,6 +36,33 @@ test("direct public uploads are removed from the editor", () => {
   expect(renderer).toContain("deleteManagedPortalAsset");
 });
 
+test("successful uploads flush the document before reporting completion", () => {
+  expect(controls).toContain(
+    "const reconciled = await reconcileOptimisticUpload",
+  );
+  expect(controls).toContain(
+    "if (reconciled) await flushPortalAutosave(portalId);",
+  );
+  expect(controls).toContain("finalized.sizeBytes");
+});
+
+test("plan refreshes cannot let an older quota response overwrite a newer one", () => {
+  expect(provider).toContain("const refreshSequence = useRef(0)");
+  expect(provider).toContain(
+    "const requestSequence = ++refreshSequence.current",
+  );
+  expect(provider).toContain(
+    "if (requestSequence !== refreshSequence.current) return null",
+  );
+});
+
+test("storage progress keeps the last ready percentage visible while refreshing", () => {
+  expect(provider).toContain("const [lastReadyPercent, setLastReadyPercent]");
+  expect(provider).toContain('if (status === "ready")');
+  expect(provider).toContain("{lastReadyPercent ??");
+  expect(provider).toContain('(status === "ready" ? Math.round(percent) : 0)}');
+});
+
 test("password visibility is gated before a password can be entered", () => {
   expect(controls).toContain("guardPassword");
   expect(controls).toContain('disabled={plan !== "premium"}');

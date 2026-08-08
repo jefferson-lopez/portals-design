@@ -134,18 +134,22 @@ export function PortalPlanProvider({
     useState<PortalUpgradeDetails | null>(null);
   const [checkoutPending, setCheckoutPending] = useState(false);
   const pendingActionRef = useRef<SafePendingPortalAction | null>(null);
+  const refreshSequence = useRef(0);
   const checkoutResult = searchParams.get("premium");
   const pendingActionKey = `portal-premium-pending:${portalId}`;
 
   const refresh = useCallback(async () => {
+    const requestSequence = ++refreshSequence.current;
     setStatus("loading");
     try {
       const next = await fetchPortalPlan(portalId);
+      if (requestSequence !== refreshSequence.current) return null;
       setSnapshot(next);
       setStatus("ready");
       toast.dismiss(`portal-plan-error:${portalId}`);
       return next;
     } catch (error) {
+      if (requestSequence !== refreshSequence.current) return null;
       console.error("Portal plan refresh failed", { error, portalId });
       setStatus("error");
       toast.error(t("unavailable"), {
@@ -456,6 +460,10 @@ export function PortalPlanStatus() {
     snapshot.storageUsedBytes,
     snapshot.policy.storageBytes,
   );
+  const [lastReadyPercent, setLastReadyPercent] = useState<number | null>(null);
+  useEffect(() => {
+    if (status === "ready") setLastReadyPercent(Math.round(percent));
+  }, [percent, status]);
   const usageState = storageUsageState(percent);
   const used = formatBytes(snapshot.storageUsedBytes);
   const limit = formatBytes(snapshot.policy.storageBytes);
@@ -527,7 +535,7 @@ export function PortalPlanStatus() {
             />
           </svg>
           <span className="absolute inset-0 flex items-center justify-center font-medium text-[9px] tabular-nums">
-            {status === "ready" ? Math.round(percent) : "–"}
+            {lastReadyPercent ?? (status === "ready" ? Math.round(percent) : 0)}
           </span>
         </span>
         <span className="sr-only">{label}</span>

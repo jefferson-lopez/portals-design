@@ -795,7 +795,7 @@ function AddImageTile({
             portalId,
           });
           if (!asset.previewUrl) throw new Error(t("uploadError"));
-          await reconcileOptimisticUpload({
+          const reconciled = await reconcileOptimisticUpload({
             asset,
             commit: (finalized) =>
               onAdd({
@@ -808,6 +808,7 @@ function AddImageTile({
             id: pending.id,
             registry: optimistic,
           });
+          if (reconciled) await flushPortalAutosave(portalId);
         } catch (uploadError) {
           const stillOwned = optimistic.owns(pending.id);
           optimistic.remove(pending.id);
@@ -2028,7 +2029,7 @@ function FontDialog({
             weight: metadata.weight,
             weights: weightLabel(metadata.weight),
           } satisfies PortalFontItem;
-          await reconcileOptimisticUpload({
+          const reconciled = await reconcileOptimisticUpload({
             asset: uploaded,
             commit: (finalized) => {
               setUploadedFonts((current) => [...current, finalized]);
@@ -2039,6 +2040,7 @@ function FontDialog({
             id: pending.id,
             registry: optimistic,
           });
+          if (reconciled) await flushPortalAutosave(portalId);
         } catch (error) {
           const stillOwned = optimistic.owns(pending.id);
           optimistic.remove(pending.id);
@@ -2087,7 +2089,7 @@ function FontDialog({
           portalId,
         });
         if (!asset.previewUrl) throw new Error(t("uploadError"));
-        await reconcileOptimisticUpload({
+        const reconciled = await reconcileOptimisticUpload({
           asset,
           commit: (finalized) =>
             setDraft((current) => ({
@@ -2104,6 +2106,7 @@ function FontDialog({
           id: pending.id,
           registry: optimistic,
         });
+        if (reconciled) await flushPortalAutosave(portalId);
       } catch (error) {
         const stillOwned = optimistic.owns(pending.id);
         optimistic.remove(pending.id);
@@ -2743,7 +2746,7 @@ function FilesEditor({
           portalId,
         });
         if (!asset.previewUrl) throw new Error(t("uploadError"));
-        await reconcileOptimisticUpload({
+        const reconciled = await reconcileOptimisticUpload({
           asset,
           commit: (finalized) => {
             const nextFiles = [
@@ -2752,7 +2755,7 @@ function FilesEditor({
                 asset_id: finalized.assetId,
                 allow_download: true,
                 file_name: file.name,
-                file_size: `${Math.ceil(file.size / 1024)}KB`,
+                file_size: `${Math.ceil(finalized.sizeBytes / 1024)}KB`,
                 file_type: fileType,
                 file_url: finalized.previewUrl,
                 storage_path: finalized.path,
@@ -2769,6 +2772,7 @@ function FilesEditor({
           id: pending.id,
           registry: optimistic,
         });
+        if (reconciled) await flushPortalAutosave(portalId);
       } catch (uploadError) {
         const stillOwned = optimistic.owns(pending.id);
         optimistic.remove(pending.id);

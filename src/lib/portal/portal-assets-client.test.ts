@@ -35,7 +35,7 @@ describe("managed portal asset upload", () => {
           });
         }
         return Response.json({
-          asset: { id: "asset-1" },
+          asset: { id: "asset-1", size_bytes: 17 },
           previewUrl: "https://server.example/signed",
         });
       }) as typeof fetch;
@@ -90,7 +90,7 @@ describe("managed portal asset upload", () => {
         });
       }
       return Response.json({
-        asset: { id: "asset-1", file_path: "u/p/a.png", size_bytes: 1 },
+        asset: { id: "asset-1", file_path: "u/p/a.png", size_bytes: 17 },
         previewUrl: "https://signed.example/a.png",
       });
     }) as typeof fetch;
@@ -121,6 +121,7 @@ describe("managed portal asset upload", () => {
       assetId: "asset-1",
       path: "u/p/a.png",
       previewUrl: "https://signed.example/a.png",
+      sizeBytes: 17,
     });
     expect(usageRefreshes).toBe(2);
   });

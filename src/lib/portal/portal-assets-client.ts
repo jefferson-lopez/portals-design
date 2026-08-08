@@ -27,6 +27,11 @@ async function responseJson(response: Response) {
   > | null;
 }
 
+function positiveSize(value: unknown) {
+  const size = typeof value === "number" ? value : Number(value);
+  return Number.isSafeInteger(size) && size > 0 ? size : undefined;
+}
+
 export async function uploadManagedPortalAsset({
   category,
   file,
@@ -99,10 +104,16 @@ export async function uploadManagedPortalAsset({
 
     notifyPortalAssetUsageChanged(portalId, usageEventTarget);
 
+    const finalizedAsset =
+      typeof finalized.asset === "object" && finalized.asset !== null
+        ? (finalized.asset as Record<string, unknown>)
+        : null;
+
     return {
       assetId: reservation.assetId,
       path: reservation.path,
       previewUrl: finalized.previewUrl,
+      sizeBytes: positiveSize(finalizedAsset?.size_bytes) ?? canonicalFile.size,
     };
   } catch (error) {
     await deleteManagedPortalAsset(
