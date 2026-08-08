@@ -46,7 +46,7 @@ export async function GET(
   const plan = entitlement?.status === "active" ? "premium" : "free";
   let assetQuery = admin
     .from("portal_assets")
-    .select("size_bytes")
+    .select("size_bytes,state,reservation_expires_at")
     .in("state", ["reserved", "ready"]);
   if (plan === "premium") {
     assetQuery = assetQuery.eq("portal_id", portalId);
@@ -65,8 +65,16 @@ export async function GET(
       );
   }
   const { data: assets } = await assetQuery;
+  const now = Date.now();
   const storageUsedBytes =
     assets?.reduce((total, asset) => {
+      if (
+        asset.state === "reserved" &&
+        (!asset.reservation_expires_at ||
+          Date.parse(asset.reservation_expires_at) <= now)
+      ) {
+        return total;
+      }
       const sizeBytes = Number(asset.size_bytes);
       return (
         total + (Number.isFinite(sizeBytes) && sizeBytes > 0 ? sizeBytes : 0)

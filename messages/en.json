@@ -284,9 +284,11 @@
         "password_requires_premium": "Password protection is available with Portal Premium.",
         "plan_unavailable": "Your portal plan could not be verified. Retry before making changes.",
         "storage_bytes": "This portal reached the storage available on its plan.",
+        "storage_bytes_detail": "Storage: {used} of {limit} used. This upload needs {requested}, but only {available} remains.",
         "text_sections": "Free portals can include up to 2 text sections.",
         "total_sections": "This portal reached the section limit for its plan.",
-        "upload_bytes": "This file is larger than the upload limit for the current plan."
+        "upload_bytes": "This file is larger than the upload limit for the current plan.",
+        "upload_bytes_detail": "This file is {requested}. The maximum allowed file size is {maximum}."
       }
     },
     "autosave": {
@@ -396,7 +398,8 @@
       "grid": "Grid",
       "comparison": "Comparison",
       "globalFit": "Global fit",
-      "globalRatio": "Global aspect ratio"
+      "globalRatio": "Global aspect ratio",
+      "limitReached": "Image limit reached"
     },
     "colors": {
       "settings": "Configure colors",
@@ -474,6 +477,7 @@
       "settings": "Configure files",
       "settingsDescription": "Adjust how many cards are shown per row.",
       "upload": "Add file",
+      "limitReached": "File limit reached",
       "invalidFormat": "Unsupported format. Use PDF, AI, EPS, PSD, SVG, or images.",
       "uploadError": "The file could not be uploaded."
     },

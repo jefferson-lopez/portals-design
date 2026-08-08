@@ -4,6 +4,10 @@ const migration = new URL(
   "../../../supabase/migrations/20260808130000_raise_free_upload_limit.sql",
   import.meta.url,
 );
+const reservationCleanupMigration = new URL(
+  "../../../supabase/migrations/20260808150000_ignore_expired_asset_reservations.sql",
+  import.meta.url,
+);
 
 describe("Free portal upload limit migration", () => {
   test("keeps the storage bucket at the shared 50 MiB upload ceiling", async () => {
@@ -44,6 +48,15 @@ describe("Free portal upload limit migration", () => {
     );
     expect(sql).toContain(
       "grant execute on function public.finalize_portal_asset(uuid,bigint,text) to service_role",
+    );
+  });
+
+  test("does not charge quota for expired reservations", async () => {
+    const sql = await Bun.file(reservationCleanupMigration).text();
+
+    expect(sql).toContain("state='reserved' and reservation_expires_at>now()");
+    expect(sql).toContain(
+      "a.state='reserved' and a.reservation_expires_at>now()",
     );
   });
 });

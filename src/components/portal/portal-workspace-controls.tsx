@@ -767,7 +767,9 @@ function AddImageTile({
       return;
     }
     if (files.some((file) => file.size > snapshot.policy.maxUploadBytes)) {
-      requestUpgrade("upload_bytes");
+      requestUpgrade("upload_bytes", undefined, {
+        fileSizeBytes: Math.max(...files.map((file) => file.size)),
+      });
       return;
     }
     if (
@@ -775,7 +777,9 @@ function AddImageTile({
         files.reduce((total, file) => total + file.size, 0) >
       snapshot.policy.storageBytes
     ) {
-      requestUpgrade("storage_bytes");
+      requestUpgrade("storage_bytes", undefined, {
+        fileSizeBytes: files.reduce((total, file) => total + file.size, 0),
+      });
       return;
     }
     for (const file of files) {
@@ -1391,9 +1395,15 @@ function GalleryEditor({
   section: PortalSection;
   updateSection: (section: PortalSection) => void;
 }) {
+  const { requestUpgrade, snapshot, status } = usePortalPlan();
+  const t = useTranslations("PortalEditor.gallery");
   const isComparison =
     section.layout.mode === "comparison" || section.type === "image_comparison";
-  const maxImages = isComparison ? 2 : Number.POSITIVE_INFINITY;
+  const maxImages = isComparison
+    ? 2
+    : status === "ready"
+      ? (snapshot.policy.sections.gallery?.items ?? Number.POSITIVE_INFINITY)
+      : Number.POSITIVE_INFINITY;
   const images = uniqueForRender(section.content.images ?? [], "img").slice(
     0,
     maxImages,
@@ -1432,6 +1442,10 @@ function GalleryEditor({
     ? images[0]?.aspect_ratio
     : null;
   const addImageAspectRatio = sharedAspectRatio ?? "auto";
+  const imageLimitReached =
+    status === "ready" &&
+    Number.isFinite(maxImages) &&
+    images.length >= maxImages;
   return (
     <div className="flex flex-col gap-4">
       <DragDropProvider
@@ -1493,6 +1507,15 @@ function GalleryEditor({
                 saveImages(nextImages);
               }}
             />
+          ) : imageLimitReached ? (
+            <button
+              aria-label={t("limitReached")}
+              className="flex aspect-square items-center justify-center rounded-xl border border-dashed text-muted-foreground"
+              onClick={() => requestUpgrade("gallery_items")}
+              type="button"
+            >
+              <span className="text-center text-sm">{t("limitReached")}</span>
+            </button>
           ) : null}
         </div>
       </DragDropProvider>
@@ -1945,7 +1968,9 @@ function FontDialog({
       return;
     }
     if (files.some((file) => file.size > snapshot.policy.maxUploadBytes)) {
-      requestUpgrade("upload_bytes");
+      requestUpgrade("upload_bytes", undefined, {
+        fileSizeBytes: Math.max(...files.map((file) => file.size)),
+      });
       return;
     }
     if (
@@ -1953,7 +1978,9 @@ function FontDialog({
         files.reduce((total, file) => total + file.size, 0) >
       snapshot.policy.storageBytes
     ) {
-      requestUpgrade("storage_bytes");
+      requestUpgrade("storage_bytes", undefined, {
+        fileSizeBytes: files.reduce((total, file) => total + file.size, 0),
+      });
       return;
     }
 
@@ -2024,11 +2051,11 @@ function FontDialog({
       return;
     }
     if (file.size > snapshot.policy.maxUploadBytes) {
-      requestUpgrade("upload_bytes");
+      requestUpgrade("upload_bytes", undefined, { fileSizeBytes: file.size });
       return;
     }
     if (snapshot.storageUsedBytes + file.size > snapshot.policy.storageBytes) {
-      requestUpgrade("storage_bytes");
+      requestUpgrade("storage_bytes", undefined, { fileSizeBytes: file.size });
       return;
     }
     const metadata = inferFontMetadata(file.name);
@@ -2638,6 +2665,11 @@ function FilesEditor({
     null,
   );
   const optimistic = useOptimisticUploads<PortalFileItem>();
+  const fileLimit = snapshot.policy.sections.files?.items;
+  const fileLimitReached =
+    status === "ready" &&
+    fileLimit !== undefined &&
+    files.length + optimistic.pending.length >= fileLimit;
   const filesRef = useRef(files);
   const sectionRef = useRef(section);
   useEffect(() => {
@@ -2676,12 +2708,17 @@ function FilesEditor({
       requestUpgrade("plan_unavailable");
       return;
     }
+    if (fileLimitReached) {
+      requestUpgrade("files_items");
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
     if (file.size > snapshot.policy.maxUploadBytes) {
-      requestUpgrade("upload_bytes");
+      requestUpgrade("upload_bytes", undefined, { fileSizeBytes: file.size });
       return;
     }
     if (snapshot.storageUsedBytes + file.size > snapshot.policy.storageBytes) {
-      requestUpgrade("storage_bytes");
+      requestUpgrade("storage_bytes", undefined, { fileSizeBytes: file.size });
       return;
     }
     const pending = optimistic.add(file, ({ id, previewUrl }) => ({
@@ -2783,30 +2820,43 @@ function FilesEditor({
               />
             </div>
           ))}
-          <button
-            aria-label={t("upload")}
-            aria-describedby={
-              fileValidationError ? "portal-file-error" : undefined
-            }
-            aria-invalid={Boolean(fileValidationError) || undefined}
-            className="flex aspect-square items-center justify-center gap-2 rounded-xl border border-dashed text-muted-foreground hover:bg-muted"
-            onClick={() => inputRef.current?.click()}
-            type="button"
-          >
-            <IconPlus />
-            <span className="sr-only">{t("upload")}</span>
-          </button>
-          <input
-            aria-describedby={
-              fileValidationError ? "portal-file-error" : undefined
-            }
-            aria-invalid={Boolean(fileValidationError) || undefined}
-            className="sr-only"
-            ref={inputRef}
-            type="file"
-            accept={PORTAL_FILE_ACCEPT}
-            onChange={(e) => handleFile(e.currentTarget.files?.[0])}
-          />
+          {fileLimitReached ? (
+            <button
+              aria-label={t("limitReached")}
+              className="flex aspect-square items-center justify-center rounded-xl border border-dashed text-muted-foreground"
+              onClick={() => requestUpgrade("files_items")}
+              type="button"
+            >
+              <span className="text-center text-sm">{t("limitReached")}</span>
+            </button>
+          ) : (
+            <>
+              <button
+                aria-label={t("upload")}
+                aria-describedby={
+                  fileValidationError ? "portal-file-error" : undefined
+                }
+                aria-invalid={Boolean(fileValidationError) || undefined}
+                className="flex aspect-square items-center justify-center gap-2 rounded-xl border border-dashed text-muted-foreground hover:bg-muted"
+                onClick={() => inputRef.current?.click()}
+                type="button"
+              >
+                <IconPlus />
+                <span className="sr-only">{t("upload")}</span>
+              </button>
+              <input
+                aria-describedby={
+                  fileValidationError ? "portal-file-error" : undefined
+                }
+                aria-invalid={Boolean(fileValidationError) || undefined}
+                className="sr-only"
+                ref={inputRef}
+                type="file"
+                accept={PORTAL_FILE_ACCEPT}
+                onChange={(e) => handleFile(e.currentTarget.files?.[0])}
+              />
+            </>
+          )}
         </div>
       </DragDropProvider>
       {fileValidationError ? (

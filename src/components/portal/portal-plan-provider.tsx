@@ -52,6 +52,10 @@ import { cn } from "@/lib/utils";
 
 export const PORTAL_PLAN_RETRY_EVENT = "portal-plan-retry";
 
+type PortalUpgradeDetails = {
+  fileSizeBytes?: number;
+};
+
 type PortalPlanContextValue = {
   guardDocumentChange: (
     previous: PortalDocument,
@@ -65,6 +69,7 @@ type PortalPlanContextValue = {
   requestUpgrade: (
     code: PortalUpgradeReason,
     retry?: SafePendingPortalAction,
+    details?: PortalUpgradeDetails,
   ) => void;
   snapshot: PortalPlanSnapshot;
   status: "error" | "loading" | "ready";
@@ -118,6 +123,8 @@ export function PortalPlanProvider({
     "loading",
   );
   const [violation, setViolation] = useState<PortalUpgradeReason | null>(null);
+  const [violationDetails, setViolationDetails] =
+    useState<PortalUpgradeDetails | null>(null);
   const [checkoutPending, setCheckoutPending] = useState(false);
   const pendingActionRef = useRef<SafePendingPortalAction | null>(null);
   const checkoutResult = searchParams.get("premium");
@@ -189,8 +196,13 @@ export function PortalPlanProvider({
   }, [checkoutResult, pathname, pendingActionKey, refresh, router]);
 
   const requestUpgrade = useCallback(
-    (code: PortalUpgradeReason, retry?: SafePendingPortalAction) => {
+    (
+      code: PortalUpgradeReason,
+      retry?: SafePendingPortalAction,
+      details?: PortalUpgradeDetails,
+    ) => {
       setViolation(code);
+      setViolationDetails(details ?? null);
       pendingActionRef.current =
         retry && isSafePendingPortalAction(retry) ? retry : null;
       if (pendingActionRef.current) {
@@ -303,7 +315,12 @@ export function PortalPlanProvider({
     <PortalPlanContext.Provider value={value}>
       {children}
       <Dialog
-        onOpenChange={(open) => !open && setViolation(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViolation(null);
+            setViolationDetails(null);
+          }
+        }}
         open={Boolean(violation)}
       >
         <DialogContent>
@@ -314,9 +331,31 @@ export function PortalPlanProvider({
                 : t("upgradeTitle")}
             </DialogTitle>
             <DialogDescription>
-              {violation
-                ? t(upgradeDescriptionKey(violation))
-                : t("upgradeDescription")}
+              {violation === "storage_bytes"
+                ? t("violations.storage_bytes_detail", {
+                    available: formatBytes(
+                      Math.max(
+                        0,
+                        snapshot.policy.storageBytes -
+                          snapshot.storageUsedBytes,
+                      ),
+                    ),
+                    limit: formatBytes(snapshot.policy.storageBytes),
+                    requested: formatBytes(
+                      violationDetails?.fileSizeBytes ?? 0,
+                    ),
+                    used: formatBytes(snapshot.storageUsedBytes),
+                  })
+                : violation === "upload_bytes"
+                  ? t("violations.upload_bytes_detail", {
+                      maximum: formatBytes(snapshot.policy.maxUploadBytes),
+                      requested: formatBytes(
+                        violationDetails?.fileSizeBytes ?? 0,
+                      ),
+                    })
+                  : violation
+                    ? t(upgradeDescriptionKey(violation))
+                    : t("upgradeDescription")}
             </DialogDescription>
           </DialogHeader>
           {status === "loading" ? (

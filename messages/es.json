@@ -284,9 +284,11 @@
         "password_requires_premium": "La protección con contraseña está disponible con Portal Premium.",
         "plan_unavailable": "No se pudo verificar el plan del portal. Reinténtalo antes de hacer cambios.",
         "storage_bytes": "Este portal alcanzó el almacenamiento disponible en su plan.",
+        "storage_bytes_detail": "Almacenamiento: {used} de {limit} usados. Esta subida necesita {requested}, pero solo quedan {available}.",
         "text_sections": "Los portales gratis pueden incluir hasta 2 secciones de texto.",
         "total_sections": "Este portal alcanzó el límite de secciones de su plan.",
-        "upload_bytes": "Este archivo supera el tamaño permitido por el plan actual."
+        "upload_bytes": "Este archivo supera el tamaño permitido por el plan actual.",
+        "upload_bytes_detail": "Este archivo pesa {requested}. El tamaño máximo permitido es {maximum}."
       }
     },
     "autosave": {
@@ -396,7 +398,8 @@
       "grid": "Cuadrícula",
       "comparison": "Comparación",
       "globalFit": "Ajuste global",
-      "globalRatio": "Proporción global"
+      "globalRatio": "Proporción global",
+      "limitReached": "Límite de imágenes alcanzado"
     },
     "colors": {
       "settings": "Configurar colores",
@@ -474,6 +477,7 @@
       "settings": "Configurar archivos",
       "settingsDescription": "Ajusta cuántas tarjetas se muestran por fila.",
       "upload": "Agregar archivo",
+      "limitReached": "Límite de archivos alcanzado",
       "invalidFormat": "Formato no permitido. Usa PDF, AI, EPS, PSD, SVG o imágenes.",
       "uploadError": "No se pudo subir el archivo."
     },
