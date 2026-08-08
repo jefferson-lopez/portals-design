@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import type { AutosaveStatus } from "@/lib/portal/autosave-queue";
 import type { PortalDocument } from "@/lib/portal/document";
+import {
+  type PortalPublicationIssue,
+  validatePortalPublicationReadiness,
+} from "@/lib/portal/publication-readiness";
 
 export type PortalAutosaveState = {
   error: string | null;
@@ -15,6 +19,8 @@ export type PortalEditorState = {
   lastPublishedPortalId: string | null;
   publishError: string | null;
   publishingPortalId: string | null;
+  publicationIssuesByPortalId: Record<string, PortalPublicationIssue[]>;
+  publicationPopoverOpenByPortalId: Record<string, boolean>;
   hydrateDocument: (portalId: string, document: PortalDocument) => void;
   initializeHasUnpublishedChanges: (
     portalId: string,
@@ -27,6 +33,11 @@ export type PortalEditorState = {
   setLastPublishedPortalId: (portalId: string | null) => void;
   setPublishError: (error: string | null) => void;
   setPublishingPortalId: (portalId: string | null) => void;
+  setPublicationIssues: (
+    portalId: string,
+    issues: PortalPublicationIssue[],
+  ) => void;
+  setPublicationPopoverOpen: (portalId: string, open: boolean) => void;
   updateDocument: (
     portalId: string,
     update: (document: PortalDocument) => PortalDocument,
@@ -41,6 +52,8 @@ export const usePortalEditorStore = create<PortalEditorState>((set) => ({
   lastPublishedPortalId: null,
   publishError: null,
   publishingPortalId: null,
+  publicationIssuesByPortalId: {},
+  publicationPopoverOpenByPortalId: {},
   hydrateDocument: (portalId, document) =>
     set((state) => {
       if (
@@ -111,12 +124,29 @@ export const usePortalEditorStore = create<PortalEditorState>((set) => ({
     set({ lastPublishedPortalId: portalId }),
   setPublishError: (error) => set({ publishError: error }),
   setPublishingPortalId: (portalId) => set({ publishingPortalId: portalId }),
+  setPublicationIssues: (portalId, issues) =>
+    set((state) => ({
+      publicationIssuesByPortalId: {
+        ...state.publicationIssuesByPortalId,
+        [portalId]: issues,
+      },
+    })),
+  setPublicationPopoverOpen: (portalId, open) =>
+    set((state) => ({
+      publicationPopoverOpenByPortalId: {
+        ...state.publicationPopoverOpenByPortalId,
+        [portalId]: open,
+      },
+    })),
   updateDocument: (portalId, update) => {
     let nextDocument: PortalDocument | undefined;
     set((state) => {
       const current = state.documentsByPortalId[portalId];
       if (!current) return state;
       nextDocument = update(current);
+      const publicationIssues = state.publicationIssuesByPortalId[portalId]
+        ? validatePortalPublicationReadiness(nextDocument)
+        : undefined;
       return {
         autosaveByPortalId: {
           ...state.autosaveByPortalId,
@@ -130,6 +160,12 @@ export const usePortalEditorStore = create<PortalEditorState>((set) => ({
           ...state.documentsByPortalId,
           [portalId]: nextDocument,
         },
+        publicationIssuesByPortalId: publicationIssues
+          ? {
+              ...state.publicationIssuesByPortalId,
+              [portalId]: publicationIssues,
+            }
+          : state.publicationIssuesByPortalId,
         hasUnpublishedChangesByPortalId: {
           ...state.hasUnpublishedChangesByPortalId,
           [portalId]: true,

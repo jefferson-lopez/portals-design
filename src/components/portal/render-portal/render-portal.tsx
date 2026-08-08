@@ -1,8 +1,12 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useCallback, useEffect, useRef } from "react";
 import { updatePortalDocument } from "@/app/[locale]/_actions/portals";
+import {
+  PORTAL_PLAN_RETRY_EVENT,
+  useOptionalPortalPlan,
+} from "@/components/portal/portal-plan-provider";
 import {
   SectionActionToolbar,
   SectionContentEditor,
@@ -12,6 +16,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "@/i18n/navigation";
+import type { SafePendingPortalAction } from "@/lib/billing/portal-plan-client";
 import {
   ensurePortalAutosave,
   flushPortalAutosave,
@@ -27,6 +32,8 @@ import {
   type PortalSectionType,
 } from "@/lib/portal/document";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
+import { portalExportHref } from "@/lib/portal/export-manifest";
+import { deleteManagedPortalAsset } from "@/lib/portal/portal-assets-client";
 import {
   focusPortalSectionTitle,
   scrollToPortalSection,
@@ -53,6 +60,30 @@ function compactActions(actions: PortalAction[] | undefined) {
 
 function reindex<T extends { position: number }>(items: T[]) {
   return items.map((item, index) => ({ ...item, position: index }));
+}
+
+function portalAssetIds(document: PortalDocument) {
+  const ids = new Set<string>();
+  for (const section of document.sections) {
+    const items = [
+      section.content.image,
+      ...(section.content.images ?? []),
+      ...(section.content.fonts ?? []),
+      ...(section.content.files ?? []),
+    ];
+    for (const item of items) {
+      if (item?.asset_id) ids.add(item.asset_id);
+    }
+  }
+  return ids;
+}
+
+function removeAssetIds(ids: Iterable<string>, portalId: string) {
+  for (const assetId of ids) {
+    void deleteManagedPortalAsset(assetId, fetch, portalId).catch(() => {
+      // Server reconciliation remains the fallback if immediate cleanup fails.
+    });
+  }
 }
 
 function uniqueForRender<T extends { id: string; position: number }>(
@@ -156,7 +187,7 @@ function buildPublicActions({
         ? [
             {
               download: true,
-              href: `/api/portals/${encodeURIComponent(slug)}/export`,
+              href: portalExportHref(slug),
               icon: "export",
               id: "export-all",
               label: copy.exportAll,
@@ -235,14 +266,18 @@ function PortalSummary({
       <Field>
         <Input
           aria-label={t("name")}
+          autoComplete="off"
           className={cn(
             "border-none bg-transparent! px-0 text-2xl! font-medium shadow-none focus-visible:ring-0",
             !editable && "pointer-events-none",
           )}
+          data-portal-editor-field
+          data-portal-name
           onBlur={editable ? onSaveNow : undefined}
           onChange={(event) =>
             editable && onPortalChange({ name: event.currentTarget.value })
           }
+          placeholder={editable ? t("namePlaceholder") : undefined}
           readOnly={!editable}
           tabIndex={editable ? undefined : -1}
           value={portal.name}
@@ -251,15 +286,18 @@ function PortalSummary({
       <Field>
         <Textarea
           aria-label={t("description")}
+          autoComplete="off"
           className={cn(
             "resize-none whitespace-pre-wrap border-none bg-transparent! px-0 text-muted-foreground shadow-none focus-visible:ring-0",
             !editable && "pointer-events-none",
           )}
+          data-portal-editor-field
           onBlur={editable ? onSaveNow : undefined}
           onChange={(event) =>
             editable &&
             onPortalChange({ description: event.currentTarget.value })
           }
+          placeholder={editable ? t("descriptionPlaceholder") : undefined}
           readOnly={!editable}
           rows={2}
           tabIndex={editable ? undefined : -1}
@@ -299,8 +337,10 @@ function PortalSectionHeading({
       <div className="flex items-center justify-between gap-2">
         {editable ? (
           <input
+            autoComplete="off"
             className="w-full border-none bg-transparent px-0 font-heading font-medium text-lg text-primary! tracking-tight outline-none placeholder:text-muted-foreground"
             data-portal-section-title
+            data-portal-editor-field
             maxLength={70}
             minLength={1}
             onBlur={onSaveNow}
@@ -326,7 +366,9 @@ function PortalSectionHeading({
       </div>
       {editable ? (
         <Textarea
+          autoComplete="off"
           className="resize-none border-none bg-transparent! px-0 text-muted-foreground text-sm shadow-none outline-none focus-visible:ring-0"
+          data-portal-editor-field
           maxLength={1500}
           onBlur={onSaveNow}
           onChange={(event) =>
@@ -413,8 +455,53 @@ export function RenderPortal({
     (state) => state.updateDocument,
   );
   const pendingSectionIdRef = useRef<string | null>(null);
+  const pendingAssetDeletionIdsRef = useRef(new Map<string, Set<string>>());
   const editorLocale = editor?.locale;
   const editorPortalId = editor?.portalId;
+  const portalPlan = useOptionalPortalPlan();
+
+  const queueAssetDeletions = useCallback(function queueAssetDeletions(
+    portalId: string,
+    removedAssetIds: Iterable<string>,
+    retainedAssetIds: ReadonlySet<string>,
+  ) {
+    const pending =
+      pendingAssetDeletionIdsRef.current.get(portalId) ?? new Set<string>();
+    for (const assetId of retainedAssetIds) pending.delete(assetId);
+    for (const assetId of removedAssetIds) pending.add(assetId);
+    if (pending.size > 0) {
+      pendingAssetDeletionIdsRef.current.set(portalId, pending);
+    } else {
+      pendingAssetDeletionIdsRef.current.delete(portalId);
+    }
+  }, []);
+
+  const flushPersistedAssetDeletions = useCallback(
+    function flushPersistedAssetDeletions(
+      portalId: string,
+      persistedDocument: PortalDocument,
+    ) {
+      const pending = pendingAssetDeletionIdsRef.current.get(portalId);
+      if (!pending?.size) return;
+
+      const persistedAssets = portalAssetIds(persistedDocument);
+      const latestDocument =
+        usePortalEditorStore.getState().documentsByPortalId[portalId];
+      const latestAssets = latestDocument
+        ? portalAssetIds(latestDocument)
+        : persistedAssets;
+      const safeToDelete = [...pending].filter(
+        (assetId) =>
+          !persistedAssets.has(assetId) && !latestAssets.has(assetId),
+      );
+      for (const assetId of safeToDelete) pending.delete(assetId);
+      if (pending.size === 0) {
+        pendingAssetDeletionIdsRef.current.delete(portalId);
+      }
+      removeAssetIds(safeToDelete, portalId);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!editorPortalId) return;
@@ -444,20 +531,51 @@ export function RenderPortal({
           fd.set("portal_id", editorPortalId);
           fd.set("document_json", JSON.stringify(nextDocument));
           await updatePortalDocument(fd);
+          flushPersistedAssetDeletions(editorPortalId, nextDocument);
         },
       });
     });
     return () => releasePortalAutosave(editorPortalId);
-  }, [editorLocale, editorPortalId, resetAutosaveState, setAutosaveState]);
+  }, [
+    editorLocale,
+    editorPortalId,
+    flushPersistedAssetDeletions,
+    resetAutosaveState,
+    setAutosaveState,
+  ]);
 
   const activeDocument = editor ? (storeDocument ?? document) : document;
 
   function changeEditableDocument(
     update: (current: PortalDocument) => PortalDocument,
+    retry?: SafePendingPortalAction,
   ) {
     if (!editor) return;
-    const next = updateStoreDocument(editor.portalId, update);
-    if (next) schedulePortalAutosave(editor.portalId, next);
+    const current =
+      usePortalEditorStore.getState().documentsByPortalId[editor.portalId] ??
+      document;
+    const candidate = update(current);
+    const currentAssets = portalAssetIds(current);
+    const candidateAssets = portalAssetIds(candidate);
+    if (
+      portalPlan &&
+      !portalPlan.guardDocumentChange(current, candidate, retry)
+    ) {
+      removeAssetIds(
+        [...candidateAssets].filter((assetId) => !currentAssets.has(assetId)),
+        editor.portalId,
+      );
+      return;
+    }
+    const next = updateStoreDocument(editor.portalId, () => candidate);
+    if (next) {
+      queueAssetDeletions(
+        editor.portalId,
+        [...currentAssets].filter((assetId) => !candidateAssets.has(assetId)),
+        candidateAssets,
+      );
+      schedulePortalAutosave(editor.portalId, next);
+    }
   }
 
   function saveEditablePortal(patch: Partial<PortalDocument["portal"]>) {
@@ -510,15 +628,28 @@ export function RenderPortal({
     type: Exclude<PortalSectionType, "empty"> = "text",
   ) {
     if (!editor) return;
-    changeEditableDocument((current) => {
-      const section = createPortalSection(type, current.sections.length);
-      pendingSectionIdRef.current = section.id;
-      return {
-        ...current,
-        sections: [...current.sections, section],
-      };
-    });
+    changeEditableDocument(
+      (current) => {
+        const section = createPortalSection(type, current.sections.length);
+        pendingSectionIdRef.current = section.id;
+        return {
+          ...current,
+          sections: [...current.sections, section],
+        };
+      },
+      { kind: "add-section", type },
+    );
   }
+
+  useEffect(() => {
+    if (!editor) return;
+    const retry = (event: Event) => {
+      const action = (event as CustomEvent<SafePendingPortalAction>).detail;
+      if (action.kind === "add-section") addEditableSection(action.type);
+    };
+    window.addEventListener(PORTAL_PLAN_RETRY_EVENT, retry);
+    return () => window.removeEventListener(PORTAL_PLAN_RETRY_EVENT, retry);
+  });
 
   function activatePendingSection() {
     const sectionId = pendingSectionIdRef.current;
@@ -635,6 +766,7 @@ export function RenderPortal({
               onSelectComplete={activatePendingSection}
               trigger={
                 <PortalActionTriggerButton
+                  data-portal-add-section
                   icon="plus"
                   label={t("PortalEditor.sections.add")}
                   size="icon-lg"

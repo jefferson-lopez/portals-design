@@ -127,6 +127,9 @@
     }
   },
   "PublicPortal": {
+    "loading": {
+      "label": "Cargando portal"
+    },
     "password": {
       "description": "Este portal de Portals Design está protegido con contraseña.",
       "label": "Contraseña",
@@ -161,7 +164,9 @@
     },
     "summary": {
       "name": "Nombre del portal",
-      "description": "Descripción del portal"
+      "description": "Descripción del portal",
+      "namePlaceholder": "Nombre del portal",
+      "descriptionPlaceholder": "Descripción breve opcional"
     },
     "section": {
       "titlePlaceholder": "Título",
@@ -238,6 +243,46 @@
     "specialized": "Esta sección está lista para contenido especializado. La representación detallada de {type} se ampliará en una próxima iteración."
   },
   "PortalEditor": {
+    "plan": {
+      "free": "Gratis",
+      "premium": "Premium",
+      "storage": "Almacenamiento del portal",
+      "storageSummary": "Plan {plan}. {used} de {limit} usados. {percent}%.",
+      "currentPlan": "Plan actual",
+      "usageStates": {
+        "empty": "Sin almacenamiento usado",
+        "normal": "Uso de almacenamiento",
+        "warning": "Almacenamiento casi lleno",
+        "exhausted": "Almacenamiento lleno"
+      },
+      "loading": "Cargando plan…",
+      "unavailable": "Plan no disponible",
+      "retry": "Reintentar",
+      "upgradeTitle": "Desbloquea Premium para este portal",
+      "upgradeDescription": "Premium aumenta los límites profesionales de este portal.",
+      "limitTitle": "Límite del portal alcanzado",
+      "buy": "Desbloquear por {price}",
+      "cancelled": "El pago de Premium fue cancelado. No se realizó ningún cargo.",
+      "checkoutUnavailable": "El pago no está disponible temporalmente. Revisa la configuración de pagos e inténtalo de nuevo.",
+      "ownerRequired": "Solo el propietario del portal puede desbloquear Premium.",
+      "violations": {
+        "colors_items": "Los portales gratis pueden incluir hasta 10 colores por sección.",
+        "colors_sections": "Los portales gratis pueden incluir una sección de colores.",
+        "files_items": "Esta sección alcanzó su límite de 10 archivos.",
+        "files_sections": "Desbloquea Premium para añadir una segunda sección de archivos.",
+        "fonts_items": "Una sección de tipografía puede incluir hasta 3 familias.",
+        "fonts_sections": "Desbloquea Premium para añadir una segunda sección de tipografía.",
+        "gallery_items": "Esta galería alcanzó el límite de elementos de su plan.",
+        "gallery_sections": "Desbloquea Premium para añadir más secciones de galería.",
+        "image_sections": "Desbloquea Premium para añadir más secciones de imagen.",
+        "password_requires_premium": "La protección con contraseña está disponible con Portal Premium.",
+        "plan_unavailable": "No se pudo verificar el plan del portal. Reinténtalo antes de hacer cambios.",
+        "storage_bytes": "Este portal alcanzó el almacenamiento disponible en su plan.",
+        "text_sections": "Los portales gratis pueden incluir hasta 2 secciones de texto.",
+        "total_sections": "Este portal alcanzó el límite de secciones de su plan.",
+        "upload_bytes": "Este archivo supera el tamaño permitido por el plan actual."
+      }
+    },
     "autosave": {
       "saving": "Guardando cambios…",
       "error": "No se pudieron guardar los cambios",
@@ -253,6 +298,17 @@
       "openPreview": "Abrir vista previa en otra pestaña",
       "publish": "Publicar",
       "publishError": "No se pudo publicar el portal",
+      "publication": {
+        "action": "Ver problemas de publicación",
+        "title": "El portal aún no está listo para publicarse",
+        "description": "Corrige estos campos obligatorios antes de publicar. Tu borrador permanece guardado.",
+        "fix": "Corregir",
+        "issues": {
+          "portal_name_required": "Agrega un nombre al portal.",
+          "section_required": "Agrega al menos una sección.",
+          "section_title_required": "Agrega un título a esta sección."
+        }
+      },
       "unpublishedTitle": "Cambios no publicados",
       "unpublishedDescription": "Publica el portal para que los visitantes puedan ver tus últimos cambios.",
       "unpublishedAction": "Ver cambios no publicados"
@@ -422,6 +478,8 @@
     "settings": {
       "generalTitle": "Configuración general",
       "generalDescription": "Ajusta el slug y la información visible del diseñador. Guardar estos datos no publica el portal.",
+      "generalTab": "General",
+      "securityTab": "Seguridad",
       "slug": "Slug",
       "slugPlaceholder": "mi-portal",
       "checkingSlug": "Comprobando disponibilidad…",

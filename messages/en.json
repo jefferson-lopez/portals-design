@@ -127,6 +127,9 @@
     }
   },
   "PublicPortal": {
+    "loading": {
+      "label": "Loading portal"
+    },
     "password": {
       "description": "This Portals Design portal is password protected.",
       "label": "Password",
@@ -161,7 +164,9 @@
     },
     "summary": {
       "name": "Portal name",
-      "description": "Portal description"
+      "description": "Portal description",
+      "namePlaceholder": "Portal name",
+      "descriptionPlaceholder": "Optional short description"
     },
     "section": {
       "titlePlaceholder": "Title",
@@ -238,6 +243,46 @@
     "specialized": "This section is ready for specialized content. Detailed rendering for {type} will be expanded in a future iteration."
   },
   "PortalEditor": {
+    "plan": {
+      "free": "Free",
+      "premium": "Premium",
+      "storage": "Portal storage",
+      "storageSummary": "{plan} plan. {used} of {limit} used. {percent}%.",
+      "currentPlan": "Current plan",
+      "usageStates": {
+        "empty": "No storage used",
+        "normal": "Storage usage",
+        "warning": "Storage nearly full",
+        "exhausted": "Storage full"
+      },
+      "loading": "Loading plan…",
+      "unavailable": "Plan unavailable",
+      "retry": "Retry",
+      "upgradeTitle": "Unlock Premium for this portal",
+      "upgradeDescription": "Premium raises the professional limits for this portal.",
+      "limitTitle": "Portal limit reached",
+      "buy": "Unlock for {price}",
+      "cancelled": "Premium checkout was cancelled. No charge was made.",
+      "checkoutUnavailable": "Checkout is temporarily unavailable. Check the payment configuration and try again.",
+      "ownerRequired": "Only the portal owner can unlock Premium.",
+      "violations": {
+        "colors_items": "Free portals can include up to 10 colors in a section.",
+        "colors_sections": "Free portals can include one colors section.",
+        "files_items": "This files section reached its 10-file limit.",
+        "files_sections": "Unlock Premium to add a second files section.",
+        "fonts_items": "A typography section can include up to 3 font families.",
+        "fonts_sections": "Unlock Premium to add a second typography section.",
+        "gallery_items": "This gallery reached the item limit for its plan.",
+        "gallery_sections": "Unlock Premium to add more gallery sections.",
+        "image_sections": "Unlock Premium to add more image sections.",
+        "password_requires_premium": "Password protection is available with Portal Premium.",
+        "plan_unavailable": "Your portal plan could not be verified. Retry before making changes.",
+        "storage_bytes": "This portal reached the storage available on its plan.",
+        "text_sections": "Free portals can include up to 2 text sections.",
+        "total_sections": "This portal reached the section limit for its plan.",
+        "upload_bytes": "This file is larger than the upload limit for the current plan."
+      }
+    },
     "autosave": {
       "saving": "Saving changes…",
       "error": "Changes could not be saved",
@@ -253,6 +298,17 @@
       "openPreview": "Open preview in a new tab",
       "publish": "Publish",
       "publishError": "The portal could not be published",
+      "publication": {
+        "action": "View publication problems",
+        "title": "The portal is not ready to publish",
+        "description": "Fix these required fields before publishing. Your draft remains saved.",
+        "fix": "Fix",
+        "issues": {
+          "portal_name_required": "Add a portal name.",
+          "section_required": "Add at least one section.",
+          "section_title_required": "Add a title to this section."
+        }
+      },
       "unpublishedTitle": "Unpublished changes",
       "unpublishedDescription": "Publish the portal so visitors can see your latest changes.",
       "unpublishedAction": "View unpublished changes"
@@ -422,6 +478,8 @@
     "settings": {
       "generalTitle": "General settings",
       "generalDescription": "Adjust the slug and visible designer information. Saving this data does not publish the portal.",
+      "generalTab": "General",
+      "securityTab": "Security",
       "slug": "Slug",
       "slugPlaceholder": "my-portal",
       "checkingSlug": "Checking availability…",

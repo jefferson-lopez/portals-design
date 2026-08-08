@@ -49,7 +49,9 @@ describe("PortalEntryTransition", () => {
   });
 
   test("wraps only the allowed rendered portal", () => {
-    const gateIndex = pageSource.indexOf('access.decision === "password_required"');
+    const gateIndex = pageSource.indexOf(
+      'access.decision === "password_required"',
+    );
     const transitionIndex = pageSource.indexOf("<PortalEntryTransition");
     const rendererIndex = pageSource.indexOf("<RenderPortal");
 
@@ -57,14 +59,16 @@ describe("PortalEntryTransition", () => {
     expect(transitionIndex).toBeGreaterThan(gateIndex);
     expect(rendererIndex).toBeGreaterThan(transitionIndex);
     expect(pageSource).toContain("name={renderDocument.portal.name}");
-    expect(pageSource).toContain("iconUrl={renderDocument.portal.icon_url}");
+    expect(pageSource).toContain(
+      "iconUrl={renderDocument.portal.icon_url ?? null}",
+    );
   });
 
   test("provides a localized neutral route loader with Skeleton", () => {
     expect(loadingSource).toContain('from "@/components/ui/skeleton"');
     expect(loadingSource).toContain("useTranslations");
-    expect(loadingSource).toContain('namespace: "PublicPortal.loading"');
-    expect(loadingSource).toContain('role="status"');
+    expect(loadingSource).toContain('useTranslations("PublicPortal.loading")');
+    expect(loadingSource).toContain("<output");
     expect(loadingSource).toContain('className="sr-only"');
     expect(english.PublicPortal.loading.label).toBe("Loading portal");
     expect(spanish.PublicPortal.loading.label).toBe("Cargando portal");

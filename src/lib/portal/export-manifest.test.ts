@@ -5,9 +5,35 @@ import {
   buildExportManifest,
   isCanonicalPortalAssetPath,
   parsePortalStorageReference,
+  portalExportHref,
   sanitizeAssetName,
   selectManifestScope,
+  selectPortalExportDocument,
 } from "./export-manifest";
+
+test("builds one encoded portal export URL for every export control", () => {
+  expect(portalExportHref("brand system/2026")).toBe(
+    "/api/portals/brand%20system%2F2026/export",
+  );
+  expect(portalExportHref("brand system/2026", "editor")).toBe(
+    "/api/portals/brand%20system%2F2026/export?source=editor",
+  );
+});
+
+test("selects current editor content while public exports keep the snapshot", () => {
+  const current = { version: "draft-current" };
+  const published = { version: "published-old" };
+
+  expect(
+    selectPortalExportDocument({ current, published: null, source: "editor" }),
+  ).toBe(current);
+  expect(
+    selectPortalExportDocument({ current, published, source: "editor" }),
+  ).toBe(current);
+  expect(
+    selectPortalExportDocument({ current, published, source: "published" }),
+  ).toBe(published);
+});
 
 const document: PortalDocument = {
   portal: { description: "", name: "Acme", theme: "auto" },
@@ -327,6 +353,13 @@ describe("export manifest", () => {
   });
 
   test("binds a storage path to the authenticated owner and portal", () => {
+    expect(
+      isCanonicalPortalAssetPath(
+        "portal-a/62e8a330-1787-4bd7-9f6f-0de138ba3512/logo.svg",
+        "owner-a",
+        "portal-a",
+      ),
+    ).toBe(true);
     expect(
       isCanonicalPortalAssetPath(
         "owner-a/portal-a/file.png",

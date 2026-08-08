@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { PortalDocumentSidebarReadOnly } from "@/components/portal/portal-document-sidebar-read-only";
+import { PortalEntryTransition } from "@/components/portal/portal-entry-transition";
 import { RenderPortal } from "@/components/portal/render-portal";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +26,7 @@ import {
   normalizePortalDocument,
   type PortalDocument,
 } from "@/lib/portal/document";
+import { portalExportHref } from "@/lib/portal/export-manifest";
 import {
   getSnapshotDocument,
   resolvePortalAccess,
@@ -156,31 +158,39 @@ export default async function PublicPortalPage({
   const portal = access.portal;
 
   return (
-    <RenderPortal
-      document={renderDocument}
-      actionConfig={{
-        public: {
-          slug,
-          slots: {
-            global: { exportAssets: portal.allow_downloads },
-            item: {
-              color: { copy: portal.allow_color_copy },
-              file: { download: portal.allow_asset_downloads },
-              font: { download: portal.allow_asset_downloads },
-              image: { download: portal.allow_asset_downloads },
+    <PortalEntryTransition
+      iconUrl={renderDocument.portal.icon_url ?? null}
+      name={renderDocument.portal.name}
+    >
+      <RenderPortal
+        document={renderDocument}
+        actionConfig={{
+          public: {
+            slug,
+            slots: {
+              global: { exportAssets: portal.allow_downloads },
+              item: {
+                color: { copy: portal.allow_color_copy },
+                file: { download: portal.allow_asset_downloads },
+                font: { download: portal.allow_asset_downloads },
+                image: { download: portal.allow_asset_downloads },
+              },
+              section: { download: portal.allow_downloads },
             },
-            section: { download: portal.allow_downloads },
           },
-        },
-      }}
-      sidebar={
-        <PortalDocumentSidebarReadOnly
-          sectionIds={visibleSections.map((section) => section.id)}
-          sections={visibleSections}
-        />
-      }
-      visibility={{ requireContent: true }}
-    />
+        }}
+        sidebar={
+          <PortalDocumentSidebarReadOnly
+            exportHref={
+              portal.allow_downloads ? portalExportHref(slug) : undefined
+            }
+            sectionIds={visibleSections.map((section) => section.id)}
+            sections={visibleSections}
+          />
+        }
+        visibility={{ requireContent: true }}
+      />
+    </PortalEntryTransition>
   );
 }
 

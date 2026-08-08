@@ -35,14 +35,14 @@ describe("PortalHome", () => {
       expect(messages.backendDisabled.title).toBeString();
     }
 
-    expect(english.Home.header.createPortal).toBe("Create portal");
+    expect(english.Home.header.createPortal).toBe("Create project");
     expect(english.Home.portal.visibility.public).toBe("Public");
     expect(english.Home.portal.visibility.private).toBe("Private");
-    expect(spanish.Home.header.createPortal).toBe("Crear portal");
+    expect(spanish.Home.header.createPortal).toBe("Crear proyecto");
     expect(spanish.Home.portal.visibility.public).toBe("Público");
     expect(spanish.Home.portal.visibility.private).toBe("Privado");
-    expect(english.Home.intro.title).toBe("Your Portals");
-    expect(spanish.Home.intro.title).toBe("Tus portales");
+    expect(english.Home.intro.title).toBe("Projects");
+    expect(spanish.Home.intro.title).toBe("Proyectos");
     expect(pageSource).not.toContain('t("intro.eyebrow")');
     expect(pageSource).not.toContain('t("intro.description")');
   });

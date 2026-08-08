@@ -4,11 +4,17 @@ import { IconLoader2, IconWorldUpload } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { publishPortalById } from "@/app/[locale]/_actions/portals";
+import {
+  PORTAL_PLAN_RETRY_EVENT,
+  usePortalPlan,
+} from "@/components/portal/portal-plan-provider";
 import { Button } from "@/components/ui/button";
+import type { SafePendingPortalAction } from "@/lib/billing/portal-plan-client";
 import { flushPortalAutosave } from "@/lib/portal/autosave-coordinator";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
+import { validatePortalPublicationReadiness } from "@/lib/portal/publication-readiness";
 
 export function PublishPortalButton({
   initialHasUnpublishedChanges,
@@ -22,6 +28,7 @@ export function PublishPortalButton({
   const t = useTranslations("PortalEditor.workspace");
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { guardPublication } = usePortalPlan();
   const publishError = usePortalEditorStore((state) => state.publishError);
   const storeHasUnpublishedChanges = usePortalEditorStore(
     (state) => state.hasUnpublishedChangesByPortalId[portalId],
@@ -42,6 +49,12 @@ export function PublishPortalButton({
   );
   const setPublishingPortalId = usePortalEditorStore(
     (state) => state.setPublishingPortalId,
+  );
+  const setPublicationIssues = usePortalEditorStore(
+    (state) => state.setPublicationIssues,
+  );
+  const setPublicationPopoverOpen = usePortalEditorStore(
+    (state) => state.setPublicationPopoverOpen,
   );
 
   useEffect(() => {
@@ -65,6 +78,7 @@ export function PublishPortalButton({
       setPublishError(
         error instanceof Error ? error.message : t("publishError"),
       );
+      setPublicationPopoverOpen(portalId, true);
       setPublishingPortalId(null);
     },
     onMutate: () => {
@@ -80,16 +94,47 @@ export function PublishPortalButton({
     },
   });
 
+  const attemptPublication = useCallback(() => {
+    if (!hasUnpublishedChanges) return;
+
+    const document =
+      usePortalEditorStore.getState().documentsByPortalId[portalId];
+    if (document) {
+      const issues = validatePortalPublicationReadiness(document);
+      setPublicationIssues(portalId, issues);
+      if (issues.length > 0) {
+        setPublishError(null);
+        setPublicationPopoverOpen(portalId, true);
+        return;
+      }
+    }
+    if (document && !guardPublication(document)) return;
+    publishMutation.mutate();
+  }, [
+    guardPublication,
+    hasUnpublishedChanges,
+    portalId,
+    publishMutation.mutate,
+    setPublicationIssues,
+    setPublicationPopoverOpen,
+    setPublishError,
+  ]);
+
+  useEffect(() => {
+    const retry = (event: Event) => {
+      const action = (event as CustomEvent<SafePendingPortalAction>).detail;
+      if (action.kind === "publish") attemptPublication();
+    };
+    window.addEventListener(PORTAL_PLAN_RETRY_EVENT, retry);
+    return () => window.removeEventListener(PORTAL_PLAN_RETRY_EVENT, retry);
+  }, [attemptPublication]);
+
   return (
     <div className="flex flex-col items-center gap-1">
       <Button
         className="rounded-full"
         disabled={publishMutation.isPending || !hasUnpublishedChanges}
-        onClick={() => {
-          if (hasUnpublishedChanges) {
-            publishMutation.mutate();
-          }
-        }}
+        onClick={attemptPublication}
         size="lg"
         type="button"
       >

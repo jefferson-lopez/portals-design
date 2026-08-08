@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
+  focusPortalAddSection,
+  focusPortalName,
+  focusPortalPublicationTarget,
   focusPortalSectionTitle,
   scrollToPortalSection,
 } from "./scroll-to-section";
@@ -46,5 +49,67 @@ describe("scrollToPortalSection", () => {
     const document = { getElementById: () => null };
 
     assert.equal(focusPortalSectionTitle("sec_missing", document), false);
+  });
+});
+
+describe("publication target focus", () => {
+  test("focuses and reveals the portal name", () => {
+    const calls: string[] = [];
+    const field = {
+      focus: (options: FocusOptions) =>
+        calls.push(`focus:${String(options.preventScroll)}`),
+      scrollIntoView: () => calls.push("scroll"),
+    };
+    const document = {
+      querySelector: (selector: string) =>
+        selector === "[data-portal-name]" ? field : null,
+    };
+
+    assert.equal(focusPortalName(document), true);
+    assert.deepEqual(calls, ["scroll", "focus:true"]);
+  });
+
+  test("focuses the add-section trigger when no section exists", () => {
+    let focused = false;
+    const document = {
+      querySelector: (selector: string) =>
+        selector === "[data-portal-add-section]"
+          ? {
+              focus: () => {
+                focused = true;
+              },
+            }
+          : null,
+    };
+
+    assert.equal(focusPortalAddSection(document), true);
+    assert.equal(focused, true);
+  });
+
+  test("routes a section-title issue through the existing section helper", () => {
+    let focused = false;
+    const document = {
+      getElementById: (id: string) =>
+        id === "section-1"
+          ? {
+              querySelector: () => ({
+                focus: () => {
+                  focused = true;
+                },
+              }),
+              scrollIntoView: () => undefined,
+            }
+          : null,
+      querySelector: () => null,
+    };
+
+    assert.equal(
+      focusPortalPublicationTarget(
+        { kind: "section-title", sectionId: "section-1" },
+        document,
+      ),
+      true,
+    );
+    assert.equal(focused, true);
   });
 });

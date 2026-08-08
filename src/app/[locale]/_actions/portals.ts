@@ -296,7 +296,7 @@ async function insertPortal({
     portal_name: name,
     portal_slug: slug,
     portal_visibility: visibility,
-  });
+  } as never);
 
   if (error || !data) {
     actionFailure(error?.message ?? t("createPortalFailed"));
@@ -405,7 +405,7 @@ export async function updatePortalSettings(formData: FormData) {
     portal_theme: portal.theme as PortalTheme,
     portal_visibility: portal.visibility,
     target_portal_id: portalId,
-  });
+  } as never);
 
   if (error) {
     actionFailure(error.message);
@@ -454,7 +454,7 @@ export async function savePrivacySettings(formData: FormData) {
     portal_password: password,
     portal_visibility: visibility,
     target_portal_id: portalId,
-  });
+  } as never);
   if (error) actionFailure(error.message);
   revalidatePath(`/${locale}/create/${portalId}`);
   revalidatePath(`/${locale}/home`);
@@ -483,7 +483,7 @@ export async function updatePortalSummary(
     portal_name: name,
     portal_short_description: getString(formData, "short_description") || null,
     target_portal_id: portalId,
-  });
+  } as never);
 
   if (error) {
     return { error: error.message, saved: false };
@@ -578,7 +578,7 @@ export async function upsertPortalBlock(formData: FormData) {
     block_title: title,
     block_type: type,
     target_portal_id: portalId,
-  });
+  } as never);
 
   if (error) {
     actionFailure(error.message);
@@ -617,7 +617,7 @@ export async function upsertGalleryImage(formData: FormData) {
     block_title: getString(formData, "title"),
     block_type: "gallery",
     target_portal_id: portalId,
-  });
+  } as never);
 
   if (error) {
     actionFailure(error.message);
@@ -647,7 +647,7 @@ export async function removeGalleryImage(formData: FormData) {
     block_title: getString(formData, "title"),
     block_type: "gallery",
     target_portal_id: portalId,
-  });
+  } as never);
 
   if (error) {
     actionFailure(error.message);
@@ -684,7 +684,7 @@ export async function reorderGalleryImages(formData: FormData) {
     block_title: getString(formData, "title"),
     block_type: "gallery",
     target_portal_id: portalId,
-  });
+  } as never);
 
   if (error) {
     actionFailure(error.message);

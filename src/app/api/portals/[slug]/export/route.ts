@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { normalizePortalDocument } from "@/lib/portal/document";
+import {
+  normalizePortalDocument,
+  portalBlocksToDocument,
+} from "@/lib/portal/document";
 import {
   buildExportManifest,
   buildManifestText,
@@ -7,6 +10,7 @@ import {
   type ManifestScope,
   sanitizeAssetName,
   selectManifestScope,
+  selectPortalExportDocument,
 } from "@/lib/portal/export-manifest";
 import {
   getAuthorizedDocument,
@@ -14,10 +18,23 @@ import {
 } from "@/lib/portal/server-access";
 import { fetchStorageEntry } from "@/lib/portal/server-assets";
 import { createZip } from "@/lib/portal/zip";
+import type { Portal } from "@/lib/supabase/database.types";
 import { getSupabaseEnv } from "@/lib/supabase/env";
+import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+type ExportPortal = Pick<
+  Portal,
+  | "allow_asset_downloads"
+  | "allow_downloads"
+  | "cover_url"
+  | "id"
+  | "name"
+  | "owner_id"
+  | "short_description"
+>;
 
 function notFound() {
   return new NextResponse("Not found", { status: 404 });
@@ -36,28 +53,82 @@ function scopeFromUrl(url: URL): ManifestScope | null {
   return { kind: "portal" };
 }
 
+async function resolveEditorExport(slug: string) {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return null;
+  const { data: portal } = await supabase
+    .from("portals")
+    .select("*")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (!portal?.allow_downloads) return null;
+  const { data: canEdit } = await supabase.rpc("can_edit_portal", {
+    target_portal_id: portal.id,
+  });
+  if (canEdit !== true) return null;
+  const { data: row } = await supabase
+    .from("portal_documents")
+    .select("document")
+    .eq("portal_id", portal.id)
+    .maybeSingle();
+  if (row?.document) return { document: row.document, portal };
+  const { data: blocks } = await supabase
+    .from("portal_blocks")
+    .select("*")
+    .eq("portal_id", portal.id)
+    .order("position", { ascending: true })
+    .order("created_at", { ascending: true });
+  return {
+    document: portalBlocksToDocument(portal as Portal, blocks ?? []),
+    portal,
+  };
+}
+
 async function createResponse(
   request: Request,
   slug: string,
   bodyScope?: ManifestScope,
 ) {
-  const access = await resolvePortalAccess(slug);
-  if (access.decision !== "allowed" || !access.portal?.allow_downloads)
-    return notFound();
-  const rawDocument = await getAuthorizedDocument(access);
+  const url = new URL(request.url);
+  const source = url.searchParams.get("source") ?? "published";
+  if (source !== "editor" && source !== "published") {
+    return new NextResponse("Invalid export source", { status: 400 });
+  }
+  let portal: ExportPortal;
+  let currentDocument = null;
+  let publishedDocument = null;
+  if (source === "editor") {
+    const editorExport = await resolveEditorExport(slug);
+    if (!editorExport) return notFound();
+    portal = editorExport.portal;
+    currentDocument = editorExport.document;
+  } else {
+    const access = await resolvePortalAccess(slug);
+    if (access.decision !== "allowed" || !access.portal?.allow_downloads) {
+      return notFound();
+    }
+    portal = access.portal;
+    publishedDocument = await getAuthorizedDocument(access);
+  }
+  const rawDocument = selectPortalExportDocument({
+    current: currentDocument,
+    published: publishedDocument,
+    source,
+  });
   if (!rawDocument) return notFound();
   const document = normalizePortalDocument(rawDocument, {
-    cover_url: access.portal.cover_url,
+    cover_url: portal.cover_url,
     icon_url: null,
-    name: access.portal.name,
-    short_description: access.portal.short_description,
+    name: portal.name,
+    short_description: portal.short_description,
     theme: "auto",
   });
   const scope = bodyScope ?? scopeFromUrl(new URL(request.url));
   if (!scope) return new NextResponse("Invalid export scope", { status: 400 });
   const complete = buildExportManifest(document, {
-    portalId: access.portal.id,
-    ownerId: access.portal.owner_id,
+    portalId: portal.id,
+    ownerId: portal.owner_id,
     slug,
     storageOrigin: getSupabaseEnv().url,
   });
@@ -80,7 +151,7 @@ async function createResponse(
       };
     }
   }
-  if (!access.portal.allow_asset_downloads)
+  if (!portal.allow_asset_downloads)
     manifest = {
       ...manifest,
       entries: manifest.entries.filter((entry) => entry.category === "colors"),
@@ -95,7 +166,7 @@ async function createResponse(
     return new NextResponse(text, {
       headers: {
         "Cache-Control": "private, no-store",
-        "Content-Disposition": `attachment; filename="${sanitizeAssetName(access.portal.name, slug)}-colors.txt"`,
+        "Content-Disposition": `attachment; filename="${sanitizeAssetName(portal.name, slug)}-colors.txt"`,
         "Content-Type": "text/plain; charset=utf-8",
         "X-Content-Type-Options": "nosniff",
       },
@@ -121,7 +192,7 @@ async function createResponse(
       const result = await fetchStorageEntry(
         entry,
         EXPORT_LIMITS.maxTotalBytes - totalBytes,
-        { ownerId: access.portal.owner_id, portalId: access.portal.id },
+        { ownerId: portal.owner_id, portalId: portal.id },
       );
       files.push({ bytes: result.bytes, name: archiveName(entry.destination) });
       totalBytes += result.bytes.length;

@@ -17,6 +17,9 @@ export const PORTAL_FILE_ACCEPT = [
   ".webp",
   ".gif",
   ".avif",
+  ".txt",
+  ".md",
+  ".markdown",
 ].join(",");
 
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp", "gif", "avif"]);
@@ -31,6 +34,8 @@ export function portalFileTypeFromName(
   if (extension === "eps") return "eps";
   if (extension === "psd") return "psd";
   if (extension === "svg") return "svg";
+  if (extension === "txt") return "txt";
+  if (extension === "md" || extension === "markdown") return "md";
   if (IMAGE_EXTENSIONS.has(extension)) return "image";
   return null;
 }
@@ -44,6 +49,8 @@ export function portalFileTypeLabel(
   if (type === "eps") return "EPS";
   if (type === "psd") return "PSD";
   if (type === "svg") return "SVG";
+  if (type === "txt") return "TXT";
+  if (type === "md") return "MD";
   if (type === "image") return fallback.image;
   return fallback.file;
 }

@@ -78,3 +78,23 @@ test("an edit during publish keeps D2 dirty and rejects stale RSC hydration", ()
   expect(state.documentsByPortalId[portalId].portal.name).toBe("D2");
   expect(state.hasUnpublishedChangesByPortalId[portalId]).toBe(true);
 });
+
+test("publication issues never block incomplete drafts from being saved locally", () => {
+  const portalId = "publication-draft-test";
+  const store = usePortalEditorStore.getState();
+  store.hydrateDocument(portalId, portalDocument("Portal"));
+  store.setPublicationIssues(portalId, []);
+
+  const incompleteDraft = store.updateDocument(portalId, (current) => ({
+    ...current,
+    portal: { ...current.portal, name: "   " },
+  }));
+
+  expect(incompleteDraft?.portal.name).toBe("   ");
+  expect(
+    usePortalEditorStore.getState().publicationIssuesByPortalId[portalId],
+  ).toEqual([
+    { code: "portal_name_required", target: { kind: "portal-name" } },
+    { code: "section_required", target: { kind: "add-section" } },
+  ]);
+});

@@ -2,8 +2,11 @@ import { IconArrowLeft, IconExternalLink } from "@tabler/icons-react";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import {
+  PortalPlanProvider,
+  PortalPlanStatus,
+} from "@/components/portal/portal-plan-provider";
+import {
   PortalDocumentSidebar,
-  PrivacySettingsDialog,
   SectionOrderPopover,
   SettingsDialog,
   UnpublishedChangesIndicator,
@@ -22,6 +25,8 @@ import {
   type PortalDocument,
   portalBlocksToDocument,
 } from "@/lib/portal/document";
+import { portalExportHref } from "@/lib/portal/export-manifest";
+import { prepareDocumentForRendering } from "@/lib/portal/server-assets";
 import type { Json, Portal, PortalBlock } from "@/lib/supabase/database.types";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -177,9 +182,13 @@ async function getWorkspace(
   ]);
 
   const fallbackDocument = portalBlocksToDocument(safePortal, blocks ?? []);
-  const document = portalDocumentRow?.document
+  const storedDocument = portalDocumentRow?.document
     ? normalizePortalDocument(portalDocumentRow.document, safePortal)
     : fallbackDocument;
+  const document = await prepareDocumentForRendering(storedDocument, {
+    ownerId: portal.owner_id,
+    portalId: portal.id,
+  });
 
   const snapshot = asPublicationSnapshot(publicationRow?.snapshot ?? null);
   const hasUnpublishedChanges = hasUnpublishedPortalChanges({
@@ -214,7 +223,7 @@ export default async function CreatePortalPage({
     portalId,
   );
   return (
-    <>
+    <PortalPlanProvider locale={locale} portalId={portal.id}>
       <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2">
         <div className="flex items-center gap-2 rounded-full border border-border/80 bg-background/80 p-3 shadow-lg backdrop-blur">
           <Link className="md:hidden" href="/home">
@@ -236,7 +245,6 @@ export default async function CreatePortalPage({
           </Link>
           <div aria-hidden="true" className="h-6 w-px bg-border" />
           <SettingsDialog locale={locale} portal={portal} />
-          <PrivacySettingsDialog locale={locale} portal={portal} />
           {portal.status === "published" ? (
             <Tooltip>
               <TooltipTrigger render={<span />}>
@@ -260,6 +268,7 @@ export default async function CreatePortalPage({
             </Tooltip>
           ) : null}
           <SectionOrderPopover document={document} portalId={portal.id} />
+          <PortalPlanStatus />
           <div aria-hidden="true" className="h-6 w-px bg-border" />
           <PublishPortalButton
             initialHasUnpublishedChanges={hasUnpublishedChanges}
@@ -280,11 +289,16 @@ export default async function CreatePortalPage({
         sidebar={
           <PortalDocumentSidebar
             document={document}
+            exportHref={
+              portal.allow_downloads
+                ? portalExportHref(portal.slug, "editor")
+                : undefined
+            }
             locale={locale}
             portalId={portal.id}
           />
         }
       />
-    </>
+    </PortalPlanProvider>
   );
 }

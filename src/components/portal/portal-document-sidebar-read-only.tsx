@@ -7,16 +7,17 @@ import { PortalSidebarView } from "@/components/portal/render-portal/portal-side
 import type { PortalDocument } from "@/lib/portal/document";
 
 export function PortalDocumentSidebarReadOnly({
+  exportHref,
   sectionIds,
   sections,
 }: {
+  exportHref?: string;
   sectionIds: string[];
   sections: PortalDocument["sections"];
 }) {
   const t = useTranslations("PortalViewer.sidebar");
   const { resolvedTheme, setTheme } = useTheme();
   const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
-  const assetsSection = sections.find((section) => section.type === "files");
 
   return (
     <PortalSidebarView
@@ -38,10 +39,11 @@ export function PortalDocumentSidebarReadOnly({
               </div>
             </div>
           </button>
-          {assetsSection ? (
+          {exportHref ? (
             <a
               className="flex items-center gap-2 rounded-md py-1.5 hover:text-foreground"
-              href={`#${assetsSection.id}`}
+              download
+              href={exportHref}
             >
               <div className="flex items-center">
                 <span className="ml-3 flex shrink-0 items-center justify-center">

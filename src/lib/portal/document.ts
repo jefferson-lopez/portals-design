@@ -24,6 +24,7 @@ export type SectionLayout = {
 };
 
 export type PortalImageItem = {
+  asset_id?: string;
   allow_download: boolean;
   alt_text: string;
   aspect_ratio: ImageAspectRatio;
@@ -47,6 +48,7 @@ export type PortalColorItem = {
 };
 
 export type PortalFontItem = {
+  asset_id?: string;
   display_weight?: string;
   file_name?: string;
   storage_path?: string;
@@ -68,9 +70,18 @@ export type PortalTypeScaleSettings = {
   ratio: number;
 };
 
-export type PortalFileType = "pdf" | "ai" | "eps" | "psd" | "svg" | "image";
+export type PortalFileType =
+  | "pdf"
+  | "ai"
+  | "eps"
+  | "psd"
+  | "svg"
+  | "image"
+  | "txt"
+  | "md";
 
 export type PortalFileItem = {
+  asset_id?: string;
   allow_download: boolean;
   file_name: string;
   file_size?: string;
@@ -380,6 +391,7 @@ function normalizeImageItem(
   const fit = getString(record.fit, "cover");
   const aspectRatio = getString(record.aspect_ratio, "auto");
   return {
+    asset_id: getString(record.asset_id) || undefined,
     allow_download: getBoolean(record.allow_download, true),
     alt_text: getString(record.alt_text) || getString(record.alt),
     aspect_ratio: ["auto", "1/1", "4/3", "16/9", "21/9"].includes(aspectRatio)
@@ -434,6 +446,7 @@ function normalizeFontItems(value: unknown): PortalFontItem[] {
     .map((item, index) => {
       const record = asRecord(item);
       return {
+        asset_id: getString(record.asset_id) || undefined,
         file_url: getString(record.file_url),
         font_name:
           getString(record.font_name) || getString(record.name) || "Fuente",
@@ -461,7 +474,9 @@ function normalizeFileType(value: unknown): PortalFileType | undefined {
     type === "psd" ||
     type === "eps" ||
     type === "svg" ||
-    type === "image"
+    type === "image" ||
+    type === "txt" ||
+    type === "md"
   )
     return type;
   return undefined;
@@ -473,6 +488,7 @@ function normalizeFileItems(value: unknown): PortalFileItem[] {
     .map((item, index) => {
       const record = asRecord(item);
       return {
+        asset_id: getString(record.asset_id) || undefined,
         allow_download: getBoolean(record.allow_download, true),
         file_name: getString(record.file_name) || "Archivo",
         file_size: getString(record.file_size),
@@ -488,7 +504,40 @@ function normalizeFileItems(value: unknown): PortalFileItem[] {
 }
 
 export function portalDocumentToJson(document: PortalDocument): Json {
-  return document as unknown as Json;
+  const stableUrl = (assetId: string | undefined, url: string) =>
+    assetId ? `portal-asset:${assetId}` : url;
+  return {
+    ...document,
+    sections: document.sections.map((section) => ({
+      ...section,
+      content: {
+        ...section.content,
+        image: section.content.image
+          ? {
+              ...section.content.image,
+              image_url: stableUrl(
+                section.content.image.asset_id,
+                section.content.image.image_url,
+              ),
+            }
+          : section.content.image,
+        images: section.content.images?.map((image) => ({
+          ...image,
+          image_url: stableUrl(image.asset_id, image.image_url),
+        })),
+        files: section.content.files?.map((file) => ({
+          ...file,
+          file_url: stableUrl(file.asset_id, file.file_url),
+        })),
+        fonts: section.content.fonts?.map((font) => ({
+          ...font,
+          file_url: font.file_url
+            ? stableUrl(font.asset_id, font.file_url)
+            : font.file_url,
+        })),
+      },
+    })),
+  } as unknown as Json;
 }
 export function portalBlocksToDocument(
   portal: Portal,

@@ -14,6 +14,7 @@ import {
   isCanonicalPortalAssetPath,
   parsePortalStorageReference,
 } from "./export-manifest";
+import { isAllowedExportMime } from "./export-mime";
 import {
   selectPreviewUrl,
   shouldUseOriginalPreviewFallback,
@@ -27,14 +28,6 @@ const PREVIEWABLE_FILE_EXTENSIONS = new Set([
   "png",
   "webp",
 ]);
-
-const ALLOWED_MIME = [
-  /^image\/(?:avif|gif|jpeg|png|svg\+xml|webp)$/,
-  /^image\/(?:vnd\.adobe\.photoshop|x-photoshop)$/,
-  /^font\/(?:otf|sfnt|ttf|woff|woff2)$/,
-  /^application\/(?:illustrator|octet-stream|pdf|postscript|vnd\.adobe\.illustrator|vnd\.adobe\.photoshop|x-illustrator|x-photoshop|zip)$/,
-  /^text\/plain$/,
-];
 
 export async function fetchStorageEntry(
   entry: ExportEntry,
@@ -60,7 +53,7 @@ export async function fetchStorageEntry(
 
   const mime =
     data.type?.split(";", 1)[0]?.toLowerCase() || "application/octet-stream";
-  if (!ALLOWED_MIME.some((rule) => rule.test(mime))) {
+  if (!isAllowedExportMime(mime)) {
     throw new Error("Asset MIME rejected");
   }
 

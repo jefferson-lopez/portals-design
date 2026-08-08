@@ -45,6 +45,8 @@ describe("translation catalogs", () => {
     expect(en).toHaveProperty("PublicPortal.password.label");
     expect(en).toHaveProperty("PortalEditor.sections.addTitle");
     expect(en).toHaveProperty("PortalViewer.actions.exportAll");
+    expect(en).toHaveProperty("PortalViewer.summary.namePlaceholder");
+    expect(en).toHaveProperty("PortalViewer.summary.descriptionPlaceholder");
     expect(es).toHaveProperty(
       "PortalEditor.image.fitOptions.cover",
       "Recortar",
@@ -87,6 +89,20 @@ describe("translation catalogs", () => {
     expect(renderer).not.toContain("section.title || section.type");
     expect(workspace).not.toContain("t(`weights.$" + "{weight}`)");
     expect(renderer).not.toContain("t(`sectionTypes.$" + "{section.type}`)");
+  });
+
+  test("shows localized portal summary placeholders only while editing", () => {
+    const renderer = readFileSync(
+      "src/components/portal/render-portal/render-portal.tsx",
+      "utf8",
+    );
+
+    expect(renderer).toContain(
+      'placeholder={editable ? t("namePlaceholder") : undefined}',
+    );
+    expect(renderer).toContain(
+      'placeholder={editable ? t("descriptionPlaceholder") : undefined}',
+    );
   });
 
   test("provides localized item models to Base UI selects", () => {

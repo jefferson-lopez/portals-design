@@ -11,6 +11,28 @@ export const EXPORT_LIMITS = {
   timeoutMs: 30_000,
 } as const;
 
+export type PortalExportSource = "editor" | "published";
+
+export function portalExportHref(
+  slug: string,
+  source: PortalExportSource = "published",
+) {
+  const href = `/api/portals/${encodeURIComponent(slug)}/export`;
+  return source === "editor" ? `${href}?source=editor` : href;
+}
+
+export function selectPortalExportDocument<T>({
+  current,
+  published,
+  source,
+}: {
+  current: T | null;
+  published: T | null;
+  source: PortalExportSource;
+}) {
+  return source === "editor" ? current : published;
+}
+
 export type ExportCategory = "colors" | "images" | "fonts" | "files";
 export type ExportEntry = {
   allowDownload: boolean;
@@ -39,9 +61,12 @@ export function isCanonicalPortalAssetPath(
   const parts = path.split("/");
   return (
     parts.length >= 3 &&
-    parts[0] === ownerId &&
-    parts[1] === portalId &&
-    parts.slice(2).every(Boolean)
+    parts.every(Boolean) &&
+    ((parts[0] === ownerId && parts[1] === portalId) ||
+      (parts[0] === portalId &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          parts[1] ?? "",
+        )))
   );
 }
 export type ManifestScope =

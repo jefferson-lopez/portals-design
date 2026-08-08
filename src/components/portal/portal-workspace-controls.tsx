@@ -11,7 +11,6 @@ import {
   IconInfoCircle,
   IconLayoutGrid,
   IconLoader2,
-  IconLock,
   IconMoon,
   IconPackageExport,
   IconPalette,
@@ -40,6 +39,7 @@ import {
   PortalFilePreview,
   portalFileTypeFromName,
 } from "@/components/portal/file-preview";
+import { usePortalPlan } from "@/components/portal/portal-plan-provider";
 import { fontWeightMessageKey } from "@/components/portal/render-portal/font-utils";
 import {
   PortalActionTriggerButton,
@@ -100,6 +100,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
@@ -125,14 +126,27 @@ import {
   type PortalSection,
   type PortalSectionType,
 } from "@/lib/portal/document";
+import { flushThenExport } from "@/lib/portal/editor-export";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
 import {
+  type PortalAssetCategory,
+  uploadManagedPortalAsset,
+} from "@/lib/portal/portal-assets-client";
+import type {
+  PortalPublicationIssue,
+  PortalPublicationTarget,
+} from "@/lib/portal/publication-readiness";
+import {
+  focusPortalPublicationTarget,
   focusPortalSectionTitle,
   scrollToPortalSection,
 } from "@/lib/portal/scroll-to-section";
 import { createClient } from "@/lib/supabase/client";
 import type { Portal, PortalVisibility } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
+
+/** Stable empty snapshot for Zustand selectors — never inline `?? []`. */
+const EMPTY_PUBLICATION_ISSUES: PortalPublicationIssue[] = [];
 
 type SectionOption = {
   accentClassName: string;
@@ -380,29 +394,20 @@ function uniqueForRender<T extends { id: string; position: number }>(
 }
 
 async function uploadPortalAsset({
-  authError,
+  category,
   file,
   portalId,
 }: {
-  authError: string;
+  category: PortalAssetCategory;
   file: File;
   portalId: string;
 }) {
-  const supabase = createClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData.user) throw new Error(authError);
-  const safeName = file.name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9._-]+/g, "-")
-    .toLowerCase();
-  const path = `${userData.user.id}/${portalId}/${crypto.randomUUID()}-${safeName}`;
-  const { error } = await supabase.storage
-    .from("portal-assets")
-    .upload(path, file, { upsert: false });
-  if (error) throw new Error(error.message);
-  const { data } = supabase.storage.from("portal-assets").getPublicUrl(path);
-  return { path, signedUrl: data.publicUrl };
+  return uploadManagedPortalAsset({
+    category,
+    file,
+    portalId,
+    storage: createClient().storage,
+  });
 }
 
 export function SectionTypeDialog({
@@ -695,16 +700,18 @@ function ImageTile({
 
 function AddImageTile({
   aspectRatio = "auto",
+  category = "image",
   onAdd,
   portalId,
 }: {
   aspectRatio?: ImageAspectRatio;
+  category?: "gallery" | "image";
   label?: string;
   onAdd: (image: PortalImageItem) => void;
   portalId: string;
 }) {
   const t = useTranslations("PortalEditor.image");
-  const uploadT = useTranslations("PortalEditor.upload");
+  const { requestUpgrade, snapshot, status } = usePortalPlan();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -720,15 +727,29 @@ function AddImageTile({
             : "min-h-40";
   function handleFile(file: File | undefined) {
     if (!file) return;
+    if (status !== "ready") {
+      requestUpgrade("plan_unavailable");
+      return;
+    }
+    if (file.size > snapshot.policy.maxUploadBytes) {
+      requestUpgrade("upload_bytes");
+      return;
+    }
+    if (snapshot.storageUsedBytes + file.size > snapshot.policy.storageBytes) {
+      requestUpgrade("storage_bytes");
+      return;
+    }
     startTransition(async () => {
       try {
         const asset = await uploadPortalAsset({
-          authError: uploadT("authRequired"),
+          category,
           file,
           portalId,
         });
+        if (!asset.previewUrl) throw new Error(t("uploadError"));
         onAdd({
-          ...createImageItem(asset.signedUrl, 0),
+          ...createImageItem(asset.previewUrl, 0),
+          asset_id: asset.assetId,
           storage_path: asset.path,
         });
         setError(null);
@@ -1245,7 +1266,9 @@ function ImageEditor({
     <ImageTile
       captionEditable
       image={image}
-      onRemove={() => updateSection({ ...section, content: { image: null } })}
+      onRemove={() => {
+        updateSection({ ...section, content: { image: null } });
+      }}
       onSave={(nextImage) =>
         updateSection({ ...section, content: { image: nextImage } })
       }
@@ -1353,9 +1376,9 @@ function GalleryEditor({
               image={image}
               index={index}
               key={image.id}
-              onRemove={() =>
-                saveImages(images.filter((item) => item.id !== image.id))
-              }
+              onRemove={() => {
+                saveImages(images.filter((item) => item.id !== image.id));
+              }}
               onSave={(nextImage) =>
                 saveImages(
                   images.map((item) =>
@@ -1368,6 +1391,7 @@ function GalleryEditor({
           {images.length < maxImages ? (
             <AddImageTile
               aspectRatio={addImageAspectRatio}
+              category="gallery"
               portalId={portalId}
               onAdd={(image) =>
                 saveImages([
@@ -1788,8 +1812,8 @@ function FontDialog({
   trigger: ReactElement;
 }) {
   const t = useTranslations("PortalEditor.fonts");
+  const { requestUpgrade, snapshot, status } = usePortalPlan();
   const viewerT = useTranslations("PortalViewer.fonts");
-  const uploadT = useTranslations("PortalEditor.upload");
   const weightLabel = (weight: number) => String(weight);
   const weightName = (weight: number) => {
     const key = fontWeightMessageKey(weight);
@@ -1824,6 +1848,22 @@ function FontDialog({
   function handleFontFiles(fileList: FileList | null | undefined) {
     const files = Array.from(fileList ?? []);
     if (!files.length) return;
+    if (status !== "ready") {
+      requestUpgrade("plan_unavailable");
+      return;
+    }
+    if (files.some((file) => file.size > snapshot.policy.maxUploadBytes)) {
+      requestUpgrade("upload_bytes");
+      return;
+    }
+    if (
+      snapshot.storageUsedBytes +
+        files.reduce((total, file) => total + file.size, 0) >
+      snapshot.policy.storageBytes
+    ) {
+      requestUpgrade("storage_bytes");
+      return;
+    }
 
     startUpload(async () => {
       try {
@@ -1831,13 +1871,15 @@ function FontDialog({
           files.map(async (file, index) => {
             const metadata = inferFontMetadata(file.name);
             const asset = await uploadPortalAsset({
-              authError: uploadT("authRequired"),
+              category: "font",
               file,
               portalId,
             });
+            if (!asset.previewUrl) throw new Error(t("uploadError"));
             return {
+              asset_id: asset.assetId,
               file_name: file.name,
-              file_url: asset.signedUrl,
+              file_url: asset.previewUrl,
               storage_path: asset.path,
               font_name: metadata.fontName,
               id: `font_${crypto.randomUUID()}`,
@@ -1863,19 +1905,33 @@ function FontDialog({
 
   function handleFontFile(file: File | undefined) {
     if (!file) return;
+    if (status !== "ready") {
+      requestUpgrade("plan_unavailable");
+      return;
+    }
+    if (file.size > snapshot.policy.maxUploadBytes) {
+      requestUpgrade("upload_bytes");
+      return;
+    }
+    if (snapshot.storageUsedBytes + file.size > snapshot.policy.storageBytes) {
+      requestUpgrade("storage_bytes");
+      return;
+    }
     const metadata = inferFontMetadata(file.name);
 
     startUpload(async () => {
       try {
         const asset = await uploadPortalAsset({
-          authError: uploadT("authRequired"),
+          category: "font",
           file,
           portalId,
         });
+        if (!asset.previewUrl) throw new Error(t("uploadError"));
         setDraft((current) => ({
           ...current,
+          asset_id: asset.assetId,
           file_name: file.name,
-          file_url: asset.signedUrl,
+          file_url: asset.previewUrl,
           font_name: current.font_name || metadata.fontName,
           storage_path: asset.path,
           weight: metadata.weight,
@@ -2284,14 +2340,14 @@ export function FontsEditor({
                 <FontFamilyDialog
                   family={group.family}
                   fonts={group.items}
-                  onSave={(nextGroupFonts) =>
+                  onSave={(nextGroupFonts) => {
                     saveFonts([
                       ...fonts.filter(
                         (item) => !group.items.some(({ id }) => id === item.id),
                       ),
                       ...nextGroupFonts,
-                    ])
-                  }
+                    ]);
+                  }}
                   trigger={
                     <PortalActionTriggerButton
                       icon="edit"
@@ -2302,13 +2358,13 @@ export function FontsEditor({
                 />
                 <Button
                   aria-label={t("delete", { name: group.family })}
-                  onClick={() =>
+                  onClick={() => {
                     saveFonts(
                       fonts.filter(
                         (item) => !group.items.some(({ id }) => id === item.id),
                       ),
-                    )
-                  }
+                    );
+                  }}
                   size="icon-sm"
                   type="button"
                   variant="secondary"
@@ -2428,7 +2484,7 @@ function FilesEditor({
   updateSection: (section: PortalSection) => void;
 }) {
   const t = useTranslations("PortalEditor.files");
-  const uploadT = useTranslations("PortalEditor.upload");
+  const { requestUpgrade, snapshot, status } = usePortalPlan();
   const files = uniqueForRender(section.content.files ?? [], "file");
   const columns = [3, 4].includes(section.layout.columns ?? 3)
     ? (section.layout.columns ?? 3)
@@ -2445,6 +2501,18 @@ function FilesEditor({
   }
   function handleFile(file: File | undefined) {
     if (!file) return;
+    if (status !== "ready") {
+      requestUpgrade("plan_unavailable");
+      return;
+    }
+    if (file.size > snapshot.policy.maxUploadBytes) {
+      requestUpgrade("upload_bytes");
+      return;
+    }
+    if (snapshot.storageUsedBytes + file.size > snapshot.policy.storageBytes) {
+      requestUpgrade("storage_bytes");
+      return;
+    }
     const fileType = portalFileTypeFromName(file.name);
     if (!fileType) {
       setError(t("invalidFormat"));
@@ -2454,18 +2522,20 @@ function FilesEditor({
     startTransition(async () => {
       try {
         const asset = await uploadPortalAsset({
-          authError: uploadT("authRequired"),
+          category: "file",
           file,
           portalId,
         });
+        if (!asset.previewUrl) throw new Error(t("uploadError"));
         saveFiles([
           ...files,
           {
+            asset_id: asset.assetId,
             allow_download: true,
             file_name: file.name,
             file_size: `${Math.ceil(file.size / 1024)}KB`,
             file_type: fileType,
-            file_url: asset.signedUrl,
+            file_url: asset.previewUrl,
             storage_path: asset.path,
             id: `file_${crypto.randomUUID()}`,
             position: files.length,
@@ -2506,9 +2576,9 @@ function FilesEditor({
             file={file}
             index={index}
             key={file.id}
-            onRemove={() =>
-              saveFiles(files.filter((item) => item.id !== file.id))
-            }
+            onRemove={() => {
+              saveFiles(files.filter((item) => item.id !== file.id));
+            }}
           />
         ))}
         {error ? (
@@ -2635,10 +2705,12 @@ function usePortalDocumentDraft(portalId: string, document: PortalDocument) {
 
 export function PortalDocumentSidebar({
   document,
+  exportHref,
   locale: _locale,
   portalId,
 }: {
   document: PortalDocument;
+  exportHref?: string;
   locale: string;
   portalId: string;
 }) {
@@ -2704,11 +2776,7 @@ export function PortalDocumentSidebar({
           />
         ))}
       </div>
-      <SidebarFooterActions
-        assetsSectionId={
-          sections.find((section) => section.type === "files")?.id
-        }
-      />
+      <SidebarFooterActions exportHref={exportHref} portalId={portalId} />
     </nav>
   );
 }
@@ -2778,9 +2846,11 @@ function SidebarLink({
 }
 
 function SidebarFooterActions({
-  assetsSectionId,
+  exportHref,
+  portalId,
 }: {
-  assetsSectionId?: string;
+  exportHref?: string;
+  portalId: string;
 }) {
   const t = useTranslations("PortalEditor.sidebar");
   const { resolvedTheme, setTheme } = useTheme();
@@ -2793,11 +2863,19 @@ function SidebarFooterActions({
         label={t("theme")}
         onClick={() => setTheme(nextTheme)}
       />
-      {assetsSectionId ? (
+      {exportHref ? (
         <SidebarLink
-          href={`#${assetsSectionId}`}
           icon={<IconPackageExport className="size-4" />}
           label={t("exportAssets")}
+          onClick={() => {
+            void flushThenExport({
+              flush: () => flushPortalAutosave(portalId),
+              href: exportHref,
+              navigate: (href) => window.location.assign(href),
+            }).catch(() => {
+              // Autosave retains the draft and exposes its existing retry UI.
+            });
+          }}
         />
       ) : null}
     </div>
@@ -2942,6 +3020,7 @@ export function SectionOrderPopover({
   const t = useTranslations("PortalEditor.sections");
   const draft = usePortalDocumentDraft(portalId, document);
   const updateDraft = usePortalEditorStore((state) => state.updateDocument);
+  const { guardDocumentChange } = usePortalPlan();
   const [open, setOpen] = useState(false);
   const pendingSectionIdRef = useRef<string | null>(null);
   const sections = uniqueForRender(
@@ -2951,17 +3030,27 @@ export function SectionOrderPopover({
     "sec",
   );
 
-  function save(update: (current: PortalDocument) => PortalDocument) {
-    const updated = updateDraft(portalId, update);
+  function save(
+    update: (current: PortalDocument) => PortalDocument,
+    retry?: { kind: "add-section"; type: Exclude<PortalSectionType, "empty"> },
+  ) {
+    const current =
+      usePortalEditorStore.getState().documentsByPortalId[portalId] ?? document;
+    const candidate = update(current);
+    if (!guardDocumentChange(current, candidate, retry)) return;
+    const updated = updateDraft(portalId, () => candidate);
     if (updated) schedulePortalAutosave(portalId, updated);
   }
 
   function addSection(type: Exclude<PortalSectionType, "empty">) {
-    save((current) => {
-      const section = createPortalSection(type, current.sections.length);
-      pendingSectionIdRef.current = section.id;
-      return { ...current, sections: [...current.sections, section] };
-    });
+    save(
+      (current) => {
+        const section = createPortalSection(type, current.sections.length);
+        pendingSectionIdRef.current = section.id;
+        return { ...current, sections: [...current.sections, section] };
+      },
+      { kind: "add-section", type },
+    );
   }
 
   return (
@@ -3096,22 +3185,18 @@ function SettingsDialogTrigger({
   );
 }
 
-function SettingsFormShell({
+function SettingsTabForm({
   action = updatePortalSettings,
   children,
-  description,
   locale,
   onSaved,
   portal,
-  title,
 }: {
   action?: (formData: FormData) => Promise<void>;
   children: ReactNode;
-  description: string;
   locale: string;
   onSaved: () => void;
   portal: Portal;
-  title: string;
 }) {
   const t = useTranslations("PortalEditor.common");
   const setHasUnpublishedChanges = usePortalEditorStore(
@@ -3125,61 +3210,17 @@ function SettingsFormShell({
   }
 
   return (
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
-      </DialogHeader>
-      <form action={handleAction}>
-        <input name="locale" type="hidden" value={locale} />
-        <input name="portal_id" type="hidden" value={portal.id} />
-        {children}
-        <DialogFooter className="pt-6">
-          <Button type="submit">
-            <IconDeviceFloppy data-icon="inline-start" />
-            {t("saveSettings")}
-          </Button>
-        </DialogFooter>
-      </form>
-    </DialogContent>
-  );
-}
-
-function SettingsModal({
-  action,
-  children,
-  description,
-  icon,
-  label,
-  locale,
-  portal,
-  title,
-}: {
-  action?: (formData: FormData) => Promise<void>;
-  children: ReactNode;
-  description: string;
-  icon: ReactElement;
-  label: string;
-  locale: string;
-  portal: Portal;
-  title: string;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <SettingsDialogTrigger icon={icon} label={label} />
-      <SettingsFormShell
-        action={action}
-        description={description}
-        locale={locale}
-        onSaved={() => setOpen(false)}
-        portal={portal}
-        title={title}
-      >
-        {children}
-      </SettingsFormShell>
-    </Dialog>
+    <form action={handleAction}>
+      <input name="locale" type="hidden" value={locale} />
+      <input name="portal_id" type="hidden" value={portal.id} />
+      {children}
+      <DialogFooter className="pt-6">
+        <Button type="submit">
+          <IconDeviceFloppy data-icon="inline-start" />
+          {t("saveSettings")}
+        </Button>
+      </DialogFooter>
+    </form>
   );
 }
 
@@ -3262,50 +3303,9 @@ export function SettingsDialog({
   portal: Portal;
 }) {
   const t = useTranslations("PortalEditor.settings");
-  return (
-    <SettingsModal
-      description={t("generalDescription")}
-      icon={<IconSettings data-icon="inline-start" />}
-      label={t("generalTitle")}
-      locale={locale}
-      portal={portal}
-      title={t("generalTitle")}
-    >
-      <FieldGroup>
-        <SlugAvailabilityField locale={locale} portal={portal} />
-        <Field>
-          <FieldLabel>{t("designerName")}</FieldLabel>
-          <Input
-            name="designer_name"
-            defaultValue={portal.designer_name ?? ""}
-            placeholder={t("designerPlaceholder")}
-            maxLength={80}
-            pattern="(?:\\S+\\s+){0,7}\\S*"
-            title={t("designerLimit")}
-          />
-        </Field>
-        <Field>
-          <FieldLabel>{t("website")}</FieldLabel>
-          <Input
-            name="designer_website_url"
-            defaultValue={portal.designer_website_url ?? ""}
-            placeholder={t("websitePlaceholder")}
-            inputMode="url"
-          />
-        </Field>
-      </FieldGroup>
-    </SettingsModal>
-  );
-}
-
-export function PrivacySettingsDialog({
-  locale,
-  portal,
-}: {
-  locale: string;
-  portal: Portal;
-}) {
-  const t = useTranslations("PortalEditor.settings");
+  const { guardPassword, plan } = usePortalPlan();
+  const [activeTab, setActiveTab] = useState("general");
+  const [open, setOpen] = useState(false);
   const [visibility, setVisibility] = useState<PortalVisibility>(
     portal.visibility,
   );
@@ -3314,72 +3314,134 @@ export function PrivacySettingsDialog({
     { label: t("private"), value: "private" },
     { label: t("password"), value: "password" },
   ];
+
   return (
-    <SettingsModal
-      action={savePrivacySettings}
-      description={t("privacyDescription")}
-      icon={<IconLock data-icon="inline-start" />}
-      label={t("privacyTitle")}
-      locale={locale}
-      portal={portal}
-      title={t("privacyTitle")}
-    >
-      <FieldGroup>
-        <Field>
-          <FieldLabel>{t("privacy")}</FieldLabel>
-          <Select
-            items={visibilityItems}
-            name="visibility"
-            onValueChange={(value) =>
-              value && setVisibility(value as PortalVisibility)
-            }
-            value={visibility}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder={t("privacyPlaceholder")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {visibilityItems.map((item) => (
-                  <SelectItem key={item.value} value={item.value}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <FieldDescription>
-            {visibility === "public" && t("publicHelp")}
-            {visibility === "private" && t("privateHelp")}
-            {visibility === "password" && t("passwordHelp")}
-          </FieldDescription>
-        </Field>
-        {visibility === "password" ? (
-          <Field>
-            <FieldLabel htmlFor="portal-new-password">
-              {portal.visibility === "password"
-                ? t("changePassword")
-                : t("passwordLabel")}
-            </FieldLabel>
-            <Input
-              autoComplete="new-password"
-              id="portal-new-password"
-              maxLength={128}
-              minLength={8}
-              name="password"
-              placeholder={t("passwordPlaceholder")}
-              required={portal.visibility !== "password"}
-              type="password"
-            />
-            <FieldDescription>
-              {portal.visibility === "password"
-                ? t("keepPassword")
-                : t("passwordRules")}
-            </FieldDescription>
-          </Field>
-        ) : null}
-      </FieldGroup>
-    </SettingsModal>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <SettingsDialogTrigger
+        icon={<IconSettings data-icon="inline-start" />}
+        label={t("generalTitle")}
+      />
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t("generalTitle")}</DialogTitle>
+          <DialogDescription>
+            {activeTab === "security"
+              ? t("privacyDescription")
+              : t("generalDescription")}
+          </DialogDescription>
+        </DialogHeader>
+        <Tabs onValueChange={setActiveTab} value={activeTab}>
+          <TabsList variant="line">
+            <TabsTrigger value="general">{t("generalTab")}</TabsTrigger>
+            <TabsTrigger value="security">{t("securityTab")}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="general">
+            <SettingsTabForm
+              locale={locale}
+              onSaved={() => setOpen(false)}
+              portal={portal}
+            >
+              <FieldGroup>
+                <SlugAvailabilityField locale={locale} portal={portal} />
+                <Field>
+                  <FieldLabel>{t("designerName")}</FieldLabel>
+                  <Input
+                    name="designer_name"
+                    defaultValue={portal.designer_name ?? ""}
+                    placeholder={t("designerPlaceholder")}
+                    maxLength={80}
+                    pattern="(?:\\S+\\s+){0,7}\\S*"
+                    title={t("designerLimit")}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>{t("website")}</FieldLabel>
+                  <Input
+                    name="designer_website_url"
+                    defaultValue={portal.designer_website_url ?? ""}
+                    placeholder={t("websitePlaceholder")}
+                    inputMode="url"
+                  />
+                </Field>
+              </FieldGroup>
+            </SettingsTabForm>
+          </TabsContent>
+          <TabsContent value="security">
+            <SettingsTabForm
+              action={savePrivacySettings}
+              locale={locale}
+              onSaved={() => setOpen(false)}
+              portal={portal}
+            >
+              <div className="flex flex-col gap-1 pb-4">
+                <h3 className="font-medium">{t("privacyTitle")}</h3>
+                <p className="text-muted-foreground">
+                  {t("privacyDescription")}
+                </p>
+              </div>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel>{t("privacy")}</FieldLabel>
+                  <Select
+                    items={visibilityItems}
+                    name="visibility"
+                    onValueChange={(value) => {
+                      if (!value) return;
+                      if (value === "password" && !guardPassword()) return;
+                      setVisibility(value as PortalVisibility);
+                    }}
+                    value={visibility}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={t("privacyPlaceholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {visibilityItems.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>
+                            {item.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <FieldDescription>
+                    {visibility === "public" && t("publicHelp")}
+                    {visibility === "private" && t("privateHelp")}
+                    {visibility === "password" && t("passwordHelp")}
+                  </FieldDescription>
+                </Field>
+                {visibility === "password" ? (
+                  <Field>
+                    <FieldLabel htmlFor="portal-new-password">
+                      {portal.visibility === "password"
+                        ? t("changePassword")
+                        : t("passwordLabel")}
+                    </FieldLabel>
+                    <Input
+                      autoComplete="new-password"
+                      disabled={plan !== "premium"}
+                      id="portal-new-password"
+                      maxLength={128}
+                      minLength={8}
+                      name="password"
+                      placeholder={t("passwordPlaceholder")}
+                      required={portal.visibility !== "password"}
+                      type="password"
+                    />
+                    <FieldDescription>
+                      {portal.visibility === "password"
+                        ? t("keepPassword")
+                        : t("passwordRules")}
+                    </FieldDescription>
+                  </Field>
+                ) : null}
+              </FieldGroup>
+            </SettingsTabForm>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -3398,10 +3460,26 @@ export function UnpublishedChangesIndicator({
   const autosave = usePortalEditorStore(
     (state) => state.autosaveByPortalId[portalId],
   ) ?? { error: null, status: "idle" as const };
+  const publishError = usePortalEditorStore((state) => state.publishError);
+  const publicationIssues =
+    usePortalEditorStore(
+      (state) => state.publicationIssuesByPortalId[portalId],
+    ) ?? EMPTY_PUBLICATION_ISSUES;
+  const publicationPopoverOpen = usePortalEditorStore(
+    (state) => state.publicationPopoverOpenByPortalId[portalId] ?? false,
+  );
+  const setPublicationPopoverOpen = usePortalEditorStore(
+    (state) => state.setPublicationPopoverOpen,
+  );
   const initializeHasUnpublishedChanges = usePortalEditorStore(
     (state) => state.initializeHasUnpublishedChanges,
   );
   const hasUnpublishedChanges = storeValue ?? initialHasUnpublishedChanges;
+  const pendingPublicationTargetRef = useRef<PortalPublicationTarget | null>(
+    null,
+  );
+  const hasPublicationFailure =
+    publicationIssues.length > 0 || Boolean(publishError);
 
   useEffect(() => {
     initializeHasUnpublishedChanges(portalId, initialHasUnpublishedChanges);
@@ -3412,7 +3490,9 @@ export function UnpublishedChangesIndicator({
       ? autosaveT("saving")
       : autosave.status === "error"
         ? autosaveT("error")
-        : t("unpublishedAction");
+        : hasPublicationFailure
+          ? t("publication.action")
+          : t("unpublishedAction");
 
   return (
     <AnimatePresence initial={false}>
@@ -3428,7 +3508,16 @@ export function UnpublishedChangesIndicator({
             width: { damping: 28, stiffness: 260, type: "spring" },
           }}
         >
-          <Popover>
+          <Popover
+            onOpenChange={(open) => setPublicationPopoverOpen(portalId, open)}
+            onOpenChangeComplete={(open) => {
+              if (open || !pendingPublicationTargetRef.current) return;
+              const target = pendingPublicationTargetRef.current;
+              pendingPublicationTargetRef.current = null;
+              focusPortalPublicationTarget(target);
+            }}
+            open={publicationPopoverOpen}
+          >
             <PopoverTrigger
               render={
                 <Button
@@ -3442,7 +3531,7 @@ export function UnpublishedChangesIndicator({
             >
               {autosave.status === "saving" ? (
                 <IconLoader2 className="animate-spin" />
-              ) : autosave.status === "error" ? (
+              ) : autosave.status === "error" || hasPublicationFailure ? (
                 <IconAlertCircle />
               ) : (
                 <IconInfoCircle />
@@ -3456,12 +3545,16 @@ export function UnpublishedChangesIndicator({
                 <PopoverTitle>
                   {autosave.status === "error"
                     ? autosaveT("error")
-                    : t("unpublishedTitle")}
+                    : hasPublicationFailure
+                      ? t("publication.title")
+                      : t("unpublishedTitle")}
                 </PopoverTitle>
                 <PopoverDescription>
                   {autosave.status === "error"
                     ? autosaveT("errorDescription")
-                    : t("unpublishedDescription")}
+                    : hasPublicationFailure
+                      ? t("publication.description")
+                      : t("unpublishedDescription")}
                 </PopoverDescription>
               </PopoverHeader>
               {autosave.status === "error" ? (
@@ -3477,6 +3570,38 @@ export function UnpublishedChangesIndicator({
                 >
                   {autosaveT("retry")}
                 </Button>
+              ) : null}
+              {autosave.status !== "error" && publicationIssues.length > 0 ? (
+                <ul className="flex flex-col gap-2">
+                  {publicationIssues.map((issue) => (
+                    <li
+                      className="flex items-center justify-between gap-3 rounded-md border p-2"
+                      key={`${issue.code}-${"sectionId" in issue ? issue.sectionId : "portal"}`}
+                    >
+                      <span className="text-sm">
+                        {t(`publication.issues.${issue.code}`)}
+                      </span>
+                      <Button
+                        onClick={() => {
+                          pendingPublicationTargetRef.current = issue.target;
+                          setPublicationPopoverOpen(portalId, false);
+                        }}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        {t("publication.fix")}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {autosave.status !== "error" &&
+              publicationIssues.length === 0 &&
+              publishError ? (
+                <p className="text-destructive text-sm" role="alert">
+                  {publishError}
+                </p>
               ) : null}
             </PopoverContent>
           </Popover>
