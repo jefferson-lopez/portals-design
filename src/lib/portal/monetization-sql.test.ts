@@ -16,6 +16,10 @@ const secureFinalizationMigration = new URL(
   "../../../supabase/migrations/20260803110000_secure_asset_finalization.sql",
   import.meta.url,
 );
+const adobeFormatsMigration = new URL(
+  "../../../supabase/migrations/20260808120000_expand_adobe_design_asset_formats.sql",
+  import.meta.url,
+);
 const atomicAssetDeletionMigration = new URL(
   "../../../supabase/migrations/20260803130000_atomic_portal_asset_deletion.sql",
   import.meta.url,
@@ -79,6 +83,19 @@ describe("portal monetization migration", () => {
     );
     expect(route).toMatch(/admin\.rpc\(\s*"finalize_portal_asset"/);
     expect(route).not.toMatch(/supabase\.rpc\(\s*"finalize_portal_asset"/);
+    expect(route).toContain("areAssetMimeTypesCompatible");
+  });
+
+  test("keeps the database MIME policy aligned with additional design formats", async () => {
+    const sql = await Bun.file(adobeFormatsMigration).text();
+
+    expect(sql).toContain("application/(illustrator|pdf|postscript");
+    expect(sql).toContain("x-indesign");
+    expect(sql).toContain("vnd\\.adobe\\.indesign-idml-package");
+    expect(sql).toContain("image/(avif|gif|jpeg|png|svg\\+xml|tiff|webp");
+    expect(sql).toContain("asset_mime_type = 'application/octet-stream'");
+    expect(sql).toContain("reserve_portal_asset");
+    expect(sql).toContain("finalize_portal_asset");
   });
 
   test("serializes document writes with reference-safe asset deletion", async () => {

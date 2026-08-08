@@ -72,6 +72,13 @@ test("storage status is a compact accessible circular control with usage help", 
   expect(provider).not.toContain('className="hidden min-w-36');
 });
 
+test("storage status selects copy that explains the quota scope", () => {
+  expect(provider).toContain("t(`storageSummaries.$" + "{plan}`");
+  expect(provider).toContain("t(`storageLabels.$" + "{plan}`)");
+  expect(provider).not.toContain('t("storageSummary"');
+  expect(provider).not.toContain('t("storage")');
+});
+
 test("successful asset mutations refresh storage usage without a reload", () => {
   expect(provider).toContain("subscribePortalAssetUsageChanges");
   expect(provider).toContain("void refresh()");

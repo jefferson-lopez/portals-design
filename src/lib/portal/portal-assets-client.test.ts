@@ -13,11 +13,18 @@ describe("managed portal asset upload", () => {
     ["README.md", "application/octet-stream", "text/markdown"],
     ["mockup.psd", "", "image/vnd.adobe.photoshop"],
     ["mark.eps", "application/octet-stream", "application/postscript"],
+    ["template.ait", "", "application/illustrator"],
+    ["large.psb", "", "image/vnd.adobe.photoshop"],
+    ["layout.indd", "", "application/x-indesign"],
+    ["template.indt", "application/octet-stream", "application/x-indesign"],
+    ["book.idml", "", "application/vnd.adobe.indesign-idml-package"],
+    ["scan.tiff", "", "image/tiff"],
   ])(
-    "reserves and uploads %s with the inferred MIME",
+    "reserves and uploads %s as a canonical File with the inferred MIME",
     async (name, providedMime, expectedMime) => {
       let reservationMime = "";
       let uploadMime = "";
+      let uploadedFile: File | undefined;
       const fetcher: typeof fetch = (async (_input, init) => {
         if (init?.method === "POST") {
           reservationMime = JSON.parse(String(init.body)).mimeType;
@@ -33,14 +40,19 @@ describe("managed portal asset upload", () => {
         });
       }) as typeof fetch;
 
+      const original = new File(["canonical-content"], name, {
+        lastModified: 123456,
+        type: providedMime,
+      });
       await uploadManagedPortalAsset({
         category: "file",
-        file: new File(["content"], name, { type: providedMime }),
+        file: original,
         fetcher,
         portalId: "portal-1",
         storage: {
           from: () => ({
-            uploadToSignedUrl: async (_path, _token, _file, options) => {
+            uploadToSignedUrl: async (_path, _token, file, options) => {
+              uploadedFile = file;
               uploadMime = options?.contentType ?? "";
               return { error: null };
             },
@@ -50,6 +62,12 @@ describe("managed portal asset upload", () => {
 
       expect(reservationMime).toBe(expectedMime);
       expect(uploadMime).toBe(expectedMime);
+      expect(uploadedFile).toBeInstanceOf(File);
+      expect(uploadedFile?.type.split(";", 1)[0]).toBe(expectedMime);
+      expect(uploadedFile?.name).toBe(name);
+      expect(uploadedFile?.size).toBe(original.size);
+      expect(uploadedFile?.lastModified).toBe(original.lastModified);
+      expect(await uploadedFile?.text()).toBe(await original.text());
     },
   );
 
@@ -134,6 +152,77 @@ describe("managed portal asset upload", () => {
     expect(browserSigningAttempted).toBe(false);
     expect(asset.previewUrl).toBe("https://server.example/signed");
   });
+
+  test("deletes the reservation when finalization fails", async () => {
+    const methods: string[] = [];
+    const fetcher: typeof fetch = (async (_input, init) => {
+      methods.push(init?.method ?? "GET");
+      if (init?.method === "POST") {
+        return Response.json({
+          assetId: "asset-1",
+          path: "p/a",
+          token: "token",
+        });
+      }
+      if (init?.method === "DELETE") return Response.json({ deleted: true });
+      return Response.json({ error: "finalization_failed" }, { status: 500 });
+    }) as typeof fetch;
+
+    await expect(
+      uploadManagedPortalAsset({
+        category: "image",
+        file: new File(["x"], "a.png", { type: "image/png" }),
+        fetcher,
+        portalId: "portal-1",
+        storage: {
+          from: () => ({
+            uploadToSignedUrl: async () => ({ error: null }),
+          }),
+        },
+      }),
+    ).rejects.toThrow("finalization_failed");
+    expect(methods).toEqual(["POST", "PATCH", "DELETE"]);
+  });
+
+  test.each(["upload", "finalize"])(
+    "deletes the reservation when %s rejects at the network boundary",
+    async (failure) => {
+      const methods: string[] = [];
+      const fetcher: typeof fetch = (async (_input, init) => {
+        methods.push(init?.method ?? "GET");
+        if (init?.method === "POST") {
+          return Response.json({
+            assetId: "asset-network",
+            path: "p/network",
+            token: "token",
+          });
+        }
+        if (init?.method === "DELETE") return Response.json({ deleted: true });
+        if (failure === "finalize") throw new Error("network_down");
+        return Response.json({ asset: {}, previewUrl: "https://preview" });
+      }) as typeof fetch;
+
+      await expect(
+        uploadManagedPortalAsset({
+          category: "image",
+          file: new File(["x"], "network.png", { type: "image/png" }),
+          fetcher,
+          portalId: "portal-1",
+          storage: {
+            from: () => ({
+              uploadToSignedUrl: async () => {
+                if (failure === "upload") throw new Error("network_down");
+                return { error: null };
+              },
+            }),
+          },
+        }),
+      ).rejects.toThrow("network_down");
+      expect(methods).toEqual(
+        failure === "upload" ? ["POST", "DELETE"] : ["POST", "PATCH", "DELETE"],
+      );
+    },
+  );
 
   test("refreshes usage after an existing asset is deleted", async () => {
     const usageEvents = new EventTarget();

@@ -63,6 +63,41 @@ describe("translation catalogs", () => {
     expect(es).toHaveProperty("PortalEditor.image.ratioAuto", "Automática");
   });
 
+  test("explains whether storage is shared or belongs to one portal", () => {
+    expect(es).toHaveProperty(
+      "PortalEditor.plan.storageLabels.free",
+      "Compartido entre portales Gratis",
+    );
+    expect(es).toHaveProperty(
+      "PortalEditor.plan.storageLabels.premium",
+      "Almacenamiento de este portal",
+    );
+    expect(es).toHaveProperty(
+      "PortalEditor.plan.storageSummaries.free",
+      "Plan Gratis. {used} de {limit} usados en total entre tus portales Gratis. {percent}%.",
+    );
+    expect(es).toHaveProperty(
+      "PortalEditor.plan.storageSummaries.premium",
+      "Plan Premium. {used} de {limit} usados en este portal. {percent}%.",
+    );
+    expect(en).toHaveProperty(
+      "PortalEditor.plan.storageLabels.free",
+      "Shared across Free portals",
+    );
+    expect(en).toHaveProperty(
+      "PortalEditor.plan.storageLabels.premium",
+      "This portal's storage",
+    );
+    expect(en).toHaveProperty(
+      "PortalEditor.plan.storageSummaries.free",
+      "Free plan. {used} of {limit} used in total across your Free portals. {percent}%.",
+    );
+    expect(en).toHaveProperty(
+      "PortalEditor.plan.storageSummaries.premium",
+      "Premium plan. {used} of {limit} used by this portal. {percent}%.",
+    );
+  });
+
   test("does not leave Spanish UI copy hardcoded in app or components", () => {
     const files = [...sourceFiles("src/app"), ...sourceFiles("src/components")];
     const spanishUiCopy =

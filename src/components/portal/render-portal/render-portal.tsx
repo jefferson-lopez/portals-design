@@ -515,13 +515,14 @@ export function RenderPortal({
       return new AutosaveQueue<PortalDocument>({
         delay: 700,
         onStatusChange: (status, error) => {
+          if (error) {
+            console.error("Portal autosave failed", {
+              error,
+              portalId: editorPortalId,
+            });
+          }
           setAutosaveState(editorPortalId, {
-            error:
-              error instanceof Error
-                ? error.message
-                : error
-                  ? "Autosave failed"
-                  : null,
+            error: error ? "autosave_failed" : null,
             status,
           });
         },

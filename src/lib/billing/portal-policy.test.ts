@@ -88,7 +88,7 @@ describe("portal monetization policy", () => {
   });
   test("publishes the documented Free and Premium limits", () => {
     expect(PORTAL_PLANS.free.storageBytes).toBe(100 * 1024 * 1024);
-    expect(PORTAL_PLANS.free.maxUploadBytes).toBe(10 * 1024 * 1024);
+    expect(PORTAL_PLANS.free.maxUploadBytes).toBe(50 * 1024 * 1024);
     expect(PORTAL_PLANS.premium.storageBytes).toBe(2 * 1024 * 1024 * 1024);
     expect(PORTAL_PLANS.premium.maxUploadBytes).toBe(50 * 1024 * 1024);
     expect(PORTAL_PLANS.premium.totalSections).toBe(100);

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { deletePreparedPortalAsset } from "@/lib/portal/asset-deletion";
 import {
+  areAssetMimeTypesCompatible,
+  normalizeAssetMimeType,
   validateAssetBytes,
   validateAssetDeclaration,
 } from "@/lib/portal/asset-validation";
@@ -192,14 +194,16 @@ export async function PATCH(request: Request) {
   const downloaded = await admin.storage
     .from("portal-assets")
     .download(asset.file_path);
-  const actualMimeType = info.data.contentType ?? asset.mime_type;
+  const actualMimeType = normalizeAssetMimeType(
+    info.data.contentType ?? asset.mime_type,
+  );
   if (
     downloaded.error ||
     !downloaded.data ||
     !actualMimeType ||
     !asset.name ||
     !asset.category ||
-    actualMimeType !== asset.mime_type ||
+    !areAssetMimeTypesCompatible(asset.name, asset.mime_type, actualMimeType) ||
     !validateAssetDeclaration({
       category: asset.category as never,
       mimeType: actualMimeType,
@@ -208,6 +212,7 @@ export async function PATCH(request: Request) {
     !validateAssetBytes(
       new Uint8Array(await downloaded.data.arrayBuffer()),
       actualMimeType,
+      asset.name,
     )
   ) {
     await deletePortalAsset(asset.id, supabase).catch(() => undefined);

@@ -246,8 +246,14 @@
     "plan": {
       "free": "Gratis",
       "premium": "Premium",
-      "storage": "Almacenamiento del portal",
-      "storageSummary": "Plan {plan}. {used} de {limit} usados. {percent}%.",
+      "storageLabels": {
+        "free": "Compartido entre portales Gratis",
+        "premium": "Almacenamiento de este portal"
+      },
+      "storageSummaries": {
+        "free": "Plan Gratis. {used} de {limit} usados en total entre tus portales Gratis. {percent}%.",
+        "premium": "Plan Premium. {used} de {limit} usados en este portal. {percent}%."
+      },
       "currentPlan": "Plan actual",
       "usageStates": {
         "empty": "Sin almacenamiento usado",

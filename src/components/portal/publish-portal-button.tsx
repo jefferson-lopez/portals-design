@@ -14,7 +14,12 @@ import { Button } from "@/components/ui/button";
 import type { SafePendingPortalAction } from "@/lib/billing/portal-plan-client";
 import { flushPortalAutosave } from "@/lib/portal/autosave-coordinator";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
+import { showPortalPublishError } from "@/lib/portal/portal-error-feedback";
 import { validatePortalPublicationReadiness } from "@/lib/portal/publication-readiness";
+import {
+  PortalPublishFailure,
+  publishPortalAfterAutosave,
+} from "@/lib/portal/publish-flow";
 
 export function PublishPortalButton({
   initialHasUnpublishedChanges,
@@ -29,7 +34,6 @@ export function PublishPortalButton({
   const router = useRouter();
   const queryClient = useQueryClient();
   const { guardPublication } = usePortalPlan();
-  const publishError = usePortalEditorStore((state) => state.publishError);
   const storeHasUnpublishedChanges = usePortalEditorStore(
     (state) => state.hasUnpublishedChangesByPortalId[portalId],
   );
@@ -62,23 +66,31 @@ export function PublishPortalButton({
   }, [initialHasUnpublishedChanges, initializeHasUnpublishedChanges, portalId]);
 
   const publishMutation = useMutation({
-    mutationFn: async () => {
-      await flushPortalAutosave(portalId);
-      const publishedRevision =
-        usePortalEditorStore.getState().documentRevisionByPortalId[portalId] ??
-        0;
-      await publishPortalById({
-        locale,
-        portalId,
-        returnTo: `/${locale}/create/${portalId}`,
-      });
-      return publishedRevision;
-    },
+    mutationFn: () =>
+      publishPortalAfterAutosave(
+        () => flushPortalAutosave(portalId),
+        async () => {
+          const publishedRevision =
+            usePortalEditorStore.getState().documentRevisionByPortalId[
+              portalId
+            ] ?? 0;
+          await publishPortalById({
+            locale,
+            portalId,
+            returnTo: `/${locale}/create/${portalId}`,
+          });
+          return publishedRevision;
+        },
+      ),
     onError: (error) => {
-      setPublishError(
-        error instanceof Error ? error.message : t("publishError"),
-      );
-      setPublicationPopoverOpen(portalId, true);
+      console.error("Portal publication failed", { error, portalId });
+      setPublishError(null);
+      if (
+        !(error instanceof PortalPublishFailure) ||
+        error.stage === "publish"
+      ) {
+        showPortalPublishError(portalId, t("publishError"));
+      }
       setPublishingPortalId(null);
     },
     onMutate: () => {
@@ -130,26 +142,19 @@ export function PublishPortalButton({
   }, [attemptPublication]);
 
   return (
-    <div className="flex flex-col items-center gap-1">
-      <Button
-        className="rounded-full"
-        disabled={publishMutation.isPending || !hasUnpublishedChanges}
-        onClick={attemptPublication}
-        size="lg"
-        type="button"
-      >
-        {publishMutation.isPending ? (
-          <IconLoader2 className="animate-spin" data-icon="inline-start" />
-        ) : (
-          <IconWorldUpload data-icon="inline-start" />
-        )}
-        {t("publish")}
-      </Button>
-      {publishError ? (
-        <span aria-live="polite" className="sr-only">
-          {publishError}
-        </span>
-      ) : null}
-    </div>
+    <Button
+      className="rounded-full"
+      disabled={publishMutation.isPending || !hasUnpublishedChanges}
+      onClick={attemptPublication}
+      size="lg"
+      type="button"
+    >
+      {publishMutation.isPending ? (
+        <IconLoader2 className="animate-spin" data-icon="inline-start" />
+      ) : (
+        <IconWorldUpload data-icon="inline-start" />
+      )}
+      {t("publish")}
+    </Button>
   );
 }

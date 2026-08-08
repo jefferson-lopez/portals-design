@@ -73,12 +73,18 @@ export type PortalTypeScaleSettings = {
 export type PortalFileType =
   | "pdf"
   | "ai"
+  | "ait"
   | "eps"
   | "psd"
+  | "psb"
+  | "indd"
+  | "indt"
+  | "idml"
   | "svg"
   | "image"
   | "txt"
-  | "md";
+  | "md"
+  | "tiff";
 
 export type PortalFileItem = {
   asset_id?: string;
@@ -471,12 +477,18 @@ function normalizeFileType(value: unknown): PortalFileType | undefined {
   if (
     type === "pdf" ||
     type === "ai" ||
+    type === "ait" ||
     type === "psd" ||
+    type === "psb" ||
+    type === "indd" ||
+    type === "indt" ||
+    type === "idml" ||
     type === "eps" ||
     type === "svg" ||
     type === "image" ||
     type === "txt" ||
-    type === "md"
+    type === "md" ||
+    type === "tiff"
   )
     return type;
   return undefined;

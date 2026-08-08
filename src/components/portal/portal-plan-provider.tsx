@@ -13,6 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -118,7 +119,6 @@ export function PortalPlanProvider({
   );
   const [violation, setViolation] = useState<PortalUpgradeReason | null>(null);
   const [checkoutPending, setCheckoutPending] = useState(false);
-  const [checkoutError, setCheckoutError] = useState(false);
   const pendingActionRef = useRef<SafePendingPortalAction | null>(null);
   const checkoutResult = searchParams.get("premium");
   const pendingActionKey = `portal-premium-pending:${portalId}`;
@@ -129,12 +129,17 @@ export function PortalPlanProvider({
       const next = await fetchPortalPlan(portalId);
       setSnapshot(next);
       setStatus("ready");
+      toast.dismiss(`portal-plan-error:${portalId}`);
       return next;
-    } catch {
+    } catch (error) {
+      console.error("Portal plan refresh failed", { error, portalId });
       setStatus("error");
+      toast.error(t("unavailable"), {
+        id: `portal-plan-error:${portalId}`,
+      });
       return null;
     }
-  }, [portalId]);
+  }, [portalId, t]);
 
   useEffect(() => {
     void refresh();
@@ -271,7 +276,6 @@ export function PortalPlanProvider({
 
   async function checkout() {
     setCheckoutPending(true);
-    setCheckoutError(false);
     try {
       const response = await fetch("/api/billing/portal-premium/checkout", {
         body: JSON.stringify({ locale, portalId }),
@@ -280,12 +284,18 @@ export function PortalPlanProvider({
       });
       const body = (await response.json().catch(() => null)) as {
         checkoutUrl?: string;
+        error?: string;
       } | null;
-      if (!response.ok || !body?.checkoutUrl) throw new Error();
+      if (!response.ok || !body?.checkoutUrl) {
+        throw new Error(body?.error ?? `checkout_http_${response.status}`);
+      }
       window.location.assign(body.checkoutUrl);
-    } catch {
+    } catch (error) {
+      console.error("Portal Premium checkout failed", { error, portalId });
       setCheckoutPending(false);
-      setCheckoutError(true);
+      toast.error(t("checkoutUnavailable"), {
+        id: `portal-checkout-error:${portalId}`,
+      });
     }
   }
 
@@ -309,11 +319,6 @@ export function PortalPlanProvider({
                 : t("upgradeDescription")}
             </DialogDescription>
           </DialogHeader>
-          {checkoutError ? (
-            <p className="text-destructive text-sm" role="alert">
-              {t("checkoutUnavailable")}
-            </p>
-          ) : null}
           {status === "loading" ? (
             <DialogFooter>
               <Button disabled type="button">
@@ -386,15 +391,15 @@ export function PortalPlanStatus() {
   const usageState = storageUsageState(percent);
   const used = formatBytes(snapshot.storageUsedBytes);
   const limit = formatBytes(snapshot.policy.storageBytes);
+  const storageLabel = t(`storageLabels.${plan}`);
   const label =
     status === "loading"
       ? t("loading")
       : status === "error"
         ? t("unavailable")
-        : t("storageSummary", {
+        : t(`storageSummaries.${plan}`, {
             limit,
             percent: Math.round(percent),
-            plan: t(plan),
             used,
           });
 
@@ -419,7 +424,7 @@ export function PortalPlanStatus() {
       >
         <span className="relative size-7">
           <svg
-            aria-label={t("storage")}
+            aria-label={storageLabel}
             aria-valuemax={100}
             aria-valuemin={0}
             aria-valuenow={percent}
@@ -471,7 +476,7 @@ export function PortalPlanStatus() {
               </Badge>
             </div>
             <div className="flex items-center justify-between gap-3 text-xs">
-              <span className="text-muted-foreground">{t("storage")}</span>
+              <span className="text-muted-foreground">{storageLabel}</span>
               <span className="font-medium tabular-nums">
                 {used} / {limit}
               </span>

@@ -42,10 +42,15 @@ export async function uploadManagedPortalAsset({
   storage: StorageClient;
   usageEventTarget?: EventTarget;
 }) {
+  const mimeType = inferAssetMimeType(file.name, file.type);
+  const canonicalFile = new File([file], file.name, {
+    lastModified: file.lastModified,
+    type: mimeType,
+  });
   const reservationResponse = await fetcher("/api/portal-assets", {
     body: JSON.stringify({
       category,
-      mimeType: inferAssetMimeType(file.name, file.type),
+      mimeType,
       name: file.name,
       portalId,
       sizeBytes: file.size,
@@ -63,41 +68,43 @@ export async function uploadManagedPortalAsset({
     throw new Error(String(reservation?.error ?? "reservation_failed"));
   }
 
-  const bucket = storage.from("portal-assets");
-  const uploaded = await bucket.uploadToSignedUrl(
-    reservation.path,
-    reservation.token,
-    file,
-    { contentType: inferAssetMimeType(file.name, file.type) },
-  );
-  if (uploaded.error) {
+  try {
+    const bucket = storage.from("portal-assets");
+    const uploaded = await bucket.uploadToSignedUrl(
+      reservation.path,
+      reservation.token,
+      canonicalFile,
+      { contentType: mimeType },
+    );
+    if (uploaded.error) throw new Error(uploaded.error.message);
+
+    const finalizeResponse = await fetcher("/api/portal-assets", {
+      body: JSON.stringify({ assetId: reservation.assetId }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
+    });
+    const finalized = await responseJson(finalizeResponse);
+    if (
+      !finalizeResponse.ok ||
+      !finalized?.asset ||
+      typeof finalized.previewUrl !== "string"
+    ) {
+      throw new Error(String(finalized?.error ?? "finalization_failed"));
+    }
+
+    notifyPortalAssetUsageChanged(portalId, usageEventTarget);
+
+    return {
+      assetId: reservation.assetId,
+      path: reservation.path,
+      previewUrl: finalized.previewUrl,
+    };
+  } catch (error) {
     await deleteManagedPortalAsset(reservation.assetId, fetcher).catch(
       () => undefined,
     );
-    throw new Error(uploaded.error.message);
+    throw error;
   }
-
-  const finalizeResponse = await fetcher("/api/portal-assets", {
-    body: JSON.stringify({ assetId: reservation.assetId }),
-    headers: { "content-type": "application/json" },
-    method: "PATCH",
-  });
-  const finalized = await responseJson(finalizeResponse);
-  if (
-    !finalizeResponse.ok ||
-    !finalized?.asset ||
-    typeof finalized.previewUrl !== "string"
-  ) {
-    throw new Error(String(finalized?.error ?? "finalization_failed"));
-  }
-
-  notifyPortalAssetUsageChanged(portalId, usageEventTarget);
-
-  return {
-    assetId: reservation.assetId,
-    path: reservation.path,
-    previewUrl: finalized.previewUrl,
-  };
 }
 
 export async function deleteManagedPortalAsset(

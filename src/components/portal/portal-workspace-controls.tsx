@@ -27,8 +27,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import type { ReactElement, ReactNode } from "react";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { parseColor } from "react-aria-components";
+import { toast } from "sonner";
 import {
   checkPortalSlugAvailability,
   savePrivacySettings,
@@ -36,6 +37,7 @@ import {
 } from "@/app/[locale]/_actions/portals";
 import {
   PORTAL_FILE_ACCEPT,
+  PORTAL_IMAGE_ACCEPT,
   PortalFilePreview,
   portalFileTypeFromName,
 } from "@/components/portal/file-preview";
@@ -129,9 +131,20 @@ import {
 import { flushThenExport } from "@/lib/portal/editor-export";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
 import {
+  reconcileOptimisticUpload,
+  remainingOptimisticUploadSlots,
+  rollbackOptimisticFontFile,
+  useOptimisticUploads,
+} from "@/lib/portal/optimistic-uploads";
+import {
+  deleteManagedPortalAsset,
   type PortalAssetCategory,
   uploadManagedPortalAsset,
 } from "@/lib/portal/portal-assets-client";
+import {
+  dismissPortalAutosaveError,
+  showPortalAutosaveError,
+} from "@/lib/portal/portal-error-feedback";
 import type {
   PortalPublicationIssue,
   PortalPublicationTarget,
@@ -605,6 +618,7 @@ function ImageTile({
   isDragging = false,
   onRemove,
   onSave,
+  pending = false,
 }: {
   captionEditable?: boolean;
   dragHandleRef?: (element: Element | null) => void;
@@ -612,6 +626,7 @@ function ImageTile({
   isDragging?: boolean;
   onRemove: () => void;
   onSave: (image: PortalImageItem) => void;
+  pending?: boolean;
 }) {
   const t = useTranslations("PortalEditor.image");
   const ratioClass =
@@ -634,7 +649,7 @@ function ImageTile({
           : "object-cover";
   const [settingsOpen, setSettingsOpen] = useState(false);
   return (
-    <figure className="flex flex-col gap-2">
+    <figure aria-busy={pending} className="flex flex-col gap-2">
       <div
         className={cn(
           "group/item relative overflow-hidden rounded-xl bg-muted",
@@ -654,36 +669,38 @@ function ImageTile({
           ref={dragHandleRef}
           src={image.image_url}
         />
-        <PortalItemActionsOverlay
-          forceVisible={settingsOpen}
-          position="top-3-right"
-        >
-          <ImageSettingsPopover
-            image={image}
-            onOpenChange={setSettingsOpen}
-            onSave={onSave}
-            open={settingsOpen}
-            trigger={
-              <PortalActionTriggerButton
-                icon="settings"
-                label={t("settings")}
-                variant="secondary"
-              />
-            }
-          />
-          <Button
-            aria-label={t("remove")}
-            className="rounded-full"
-            onClick={onRemove}
-            size="icon-sm"
-            type="button"
-            variant="secondary"
+        {!pending ? (
+          <PortalItemActionsOverlay
+            forceVisible={settingsOpen}
+            position="top-3-right"
           >
-            <IconX data-icon="inline-start" />
-          </Button>
-        </PortalItemActionsOverlay>
+            <ImageSettingsPopover
+              image={image}
+              onOpenChange={setSettingsOpen}
+              onSave={onSave}
+              open={settingsOpen}
+              trigger={
+                <PortalActionTriggerButton
+                  icon="settings"
+                  label={t("settings")}
+                  variant="secondary"
+                />
+              }
+            />
+            <Button
+              aria-label={t("remove")}
+              className="rounded-full"
+              onClick={onRemove}
+              size="icon-sm"
+              type="button"
+              variant="secondary"
+            >
+              <IconX data-icon="inline-start" />
+            </Button>
+          </PortalItemActionsOverlay>
+        ) : null}
       </div>
-      {captionEditable ? (
+      {captionEditable && !pending ? (
         <Textarea
           className="resize-none border-none bg-transparent! px-0 text-muted-foreground text-sm shadow-none outline-none focus-visible:ring-0"
           defaultValue={image.alt_text}
@@ -701,20 +718,32 @@ function ImageTile({
 function AddImageTile({
   aspectRatio = "auto",
   category = "image",
+  maxFiles,
   onAdd,
+  ownerKey,
   portalId,
 }: {
   aspectRatio?: ImageAspectRatio;
   category?: "gallery" | "image";
   label?: string;
+  maxFiles?: number;
   onAdd: (image: PortalImageItem) => void;
+  ownerKey: string;
   portalId: string;
 }) {
   const t = useTranslations("PortalEditor.image");
   const { requestUpgrade, snapshot, status } = usePortalPlan();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const optimistic = useOptimisticUploads<PortalImageItem>();
+  useEffect(() => {
+    optimistic.claimOwner(ownerKey);
+    return () => optimistic.invalidate();
+  }, [optimistic.claimOwner, optimistic.invalidate, ownerKey]);
+  const availableSlots = remainingOptimisticUploadSlots(
+    maxFiles ?? (category === "gallery" ? Number.POSITIVE_INFINITY : 1),
+    0,
+    optimistic.pending.length,
+  );
   const ratioClass =
     aspectRatio === "1/1"
       ? "aspect-square"
@@ -725,63 +754,106 @@ function AddImageTile({
           : aspectRatio === "21/9"
             ? "aspect-[21/9]"
             : "min-h-40";
-  function handleFile(file: File | undefined) {
-    if (!file) return;
+  function handleFiles(fileList: FileList | null | undefined) {
+    const slotsAtSelection = remainingOptimisticUploadSlots(
+      maxFiles ?? (category === "gallery" ? Number.POSITIVE_INFINITY : 1),
+      0,
+      optimistic.count(),
+    );
+    const files = Array.from(fileList ?? []).slice(0, slotsAtSelection);
+    if (!files.length) return;
     if (status !== "ready") {
       requestUpgrade("plan_unavailable");
       return;
     }
-    if (file.size > snapshot.policy.maxUploadBytes) {
+    if (files.some((file) => file.size > snapshot.policy.maxUploadBytes)) {
       requestUpgrade("upload_bytes");
       return;
     }
-    if (snapshot.storageUsedBytes + file.size > snapshot.policy.storageBytes) {
+    if (
+      snapshot.storageUsedBytes +
+        files.reduce((total, file) => total + file.size, 0) >
+      snapshot.policy.storageBytes
+    ) {
       requestUpgrade("storage_bytes");
       return;
     }
-    startTransition(async () => {
-      try {
-        const asset = await uploadPortalAsset({
-          category,
-          file,
-          portalId,
-        });
-        if (!asset.previewUrl) throw new Error(t("uploadError"));
-        onAdd({
-          ...createImageItem(asset.previewUrl, 0),
-          asset_id: asset.assetId,
-          storage_path: asset.path,
-        });
-        setError(null);
-      } catch (uploadError) {
-        setError(
-          uploadError instanceof Error ? uploadError.message : t("uploadError"),
-        );
-      }
-    });
+    for (const file of files) {
+      const pending = optimistic.add(file, ({ id, previewUrl }) => ({
+        ...createImageItem(previewUrl, 0),
+        id,
+      }));
+      void (async () => {
+        try {
+          const asset = await uploadPortalAsset({
+            category,
+            file,
+            portalId,
+          });
+          if (!asset.previewUrl) throw new Error(t("uploadError"));
+          await reconcileOptimisticUpload({
+            asset,
+            commit: (finalized) =>
+              onAdd({
+                ...createImageItem(finalized.previewUrl, 0),
+                asset_id: finalized.assetId,
+                storage_path: finalized.path,
+              }),
+            discard: (finalized) =>
+              deleteManagedPortalAsset(finalized.assetId, fetch, portalId),
+            id: pending.id,
+            registry: optimistic,
+          });
+        } catch (uploadError) {
+          const stillOwned = optimistic.owns(pending.id);
+          optimistic.remove(pending.id);
+          if (!stillOwned) return;
+          console.error("Portal image upload failed", {
+            error: uploadError,
+            portalId,
+          });
+          toast.error(t("uploadError"), {
+            id: `portal-image-upload-error:${portalId}`,
+          });
+        }
+      })();
+    }
   }
   return (
-    <>
-      <button
-        className={cn(
-          "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-          ratioClass,
-        )}
-        disabled={isPending}
-        onClick={() => inputRef.current?.click()}
-        type="button"
-      >
-        <IconPlus className="w-4" />
-      </button>
+    <div className="contents">
+      {optimistic.pending.map(({ id, value }) => (
+        <ImageTile
+          image={{ ...value, aspect_ratio: aspectRatio }}
+          key={id}
+          onRemove={() => undefined}
+          onSave={() => undefined}
+          pending
+        />
+      ))}
+      {availableSlots === 0 ? null : (
+        <button
+          className={cn(
+            "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            ratioClass,
+          )}
+          onClick={() => inputRef.current?.click()}
+          type="button"
+        >
+          <IconPlus />
+        </button>
+      )}
       <input
-        accept="image/*"
+        accept={PORTAL_IMAGE_ACCEPT}
         className="sr-only"
         ref={inputRef}
         type="file"
-        onChange={(event) => handleFile(event.currentTarget.files?.[0])}
+        multiple={category === "gallery"}
+        onChange={(event) => {
+          handleFiles(event.currentTarget.files);
+          event.currentTarget.value = "";
+        }}
       />
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
-    </>
+    </div>
   );
 }
 
@@ -1252,6 +1324,7 @@ function ImageEditor({
   if (!image) {
     return (
       <AddImageTile
+        ownerKey={section.id}
         portalId={portalId}
         onAdd={(nextImage) =>
           updateSection({
@@ -1325,14 +1398,26 @@ function GalleryEditor({
     0,
     maxImages,
   );
+  const imagesRef = useRef(images);
+  const sectionRef = useRef(section);
+  useEffect(() => {
+    imagesRef.current = images;
+    sectionRef.current = section;
+  }, [images, section]);
   function saveImages(nextImages: PortalImageItem[]) {
-    const limitedImages = isComparison ? nextImages.slice(0, 2) : nextImages;
+    const currentSection = sectionRef.current;
+    const currentIsComparison =
+      currentSection.layout.mode === "comparison" ||
+      currentSection.type === "image_comparison";
+    const limitedImages = currentIsComparison
+      ? nextImages.slice(0, 2)
+      : nextImages;
     updateSection({
-      ...section,
+      ...currentSection,
       content: { images: reindexUnique(limitedImages, "img") },
-      layout: isComparison
-        ? { ...section.layout, columns: 2, mode: "comparison" }
-        : section.layout,
+      layout: currentIsComparison
+        ? { ...currentSection.layout, columns: 2, mode: "comparison" }
+        : currentSection.layout,
       type: "gallery",
     });
   }
@@ -1392,17 +1477,21 @@ function GalleryEditor({
             <AddImageTile
               aspectRatio={addImageAspectRatio}
               category="gallery"
+              maxFiles={maxImages - images.length}
+              ownerKey={section.id}
               portalId={portalId}
-              onAdd={(image) =>
-                saveImages([
-                  ...images,
+              onAdd={(image) => {
+                const nextImages = [
+                  ...imagesRef.current,
                   {
                     ...image,
                     aspect_ratio: addImageAspectRatio,
-                    position: images.length,
+                    position: imagesRef.current.length,
                   },
-                ])
-              }
+                ];
+                imagesRef.current = nextImages;
+                saveImages(nextImages);
+              }}
             />
           ) : null}
         </div>
@@ -1835,12 +1924,15 @@ function FontDialog({
   );
   const [uploadedFonts, setUploadedFonts] = useState<PortalFontItem[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [isUploading, startUpload] = useTransition();
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const optimistic = useOptimisticUploads<PortalFontItem>();
+  const isUploading = optimistic.pending.length > 0;
   const canSave = font
     ? Boolean(draft.file_url) && !isUploading
     : uploadedFonts.length > 0 && !isUploading;
-  const dialogFontFaces = (font ? [draft] : uploadedFonts)
+  const displayedFonts = font
+    ? [draft]
+    : [...uploadedFonts, ...optimistic.pending.map(({ value }) => value)];
+  const dialogFontFaces = displayedFonts
     .map(fontFaceFor)
     .filter(Boolean)
     .join("\n");
@@ -1865,42 +1957,64 @@ function FontDialog({
       return;
     }
 
-    startUpload(async () => {
-      try {
-        const uploaded = await Promise.all(
-          files.map(async (file, index) => {
-            const metadata = inferFontMetadata(file.name);
-            const asset = await uploadPortalAsset({
-              category: "font",
-              file,
-              portalId,
-            });
-            if (!asset.previewUrl) throw new Error(t("uploadError"));
-            return {
-              asset_id: asset.assetId,
-              file_name: file.name,
-              file_url: asset.previewUrl,
-              storage_path: asset.path,
-              font_name: metadata.fontName,
-              id: `font_${crypto.randomUUID()}`,
-              position: uploadedFonts.length + index,
-              sample_description: viewerT("sampleDescription"),
-              sample_text: viewerT("sampleTitle"),
-              visible: true,
-              weight: metadata.weight,
-              weights: weightLabel(metadata.weight),
-            } satisfies PortalFontItem;
-          }),
-        );
-        setUploadedFonts((current) => [...current, ...uploaded]);
-        setDraft((current) => uploaded[0] ?? current);
-        setUploadError(null);
-      } catch (error) {
-        setUploadError(
-          error instanceof Error ? error.message : t("uploadError"),
-        );
-      }
-    });
+    for (const [index, file] of files.entries()) {
+      const metadata = inferFontMetadata(file.name);
+      const pending = optimistic.add(file, ({ id, previewUrl }) => ({
+        file_name: file.name,
+        file_url: previewUrl,
+        font_name: metadata.fontName,
+        id,
+        position: uploadedFonts.length + index,
+        sample_description: viewerT("sampleDescription"),
+        sample_text: viewerT("sampleTitle"),
+        visible: true,
+        weight: metadata.weight,
+        weights: weightLabel(metadata.weight),
+      }));
+      void (async () => {
+        try {
+          const asset = await uploadPortalAsset({
+            category: "font",
+            file,
+            portalId,
+          });
+          if (!asset.previewUrl) throw new Error(t("uploadError"));
+          const uploaded = {
+            asset_id: asset.assetId,
+            file_name: file.name,
+            file_url: asset.previewUrl,
+            storage_path: asset.path,
+            font_name: metadata.fontName,
+            id: pending.id.replace(/^pending_/, "font_"),
+            position: pending.value.position,
+            sample_description: viewerT("sampleDescription"),
+            sample_text: viewerT("sampleTitle"),
+            visible: true,
+            weight: metadata.weight,
+            weights: weightLabel(metadata.weight),
+          } satisfies PortalFontItem;
+          await reconcileOptimisticUpload({
+            asset: uploaded,
+            commit: (finalized) => {
+              setUploadedFonts((current) => [...current, finalized]);
+              setDraft((current) => (current.file_url ? current : finalized));
+            },
+            discard: (finalized) =>
+              deleteManagedPortalAsset(finalized.asset_id, fetch, portalId),
+            id: pending.id,
+            registry: optimistic,
+          });
+        } catch (error) {
+          const stillOwned = optimistic.owns(pending.id);
+          optimistic.remove(pending.id);
+          if (!stillOwned) return;
+          console.error("Portal font upload failed", { error, portalId });
+          toast.error(t("uploadError"), {
+            id: `portal-font-upload-error:${portalId}`,
+          });
+        }
+      })();
+    }
   }
 
   function handleFontFile(file: File | undefined) {
@@ -1919,7 +2033,18 @@ function FontDialog({
     }
     const metadata = inferFontMetadata(file.name);
 
-    startUpload(async () => {
+    const previousDraft = draft;
+    const pending = optimistic.add(file, ({ id, previewUrl }) => ({
+      ...draft,
+      file_name: file.name,
+      file_url: previewUrl,
+      font_name: draft.font_name || metadata.fontName,
+      id,
+      weight: metadata.weight,
+      weights: weightLabel(metadata.weight),
+    }));
+    setDraft(pending.value);
+    void (async () => {
       try {
         const asset = await uploadPortalAsset({
           category: "font",
@@ -1927,23 +2052,36 @@ function FontDialog({
           portalId,
         });
         if (!asset.previewUrl) throw new Error(t("uploadError"));
-        setDraft((current) => ({
-          ...current,
-          asset_id: asset.assetId,
-          file_name: file.name,
-          file_url: asset.previewUrl,
-          font_name: current.font_name || metadata.fontName,
-          storage_path: asset.path,
-          weight: metadata.weight,
-          weights: weightLabel(metadata.weight),
-        }));
-        setUploadError(null);
+        await reconcileOptimisticUpload({
+          asset,
+          commit: (finalized) =>
+            setDraft((current) => ({
+              ...current,
+              asset_id: finalized.assetId,
+              file_name: file.name,
+              file_url: finalized.previewUrl,
+              font_name: current.font_name || metadata.fontName,
+              id: previousDraft.id,
+              storage_path: finalized.path,
+            })),
+          discard: (finalized) =>
+            deleteManagedPortalAsset(finalized.assetId, fetch, portalId),
+          id: pending.id,
+          registry: optimistic,
+        });
       } catch (error) {
-        setUploadError(
-          error instanceof Error ? error.message : t("uploadError"),
+        const stillOwned = optimistic.owns(pending.id);
+        optimistic.remove(pending.id);
+        if (!stillOwned) return;
+        setDraft((current) =>
+          rollbackOptimisticFontFile(previousDraft, current, pending.id),
         );
+        console.error("Portal font replacement failed", { error, portalId });
+        toast.error(t("uploadError"), {
+          id: `portal-font-upload-error:${portalId}`,
+        });
       }
-    });
+    })();
   }
 
   return (
@@ -1964,6 +2102,7 @@ function FontDialog({
             <FieldLabel>{t("file")}</FieldLabel>
             <div className="flex flex-wrap items-center gap-2">
               <Button
+                disabled={isUploading}
                 onClick={() => inputRef.current?.click()}
                 type="button"
                 variant="outline"
@@ -1998,9 +2137,6 @@ function FontDialog({
                   : handleFontFiles(event.currentTarget.files)
               }
             />
-            {uploadError ? (
-              <p className="text-destructive text-sm">{uploadError}</p>
-            ) : null}
           </Field>
           {font ? (
             <>
@@ -2059,11 +2195,17 @@ function FontDialog({
                 />
               </Field>
             </>
-          ) : uploadedFonts.length ? (
+          ) : displayedFonts.length ? (
             <div className="scroll-fade-y max-h-72 overflow-y-auto">
               <div className="flex flex-col gap-2">
-                {uploadedFonts.map((item) => (
-                  <Attachment className="w-full" key={item.id}>
+                {displayedFonts.map((item) => (
+                  <Attachment
+                    aria-busy={optimistic.pending.some(
+                      ({ id }) => id === item.id,
+                    )}
+                    className="w-full"
+                    key={item.id}
+                  >
                     <AttachmentMedia>
                       <span
                         className="font-semibold text-xs"
@@ -2084,21 +2226,23 @@ function FontDialog({
                       </AttachmentDescription>
                     </AttachmentContent>
                     <AttachmentActions>
-                      <AttachmentAction
-                        aria-label={t("remove", {
-                          name: item.file_name || t("uploaded"),
-                        })}
-                        onClick={() =>
-                          setUploadedFonts((current) =>
-                            current.filter(
-                              (fontItem) => fontItem.id !== item.id,
-                            ),
-                          )
-                        }
-                        type="button"
-                      >
-                        <IconX data-icon="inline-start" />
-                      </AttachmentAction>
+                      {!optimistic.pending.some(({ id }) => id === item.id) ? (
+                        <AttachmentAction
+                          aria-label={t("remove", {
+                            name: item.file_name || t("uploaded"),
+                          })}
+                          onClick={() =>
+                            setUploadedFonts((current) =>
+                              current.filter(
+                                (fontItem) => fontItem.id !== item.id,
+                              ),
+                            )
+                          }
+                          type="button"
+                        >
+                          <IconX data-icon="inline-start" />
+                        </AttachmentAction>
+                      ) : null}
                     </AttachmentActions>
                   </Attachment>
                 ))}
@@ -2490,17 +2634,44 @@ function FilesEditor({
     ? (section.layout.columns ?? 3)
     : 3;
   const inputRef = useRef<HTMLInputElement>(null);
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [fileValidationError, setFileValidationError] = useState<string | null>(
+    null,
+  );
+  const optimistic = useOptimisticUploads<PortalFileItem>();
+  const filesRef = useRef(files);
+  const sectionRef = useRef(section);
+  useEffect(() => {
+    optimistic.claimOwner(section.id);
+    return () => optimistic.invalidate();
+  }, [optimistic.claimOwner, optimistic.invalidate, section.id]);
+  useEffect(() => {
+    filesRef.current = files;
+    sectionRef.current = section;
+  }, [files, section]);
   function saveFiles(nextFiles: PortalFileItem[]) {
+    const currentSection = sectionRef.current;
+    const currentColumns = [3, 4].includes(currentSection.layout.columns ?? 3)
+      ? (currentSection.layout.columns ?? 3)
+      : 3;
     updateSection({
-      ...section,
+      ...currentSection,
       content: { files: reindexUnique(nextFiles, "file") },
-      layout: { ...section.layout, columns, mode: "cards" },
+      layout: {
+        ...currentSection.layout,
+        columns: currentColumns,
+        mode: "cards",
+      },
     });
   }
   function handleFile(file: File | undefined) {
     if (!file) return;
+    const fileType = portalFileTypeFromName(file.name);
+    if (!fileType) {
+      setFileValidationError(t("invalidFormat"));
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+    setFileValidationError(null);
     if (status !== "ready") {
       requestUpgrade("plan_unavailable");
       return;
@@ -2513,13 +2684,17 @@ function FilesEditor({
       requestUpgrade("storage_bytes");
       return;
     }
-    const fileType = portalFileTypeFromName(file.name);
-    if (!fileType) {
-      setError(t("invalidFormat"));
-      if (inputRef.current) inputRef.current.value = "";
-      return;
-    }
-    startTransition(async () => {
+    const pending = optimistic.add(file, ({ id, previewUrl }) => ({
+      allow_download: true,
+      file_name: file.name,
+      file_size: `${Math.ceil(file.size / 1024)}KB`,
+      file_type: fileType,
+      file_url: previewUrl,
+      id,
+      position: filesRef.current.length,
+      visible: true,
+    }));
+    void (async () => {
       try {
         const asset = await uploadPortalAsset({
           category: "file",
@@ -2527,84 +2702,119 @@ function FilesEditor({
           portalId,
         });
         if (!asset.previewUrl) throw new Error(t("uploadError"));
-        saveFiles([
-          ...files,
-          {
-            asset_id: asset.assetId,
-            allow_download: true,
-            file_name: file.name,
-            file_size: `${Math.ceil(file.size / 1024)}KB`,
-            file_type: fileType,
-            file_url: asset.previewUrl,
-            storage_path: asset.path,
-            id: `file_${crypto.randomUUID()}`,
-            position: files.length,
-            visible: true,
+        await reconcileOptimisticUpload({
+          asset,
+          commit: (finalized) => {
+            const nextFiles = [
+              ...filesRef.current,
+              {
+                asset_id: finalized.assetId,
+                allow_download: true,
+                file_name: file.name,
+                file_size: `${Math.ceil(file.size / 1024)}KB`,
+                file_type: fileType,
+                file_url: finalized.previewUrl,
+                storage_path: finalized.path,
+                id: `file_${crypto.randomUUID()}`,
+                position: filesRef.current.length,
+                visible: true,
+              },
+            ];
+            filesRef.current = nextFiles;
+            saveFiles(nextFiles);
           },
-        ]);
-        setError(null);
+          discard: (finalized) =>
+            deleteManagedPortalAsset(finalized.assetId, fetch, portalId),
+          id: pending.id,
+          registry: optimistic,
+        });
       } catch (uploadError) {
-        setError(
-          uploadError instanceof Error ? uploadError.message : t("uploadError"),
-        );
+        const stillOwned = optimistic.owns(pending.id);
+        optimistic.remove(pending.id);
+        if (!stillOwned) return;
+        console.error("Portal file upload failed", {
+          error: uploadError,
+          portalId,
+        });
+        toast.error(t("uploadError"), {
+          id: `portal-file-upload-error:${portalId}`,
+        });
       } finally {
         if (inputRef.current) inputRef.current.value = "";
       }
-    });
+    })();
   }
   return (
-    <DragDropProvider
-      onDragEnd={(event) => {
-        if (event.canceled || !event.operation.target) return;
+    <Field data-invalid={Boolean(fileValidationError) || undefined}>
+      <DragDropProvider
+        onDragEnd={(event) => {
+          if (event.canceled || !event.operation.target) return;
 
-        const nextFiles = move(files, event);
+          const nextFiles = move(files, event);
 
-        if (nextFiles !== files) {
-          saveFiles(nextFiles);
-        }
-      }}
-    >
-      <div
-        className={cn(
-          "grid gap-4",
-          columns === 3 && "grid-cols-2 lg:grid-cols-3",
-          columns === 4 && "grid-cols-3 lg:grid-cols-4",
-        )}
+          if (nextFiles !== files) {
+            saveFiles(nextFiles);
+          }
+        }}
       >
-        {files.map((file, index) => (
-          <SortableFileItem
-            file={file}
-            index={index}
-            key={file.id}
-            onRemove={() => {
-              saveFiles(files.filter((item) => item.id !== file.id));
-            }}
-          />
-        ))}
-        {error ? (
-          <p className="text-destructive text-sm sm:col-span-2 lg:col-span-full">
-            {error}
-          </p>
-        ) : null}
-        <button
-          aria-label={t("upload")}
-          className="flex aspect-square items-center justify-center gap-2 rounded-xl border border-dashed text-muted-foreground hover:bg-muted"
-          disabled={isPending}
-          onClick={() => inputRef.current?.click()}
-          type="button"
+        <div
+          className={cn(
+            "grid gap-4",
+            columns === 3 && "grid-cols-2 lg:grid-cols-3",
+            columns === 4 && "grid-cols-3 lg:grid-cols-4",
+          )}
         >
-          <IconPlus />
-          <span className="sr-only">{t("upload")}</span>
-        </button>
-        <input
-          className="sr-only"
-          ref={inputRef}
-          type="file"
-          accept={PORTAL_FILE_ACCEPT}
-          onChange={(e) => handleFile(e.currentTarget.files?.[0])}
-        />
-      </div>
-    </DragDropProvider>
+          {files.map((file, index) => (
+            <SortableFileItem
+              file={file}
+              index={index}
+              key={file.id}
+              onRemove={() => {
+                saveFiles(files.filter((item) => item.id !== file.id));
+              }}
+            />
+          ))}
+          {optimistic.pending.map(({ id, value }) => (
+            <div aria-busy="true" key={id}>
+              <PortalFilePreview
+                fileName={value.file_name}
+                fileUrl={value.file_url}
+                type={value.file_type}
+              />
+            </div>
+          ))}
+          <button
+            aria-label={t("upload")}
+            aria-describedby={
+              fileValidationError ? "portal-file-error" : undefined
+            }
+            aria-invalid={Boolean(fileValidationError) || undefined}
+            className="flex aspect-square items-center justify-center gap-2 rounded-xl border border-dashed text-muted-foreground hover:bg-muted"
+            onClick={() => inputRef.current?.click()}
+            type="button"
+          >
+            <IconPlus />
+            <span className="sr-only">{t("upload")}</span>
+          </button>
+          <input
+            aria-describedby={
+              fileValidationError ? "portal-file-error" : undefined
+            }
+            aria-invalid={Boolean(fileValidationError) || undefined}
+            className="sr-only"
+            ref={inputRef}
+            type="file"
+            accept={PORTAL_FILE_ACCEPT}
+            onChange={(e) => handleFile(e.currentTarget.files?.[0])}
+          />
+        </div>
+      </DragDropProvider>
+      {fileValidationError ? (
+        <div id="portal-file-error">
+          <FieldError>{fileValidationError}</FieldError>
+        </div>
+      ) : null}
+    </Field>
   );
 }
 
@@ -3460,7 +3670,6 @@ export function UnpublishedChangesIndicator({
   const autosave = usePortalEditorStore(
     (state) => state.autosaveByPortalId[portalId],
   ) ?? { error: null, status: "idle" as const };
-  const publishError = usePortalEditorStore((state) => state.publishError);
   const publicationIssues =
     usePortalEditorStore(
       (state) => state.publicationIssuesByPortalId[portalId],
@@ -3478,12 +3687,39 @@ export function UnpublishedChangesIndicator({
   const pendingPublicationTargetRef = useRef<PortalPublicationTarget | null>(
     null,
   );
-  const hasPublicationFailure =
-    publicationIssues.length > 0 || Boolean(publishError);
+  const hasPublicationFailure = publicationIssues.length > 0;
+  const autosaveErrorDescription = autosaveT("errorDescription");
+  const autosaveErrorMessage = autosaveT("error");
+  const autosaveRetryLabel = autosaveT("retry");
 
   useEffect(() => {
     initializeHasUnpublishedChanges(portalId, initialHasUnpublishedChanges);
   }, [initialHasUnpublishedChanges, initializeHasUnpublishedChanges, portalId]);
+
+  useEffect(() => {
+    if (autosave.status !== "error") {
+      dismissPortalAutosaveError(portalId);
+      return;
+    }
+
+    return showPortalAutosaveError({
+      description: autosaveErrorDescription,
+      message: autosaveErrorMessage,
+      portalId,
+      retry: () => {
+        void flushPortalAutosave(portalId).catch(() => {
+          // The persistent toast remains available for another retry.
+        });
+      },
+      retryLabel: autosaveRetryLabel,
+    });
+  }, [
+    autosave.status,
+    autosaveErrorDescription,
+    autosaveErrorMessage,
+    autosaveRetryLabel,
+    portalId,
+  ]);
 
   const actionLabel =
     autosave.status === "saving"
@@ -3543,35 +3779,17 @@ export function UnpublishedChangesIndicator({
             <PopoverContent align="center" className="w-72" side="top">
               <PopoverHeader>
                 <PopoverTitle>
-                  {autosave.status === "error"
-                    ? autosaveT("error")
-                    : hasPublicationFailure
-                      ? t("publication.title")
-                      : t("unpublishedTitle")}
+                  {hasPublicationFailure
+                    ? t("publication.title")
+                    : t("unpublishedTitle")}
                 </PopoverTitle>
                 <PopoverDescription>
-                  {autosave.status === "error"
-                    ? autosaveT("errorDescription")
-                    : hasPublicationFailure
-                      ? t("publication.description")
-                      : t("unpublishedDescription")}
+                  {hasPublicationFailure
+                    ? t("publication.description")
+                    : t("unpublishedDescription")}
                 </PopoverDescription>
               </PopoverHeader>
-              {autosave.status === "error" ? (
-                <Button
-                  onClick={() => {
-                    void flushPortalAutosave(portalId).catch(() => {
-                      // The retained snapshot remains available for another retry.
-                    });
-                  }}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  {autosaveT("retry")}
-                </Button>
-              ) : null}
-              {autosave.status !== "error" && publicationIssues.length > 0 ? (
+              {publicationIssues.length > 0 ? (
                 <ul className="flex flex-col gap-2">
                   {publicationIssues.map((issue) => (
                     <li
@@ -3595,13 +3813,6 @@ export function UnpublishedChangesIndicator({
                     </li>
                   ))}
                 </ul>
-              ) : null}
-              {autosave.status !== "error" &&
-              publicationIssues.length === 0 &&
-              publishError ? (
-                <p className="text-destructive text-sm" role="alert">
-                  {publishError}
-                </p>
               ) : null}
             </PopoverContent>
           </Popover>

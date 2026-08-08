@@ -43,7 +43,7 @@ const GiB = 1024 * MiB;
 
 export const PORTAL_PLANS: Record<PortalPlan, PortalPlanPolicy> = {
   free: {
-    maxUploadBytes: 10 * MiB,
+    maxUploadBytes: 50 * MiB,
     storageBytes: 100 * MiB,
     totalSections: Number.POSITIVE_INFINITY,
     sections: {

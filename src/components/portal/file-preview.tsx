@@ -8,8 +8,13 @@ import { cn } from "@/lib/utils";
 export const PORTAL_FILE_ACCEPT = [
   ".pdf",
   ".ai",
+  ".ait",
   ".eps",
   ".psd",
+  ".psb",
+  ".indd",
+  ".indt",
+  ".idml",
   ".svg",
   ".png",
   ".jpg",
@@ -17,9 +22,20 @@ export const PORTAL_FILE_ACCEPT = [
   ".webp",
   ".gif",
   ".avif",
+  ".tif",
+  ".tiff",
   ".txt",
   ".md",
   ".markdown",
+].join(",");
+
+export const PORTAL_IMAGE_ACCEPT = [
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".gif",
+  ".avif",
 ].join(",");
 
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp", "gif", "avif"]);
@@ -31,11 +47,17 @@ export function portalFileTypeFromName(
   if (!extension) return null;
   if (extension === "pdf") return "pdf";
   if (extension === "ai") return "ai";
+  if (extension === "ait") return "ait";
   if (extension === "eps") return "eps";
   if (extension === "psd") return "psd";
+  if (extension === "psb") return "psb";
+  if (extension === "indd") return "indd";
+  if (extension === "indt") return "indt";
+  if (extension === "idml") return "idml";
   if (extension === "svg") return "svg";
   if (extension === "txt") return "txt";
   if (extension === "md" || extension === "markdown") return "md";
+  if (extension === "tif" || extension === "tiff") return "tiff";
   if (IMAGE_EXTENSIONS.has(extension)) return "image";
   return null;
 }
@@ -46,11 +68,17 @@ export function portalFileTypeLabel(
 ) {
   if (type === "pdf") return "PDF";
   if (type === "ai") return "AI";
+  if (type === "ait") return "AIT";
   if (type === "eps") return "EPS";
   if (type === "psd") return "PSD";
+  if (type === "psb") return "PSB";
+  if (type === "indd") return "INDD";
+  if (type === "indt") return "INDT";
+  if (type === "idml") return "IDML";
   if (type === "svg") return "SVG";
   if (type === "txt") return "TXT";
   if (type === "md") return "MD";
+  if (type === "tiff") return "TIFF";
   if (type === "image") return fallback.image;
   return fallback.file;
 }
@@ -172,9 +200,11 @@ function FileTypeIcon({
   type?: PortalFileType;
 }) {
   if (type === "pdf") return <PdfIcon className="size-16" />;
-  if (type === "ai") return <IllustratorIcon className="size-16" />;
+  if (type === "ai" || type === "ait")
+    return <IllustratorIcon className="size-16" />;
   if (type === "eps") return <EpsIcon className="size-16" />;
-  if (type === "psd") return <PhotoshopIcon className="size-16" />;
+  if (type === "psd" || type === "psb")
+    return <PhotoshopIcon className="size-16" />;
   if (type === "svg") return <SvgIcon className="size-16" />;
   return (
     <span className="font-semibold text-muted-foreground text-xs uppercase">
