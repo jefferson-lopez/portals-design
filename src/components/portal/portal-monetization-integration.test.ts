@@ -21,6 +21,9 @@ const publicSidebar = await Bun.file(
 const publicPage = await Bun.file(
   new URL("../../app/[locale]/p/[slug]/page.tsx", import.meta.url),
 ).text();
+const optimisticUploads = await Bun.file(
+  new URL("../../lib/portal/optimistic-uploads.ts", import.meta.url),
+).text();
 
 test("the editor has one global plan provider and all document writes use its gate", () => {
   expect(page).toContain("PortalPlanProvider");
@@ -44,6 +47,14 @@ test("successful uploads flush the document before reporting completion", () => 
     "if (reconciled) await flushPortalAutosave(portalId);",
   );
   expect(controls).toContain("finalized.sizeBytes");
+});
+
+test("optimistic upload callbacks keep their registry context", () => {
+  expect(optimisticUploads).toContain("this.add = this.add.bind(this)");
+  expect(optimisticUploads).toContain("this.owns = this.owns.bind(this)");
+  expect(optimisticUploads).toContain(
+    "this.subscribe = this.subscribe.bind(this)",
+  );
 });
 
 test("plan refreshes cannot let an older quota response overwrite a newer one", () => {

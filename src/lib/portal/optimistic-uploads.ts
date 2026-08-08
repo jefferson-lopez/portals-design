@@ -30,6 +30,12 @@ export class OptimisticUploadRegistry<T> {
       dependencies.createObjectURL ?? ((file) => URL.createObjectURL(file));
     this.revokeObjectURL =
       dependencies.revokeObjectURL ?? ((url) => URL.revokeObjectURL(url));
+    this.add = this.add.bind(this);
+    this.claimOwner = this.claimOwner.bind(this);
+    this.dispose = this.dispose.bind(this);
+    this.owns = this.owns.bind(this);
+    this.remove = this.remove.bind(this);
+    this.subscribe = this.subscribe.bind(this);
   }
 
   add(

@@ -7,6 +7,24 @@ import {
 } from "./optimistic-uploads";
 
 describe("OptimisticUploadRegistry", () => {
+  test("keeps registry methods bound when passed as callbacks", () => {
+    const registry = new OptimisticUploadRegistry<{ src: string }>({
+      createId: () => "pending-bound",
+      createObjectURL: () => "blob:bound",
+      revokeObjectURL: () => undefined,
+    });
+    const add = registry.add;
+    const owns = registry.owns;
+    const remove = registry.remove;
+
+    const pending = add(new File(["x"], "bound.txt"), ({ previewUrl }) => ({
+      src: previewUrl,
+    }));
+    expect(owns(pending.id)).toBe(true);
+    remove(pending.id);
+    expect(owns(pending.id)).toBe(false);
+  });
+
   test("publishes a local preview immediately and revokes it after success", () => {
     const revoked: string[] = [];
     const registry = new OptimisticUploadRegistry<{ src: string }>({
