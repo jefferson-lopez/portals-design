@@ -32,7 +32,9 @@ export function showPortalAutosaveError({
     id,
   });
 
-  return () => toast.dismiss(id);
+  return () => {
+    toast.dismiss(id);
+  };
 }
 
 export function showPortalPublishError(portalId: string, message: string) {
