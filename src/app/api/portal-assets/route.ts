@@ -130,9 +130,15 @@ async function finalizePortalAsset(
   const downloaded = await admin.storage
     .from("portal-assets")
     .download(asset.file_path);
-  const actualMimeType = normalizeAssetMimeType(
-    info.data.contentType ?? asset.mime_type,
-  );
+  const storedMimeType = normalizeAssetMimeType(info.data.contentType);
+  // Supabase Storage can report application/octet-stream for proprietary Adobe
+  // formats even when the upload was sent with the canonical declared MIME.
+  // The bytes are still validated below, so falling back to the reservation's
+  // allowlisted declaration does not weaken content validation.
+  const actualMimeType =
+    storedMimeType && storedMimeType !== "application/octet-stream"
+      ? storedMimeType
+      : normalizeAssetMimeType(asset.mime_type);
   if (
     downloaded.error ||
     !downloaded.data ||
@@ -258,7 +264,10 @@ export async function POST(request: Request) {
       });
     if (uploaded.error) {
       await deletePortalAsset(assetId, supabase).catch(() => undefined);
-      return NextResponse.json({ error: "upload_failed" }, { status: 502 });
+      return NextResponse.json(
+        { error: "storage_upload_failed" },
+        { status: 502 },
+      );
     }
     const finalized = await finalizePortalAsset(assetId, supabase);
     if (!finalized) {

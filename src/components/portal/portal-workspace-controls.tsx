@@ -823,7 +823,10 @@ function AddImageTile({
           optimistic.remove(pending.id);
           if (!stillOwned) return;
           console.error("Portal image upload failed", {
-            error: uploadError,
+            error:
+              uploadError instanceof Error
+                ? { name: uploadError.name, message: uploadError.message }
+                : String(uploadError),
             portalId,
           });
           toast.error(t("uploadError"), {
@@ -2057,7 +2060,10 @@ function FontDialog({
           const stillOwned = optimistic.owns(pending.id);
           optimistic.remove(pending.id);
           if (!stillOwned) return;
-          console.error("Portal font upload failed", { error, portalId });
+          console.error("Portal font upload failed", {
+            error: error instanceof Error ? error.message : String(error),
+            portalId,
+          });
           toast.error(t("uploadError"), {
             id: `portal-font-upload-error:${portalId}`,
           });
@@ -2129,7 +2135,10 @@ function FontDialog({
         setDraft((current) =>
           rollbackOptimisticFontFile(previousDraft, current, pending.id),
         );
-        console.error("Portal font replacement failed", { error, portalId });
+        console.error("Portal font replacement failed", {
+          error: error instanceof Error ? error.message : String(error),
+          portalId,
+        });
         toast.error(t("uploadError"), {
           id: `portal-font-upload-error:${portalId}`,
         });
@@ -2800,7 +2809,10 @@ function FilesEditor({
         optimistic.remove(pending.id);
         if (!stillOwned) return;
         console.error("Portal file upload failed", {
-          error: uploadError,
+          error:
+            uploadError instanceof Error
+              ? { name: uploadError.name, message: uploadError.message }
+              : String(uploadError),
           portalId,
         });
         toast.error(t("uploadError"), {
