@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { subscribePortalAssetUsageChanges } from "./asset-usage-events";
 import {
   deleteManagedPortalAsset,
+  releaseManagedPortalAsset,
   uploadManagedPortalAsset,
 } from "./portal-assets-client";
 
@@ -124,6 +125,7 @@ describe("managed portal asset upload", () => {
       sizeBytes: 17,
     });
     expect(usageRefreshes).toBe(2);
+    releaseManagedPortalAsset(asset.assetId);
   });
 
   test("uses the server preview and never asks the browser for a read URL", async () => {

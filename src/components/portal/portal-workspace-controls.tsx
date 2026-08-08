@@ -139,6 +139,7 @@ import {
 import {
   deleteManagedPortalAsset,
   type PortalAssetCategory,
+  releaseManagedPortalAsset,
   uploadManagedPortalAsset,
 } from "@/lib/portal/portal-assets-client";
 import {
@@ -649,7 +650,13 @@ function ImageTile({
           : "object-cover";
   const [settingsOpen, setSettingsOpen] = useState(false);
   return (
-    <figure aria-busy={pending} className="flex flex-col gap-2">
+    <figure
+      aria-busy={pending}
+      className={cn(
+        "flex flex-col gap-2",
+        pending && "animate-pulse opacity-60",
+      )}
+    >
       <div
         className={cn(
           "group/item relative overflow-hidden rounded-xl bg-muted",
@@ -808,7 +815,10 @@ function AddImageTile({
             id: pending.id,
             registry: optimistic,
           });
-          if (reconciled) await flushPortalAutosave(portalId);
+          if (reconciled) {
+            await flushPortalAutosave(portalId);
+            releaseManagedPortalAsset(asset.assetId);
+          }
         } catch (uploadError) {
           const stillOwned = optimistic.owns(pending.id);
           optimistic.remove(pending.id);
@@ -2040,7 +2050,10 @@ function FontDialog({
             id: pending.id,
             registry: optimistic,
           });
-          if (reconciled) await flushPortalAutosave(portalId);
+          if (reconciled) {
+            await flushPortalAutosave(portalId);
+            releaseManagedPortalAsset(asset.assetId);
+          }
         } catch (error) {
           const stillOwned = optimistic.owns(pending.id);
           optimistic.remove(pending.id);
@@ -2106,7 +2119,10 @@ function FontDialog({
           id: pending.id,
           registry: optimistic,
         });
-        if (reconciled) await flushPortalAutosave(portalId);
+        if (reconciled) {
+          await flushPortalAutosave(portalId);
+          releaseManagedPortalAsset(asset.assetId);
+        }
       } catch (error) {
         const stillOwned = optimistic.owns(pending.id);
         optimistic.remove(pending.id);
@@ -2241,7 +2257,11 @@ function FontDialog({
                     aria-busy={optimistic.pending.some(
                       ({ id }) => id === item.id,
                     )}
-                    className="w-full"
+                    className={cn(
+                      "w-full",
+                      optimistic.pending.some(({ id }) => id === item.id) &&
+                        "animate-pulse opacity-60",
+                    )}
                     key={item.id}
                   >
                     <AttachmentMedia>
@@ -2772,7 +2792,10 @@ function FilesEditor({
           id: pending.id,
           registry: optimistic,
         });
-        if (reconciled) await flushPortalAutosave(portalId);
+        if (reconciled) {
+          await flushPortalAutosave(portalId);
+          releaseManagedPortalAsset(asset.assetId);
+        }
       } catch (uploadError) {
         const stillOwned = optimistic.owns(pending.id);
         optimistic.remove(pending.id);
@@ -2820,7 +2843,7 @@ function FilesEditor({
             />
           ))}
           {optimistic.pending.map(({ id, value }) => (
-            <div aria-busy="true" key={id}>
+            <div aria-busy="true" className="animate-pulse opacity-60" key={id}>
               <PortalFilePreview
                 fileName={value.file_name}
                 fileUrl={value.file_url}

@@ -43,9 +43,8 @@ test("successful uploads flush the document before reporting completion", () => 
   expect(controls).toContain(
     "const reconciled = await reconcileOptimisticUpload",
   );
-  expect(controls).toContain(
-    "if (reconciled) await flushPortalAutosave(portalId);",
-  );
+  expect(controls).toContain("await flushPortalAutosave(portalId);");
+  expect(controls).toContain("releaseManagedPortalAsset(asset.assetId)");
   expect(controls).toContain("finalized.sizeBytes");
 });
 
@@ -55,6 +54,12 @@ test("optimistic upload callbacks keep their registry context", () => {
   expect(optimisticUploads).toContain(
     "this.subscribe = this.subscribe.bind(this)",
   );
+});
+
+test("pending uploads expose a pulsing busy visual state", () => {
+  expect(controls).toContain('pending && "animate-pulse opacity-60"');
+  expect(controls).toContain('className="animate-pulse opacity-60"');
+  expect(controls).toContain('aria-busy="true"');
 });
 
 test("plan refreshes cannot let an older quota response overwrite a newer one", () => {

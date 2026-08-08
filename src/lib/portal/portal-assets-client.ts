@@ -20,6 +20,33 @@ type StorageClient = {
   };
 };
 
+type ActiveReservation = {
+  fetcher: typeof fetch;
+  portalId: string;
+};
+
+const activeReservations = new Map<string, ActiveReservation>();
+let pagehideListenerInstalled = false;
+
+function removeActiveReservation(assetId: string) {
+  activeReservations.delete(assetId);
+}
+
+function installPagehideCleanup() {
+  if (pagehideListenerInstalled || typeof window === "undefined") return;
+  pagehideListenerInstalled = true;
+  window.addEventListener("pagehide", () => {
+    const reservations = [...activeReservations.entries()];
+    activeReservations.clear();
+    for (const [assetId, { fetcher }] of reservations) {
+      void fetcher(
+        `/api/portal-assets?assetId=${encodeURIComponent(assetId)}`,
+        { keepalive: true, method: "DELETE" },
+      ).catch(() => undefined);
+    }
+  });
+}
+
 async function responseJson(response: Response) {
   return (await response.json().catch(() => null)) as Record<
     string,
@@ -72,6 +99,8 @@ export async function uploadManagedPortalAsset({
   ) {
     throw new Error(String(reservation?.error ?? "reservation_failed"));
   }
+  activeReservations.set(String(reservation.assetId), { fetcher, portalId });
+  installPagehideCleanup();
 
   // The reservation is already counted by the plan endpoint. Refresh now so
   // the optimistic preview and the server-backed storage indicator agree
@@ -133,6 +162,7 @@ export async function deleteManagedPortalAsset(
   usageEventTarget?: EventTarget,
 ) {
   if (!assetId) return;
+  removeActiveReservation(assetId);
   const response = await fetcher(
     `/api/portal-assets?assetId=${encodeURIComponent(assetId)}`,
     { method: "DELETE" },
@@ -142,4 +172,8 @@ export async function deleteManagedPortalAsset(
     throw new Error(String(body?.error ?? "asset_delete_failed"));
   }
   if (portalId) notifyPortalAssetUsageChanged(portalId, usageEventTarget);
+}
+
+export function releaseManagedPortalAsset(assetId: string | undefined) {
+  if (assetId) removeActiveReservation(assetId);
 }
