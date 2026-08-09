@@ -11,7 +11,7 @@ describe("managed portal asset upload", () => {
   test("sends bytes to the server-owned upload endpoint", async () => {
     let body: FormData | null = null;
     const fetcher: typeof fetch = (async (_input, init) => {
-      body = init?.body as FormData;
+      if (init?.body instanceof FormData) body = init.body;
       return Response.json(
         {
           asset: { size_bytes: 3 },

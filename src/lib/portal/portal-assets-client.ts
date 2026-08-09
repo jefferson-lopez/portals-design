@@ -197,9 +197,25 @@ export async function uploadManagedPortalAssetServerOwned({
     previewUrl?: string;
   } | null;
   if (!response.ok || !body?.assetId || !body.path || !body.previewUrl) {
-    throw new Error(body?.error ?? "upload_failed");
+    throw new Error(
+      body?.error ?? `upload_request_failed_${response.status || "unknown"}`,
+    );
   }
   notifyPortalAssetUsageChanged(portalId, usageEventTarget);
+  // Finalization downloads and validates the stored bytes. Keep it outside the
+  // multipart request so large proprietary files do not hit one long request
+  // timeout; a reload can recover the reserved asset through reconciliation.
+  void fetcher("/api/portal-assets", {
+    body: JSON.stringify({ assetId: body.assetId }),
+    headers: { "content-type": "application/json" },
+    method: "PATCH",
+  }).catch((error) => {
+    console.error("Portal asset finalization deferred", {
+      assetId: body.assetId,
+      error: error instanceof Error ? error.message : String(error),
+      portalId,
+    });
+  });
   return {
     assetId: body.assetId,
     path: body.path,

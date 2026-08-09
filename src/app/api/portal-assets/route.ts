@@ -113,14 +113,14 @@ async function finalizePortalAsset(
   const admin = createAdminClient();
   const { data: asset } = await admin
     .from("portal_assets")
-    .select("id,portal_id,file_path,name,mime_type,category")
+    .select("id,portal_id,file_path,name,mime_type,category,state")
     .eq("id", assetId)
-    .eq("state", "reserved")
     .maybeSingle();
 
   if (!asset || !(await canEditPortal(supabase, asset.portal_id))) {
     return null;
   }
+  if (asset.state === "ready") return asset;
 
   const info = await admin.storage.from("portal-assets").info(asset.file_path);
   if (info.error || !info.data.size) {
@@ -210,90 +210,97 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   if (request.headers.get("content-type")?.startsWith("multipart/form-data")) {
-    const form = await request.formData();
-    const file = form.get("file");
-    const portalId = form.get("portalId");
-    const category = form.get("category");
-    if (
-      !(file instanceof File) ||
-      typeof portalId !== "string" ||
-      typeof category !== "string"
-    ) {
-      return NextResponse.json({ error: "invalid_asset" }, { status: 400 });
-    }
-    const mimeType = inferAssetMimeType(file.name, file.type);
-    if (
-      !categories.has(category) ||
-      !validateAssetDeclaration({
-        category: category as never,
-        mimeType,
-        name: file.name,
-      })
-    ) {
-      return NextResponse.json({ error: "invalid_asset" }, { status: 400 });
-    }
-    const supabase = await createClient();
-    if (!(await canEditPortal(supabase, portalId))) {
-      return NextResponse.json({ error: "portal_not_found" }, { status: 404 });
-    }
-    await cleanupExpiredReservations();
-    const assetId = crypto.randomUUID();
-    const { data: reserved, error: reservationError } = await supabase.rpc(
-      "reserve_portal_asset",
-      {
-        asset_category: category,
-        asset_id: assetId,
-        asset_mime_type: mimeType,
-        asset_name: sanitizeAssetName(file.name, "asset"),
-        asset_size_bytes: file.size,
-        target_portal_id: portalId,
-      },
-    );
-    if (reservationError || !reserved) {
-      return NextResponse.json(
-        { error: reservationError?.message ?? "reservation_failed" },
-        { status: reservationError?.code === "P0001" ? 422 : 403 },
+    try {
+      const form = await request.formData();
+      const file = form.get("file");
+      const portalId = form.get("portalId");
+      const category = form.get("category");
+      if (
+        !(file instanceof File) ||
+        typeof portalId !== "string" ||
+        typeof category !== "string"
+      ) {
+        return NextResponse.json({ error: "invalid_asset" }, { status: 400 });
+      }
+      const mimeType = inferAssetMimeType(file.name, file.type);
+      if (
+        !categories.has(category) ||
+        !validateAssetDeclaration({
+          category: category as never,
+          mimeType,
+          name: file.name,
+        })
+      ) {
+        return NextResponse.json({ error: "invalid_asset" }, { status: 400 });
+      }
+      const supabase = await createClient();
+      if (!(await canEditPortal(supabase, portalId))) {
+        return NextResponse.json(
+          { error: "portal_not_found" },
+          { status: 404 },
+        );
+      }
+      await cleanupExpiredReservations();
+      const assetId = crypto.randomUUID();
+      const { data: reserved, error: reservationError } = await supabase.rpc(
+        "reserve_portal_asset",
+        {
+          asset_category: category,
+          asset_id: assetId,
+          asset_mime_type: mimeType,
+          asset_name: sanitizeAssetName(file.name, "asset"),
+          asset_size_bytes: file.size,
+          target_portal_id: portalId,
+        },
       );
-    }
-    const admin = createAdminClient();
-    const uploaded = await admin.storage
-      .from("portal-assets")
-      .upload(reserved.file_path, file, {
-        contentType: mimeType,
-        upsert: false,
+      if (reservationError || !reserved) {
+        return NextResponse.json(
+          { error: reservationError?.message ?? "reservation_failed" },
+          { status: reservationError?.code === "P0001" ? 422 : 403 },
+        );
+      }
+      const admin = createAdminClient();
+      const uploaded = await admin.storage
+        .from("portal-assets")
+        .upload(reserved.file_path, file, {
+          contentType: mimeType,
+          upsert: false,
+        });
+      if (uploaded.error) {
+        await deletePortalAsset(assetId, supabase).catch(() => undefined);
+        return NextResponse.json(
+          { error: "storage_upload_failed" },
+          { status: 502 },
+        );
+      }
+      const preview = await admin.storage
+        .from("portal-assets")
+        .createSignedUrl(reserved.file_path, 300);
+      if (preview.error || !preview.data.signedUrl) {
+        return NextResponse.json(
+          { error: "preview_authorization_failed" },
+          { status: 502 },
+        );
+      }
+      return NextResponse.json(
+        {
+          asset: { id: assetId, state: "reserved", size_bytes: file.size },
+          assetId,
+          path: reserved.file_path,
+          previewUrl: preview.data.signedUrl,
+          state: "reserved",
+        },
+        { status: 202 },
+      );
+    } catch (error) {
+      console.error("Server-owned portal asset upload failed", {
+        error: error instanceof Error ? error.message : String(error),
       });
-    if (uploaded.error) {
-      await deletePortalAsset(assetId, supabase).catch(() => undefined);
       return NextResponse.json(
-        { error: "storage_upload_failed" },
+        { error: "upload_processing_failed" },
         { status: 502 },
       );
     }
-    const finalized = await finalizePortalAsset(assetId, supabase);
-    if (!finalized) {
-      return NextResponse.json(
-        { error: "finalization_failed" },
-        { status: 422 },
-      );
-    }
-    const preview = await admin.storage
-      .from("portal-assets")
-      .createSignedUrl(reserved.file_path, 300);
-    if (preview.error || !preview.data.signedUrl) {
-      return NextResponse.json(
-        { error: "preview_authorization_failed" },
-        { status: 502 },
-      );
-    }
-    return NextResponse.json(
-      {
-        asset: finalized,
-        assetId,
-        path: reserved.file_path,
-        previewUrl: preview.data.signedUrl,
-      },
-      { status: 202 },
-    );
   }
 
   const body = (await request.json().catch(() => null)) as {
