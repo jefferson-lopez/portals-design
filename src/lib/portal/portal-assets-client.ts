@@ -210,30 +210,52 @@ export async function uploadManagedPortalAssetServerOwned({
       body?.error ?? `upload_request_failed_${response.status || "unknown"}`,
     );
   }
+  activeReservations.set(body.assetId, { fetcher, portalId });
+  installPagehideCleanup();
   notifyPortalAssetUsageChanged(portalId, usageEventTarget);
-  // Finalization downloads and validates the stored bytes. Keep it outside the
-  // multipart request so large proprietary files do not hit one long request
-  // timeout; a reload can recover the reserved asset through reconciliation.
-  void fetcher("/api/portal-assets", {
-    body: JSON.stringify({ assetId: body.assetId }),
-    headers: { "content-type": "application/json" },
-    method: "PATCH",
-  }).catch((error) => {
-    console.error("Portal asset finalization deferred", {
-      assetId: body.assetId,
-      error: error instanceof Error ? error.message : String(error),
-      portalId,
+
+  try {
+    // The multipart endpoint deliberately stops after writing the bytes so it
+    // does not combine upload and expensive byte validation in one request.
+    // Do not expose this reservation to the editor until this PATCH confirms
+    // that the asset is ready; otherwise an autosave can persist an invalid
+    // asset_id and violate the document reference invariant.
+    const finalizeResponse = await fetcher("/api/portal-assets", {
+      body: JSON.stringify({ assetId: body.assetId }),
+      headers: { "content-type": "application/json" },
+      method: "PATCH",
     });
-  });
-  return {
-    assetId: body.assetId,
-    path: body.path,
-    previewUrl: body.previewUrl,
-    sizeBytes:
-      typeof body.asset?.size_bytes === "number"
-        ? body.asset.size_bytes
-        : file.size,
-  };
+    const finalized = await responseJson(finalizeResponse);
+    if (
+      !finalizeResponse.ok ||
+      !finalized?.asset ||
+      typeof finalized.previewUrl !== "string"
+    ) {
+      throw new Error(String(finalized?.error ?? "finalization_failed"));
+    }
+
+    const finalizedAsset =
+      typeof finalized.asset === "object" && finalized.asset !== null
+        ? (finalized.asset as Record<string, unknown>)
+        : null;
+    notifyPortalAssetUsageChanged(portalId, usageEventTarget);
+    return {
+      assetId: body.assetId,
+      path: body.path,
+      previewUrl: finalized.previewUrl,
+      sizeBytes: positiveSize(finalizedAsset?.size_bytes) ?? file.size,
+    };
+  } catch (error) {
+    await deleteManagedPortalAsset(
+      body.assetId,
+      fetcher,
+      portalId,
+      usageEventTarget,
+    ).catch(() => undefined);
+    throw error;
+  } finally {
+    releaseManagedPortalAsset(body.assetId);
+  }
 }
 
 export async function deleteManagedPortalAsset(

@@ -16,8 +16,16 @@ test("routes files above the hosting multipart limit to direct Storage", () => {
 describe("managed portal asset upload", () => {
   test("sends bytes to the server-owned upload endpoint", async () => {
     let body: FormData | null = null;
+    const methods: string[] = [];
     const fetcher: typeof fetch = (async (_input, init) => {
+      methods.push(init?.method ?? "GET");
       if (init?.body instanceof FormData) body = init.body;
+      if (init?.method === "PATCH") {
+        return Response.json({
+          asset: { id: "asset-server", size_bytes: 3, state: "ready" },
+          previewUrl: "https://signed.example/a-ready.png",
+        });
+      }
       return Response.json(
         {
           asset: { size_bytes: 3 },
@@ -41,6 +49,38 @@ describe("managed portal asset upload", () => {
     expect(submitted.get("category")).toBe("image");
     expect((submitted.get("file") as File).name).toBe("a.png");
     expect(result.assetId).toBe("asset-server");
+    expect(result.previewUrl).toBe("https://signed.example/a-ready.png");
+    expect(methods).toEqual(["POST", "PATCH"]);
+  });
+
+  test("deletes a server-owned reservation when finalization fails", async () => {
+    const methods: string[] = [];
+    const fetcher: typeof fetch = (async (_input, init) => {
+      methods.push(init?.method ?? "GET");
+      if (init?.method === "PATCH") {
+        return Response.json({ error: "finalization_failed" }, { status: 500 });
+      }
+      if (init?.method === "DELETE") return Response.json({ deleted: true });
+      return Response.json(
+        {
+          asset: { size_bytes: 3 },
+          assetId: "asset-server",
+          path: "portal/asset-server/a.png",
+          previewUrl: "https://signed.example/a.png",
+        },
+        { status: 202 },
+      );
+    }) as typeof fetch;
+
+    await expect(
+      uploadManagedPortalAssetServerOwned({
+        category: "image",
+        file: new File(["abc"], "a.png", { type: "image/png" }),
+        fetcher,
+        portalId: "portal-1",
+      }),
+    ).rejects.toThrow("finalization_failed");
+    expect(methods).toEqual(["POST", "PATCH", "DELETE"]);
   });
 
   test.each([
