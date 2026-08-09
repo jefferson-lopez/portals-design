@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getSignUpErrorKey } from "@/lib/auth/auth-error";
 import { getSignInErrorKey } from "@/lib/auth/sign-in-error";
+import { resolveSiteOrigin } from "@/lib/billing/site-origin";
 import { createClient } from "@/lib/supabase/server";
 
 function getString(formData: FormData, key: string) {
@@ -12,7 +13,10 @@ function getString(formData: FormData, key: string) {
 }
 
 function getOrigin() {
-  return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  return resolveSiteOrigin(
+    process.env.NEXT_PUBLIC_SITE_URL,
+    process.env.NODE_ENV,
+  );
 }
 
 export type AuthActionState = {

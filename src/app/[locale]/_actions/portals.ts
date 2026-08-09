@@ -71,11 +71,22 @@ function homePortalsFailure(stage: string, error: unknown): HomePortalsResult {
   return { error: "loadFailed", portals: [] };
 }
 
+async function requireAuthenticatedUser(locale: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getUser();
+
+  if (error || !data.user) {
+    redirect(`/${locale}/auth/sign-in`);
+  }
+
+  return supabase;
+}
+
 export async function getHomePortals(
   locale: string,
 ): Promise<HomePortalsResult> {
   try {
-    const supabase = await createClient();
+    const supabase = await requireAuthenticatedUser(locale);
     const { data: userData, error: userError } = await supabase.auth.getUser();
 
     if (userError) {
@@ -290,7 +301,7 @@ async function insertPortal({
   if (!validateSlug(slug).valid) actionFailure(t("slugInvalid"));
   if (!["public", "private"].includes(visibility))
     actionFailure(t("passwordAfterCreation"));
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
 
   const { data, error } = await supabase.rpc("create_portal", {
     portal_cover_url: coverUrl,
@@ -320,6 +331,8 @@ export async function createPortalFromHome({
 
     return { error: null, id: portal.id } as const;
   } catch (error) {
+    unstable_rethrow(error);
+
     if (isAuthenticationRequiredError(error)) {
       return { error: "authenticationRequired", id: null } as const;
     }
@@ -354,7 +367,7 @@ export async function updatePortalSettings(formData: FormData) {
   const locale = getString(formData, "locale") || "en";
   const t = await getTranslations({ locale, namespace: "Actions" });
   const portalId = getString(formData, "portal_id");
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
 
   const { data: portal, error: portalError } = await supabase
     .from("portals")
@@ -435,7 +448,7 @@ export async function checkPortalSlugAvailability(
   const t = await getTranslations({ locale, namespace: "Actions" });
   const validation = validateSlug(slug);
   if (!validation.valid) return { available: false, error: t("slugInvalid") };
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
   const { data, error } = await supabase.rpc("is_portal_slug_available", {
     candidate_slug: slug,
     current_portal_id: portalId,
@@ -461,7 +474,7 @@ export async function savePrivacySettings(formData: FormData) {
   ) {
     actionFailure(t("passwordLength"));
   }
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
   const { error } = await supabase.rpc("set_portal_privacy", {
     portal_password: password,
     portal_visibility: visibility,
@@ -485,7 +498,7 @@ export async function updatePortalSummary(
   const t = await getTranslations({ locale, namespace: "Actions" });
   const portalId = getString(formData, "portal_id");
   const name = getString(formData, "name");
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
 
   if (!name) {
     return { error: t("nameRequired"), saved: false };
@@ -511,7 +524,7 @@ export async function createEmptySection(formData: FormData) {
   const t = await getTranslations({ locale, namespace: "Actions" });
   const portalId = getString(formData, "portal_id");
   const position = Number(getString(formData, "position") || "0");
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
 
   const { data, error } = await supabase.rpc("create_empty_portal_section", {
     section_position: position,
@@ -530,7 +543,7 @@ export async function updateSectionShell(formData: FormData) {
   const locale = getString(formData, "locale") || "en";
   const portalId = getString(formData, "portal_id");
   const blockId = getString(formData, "block_id");
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
 
   const { error } = await supabase.rpc("update_portal_section_shell", {
     section_description: getString(formData, "description"),
@@ -551,7 +564,7 @@ export async function setPortalBlockType(formData: FormData) {
   const portalId = getString(formData, "portal_id");
   const blockId = getString(formData, "block_id");
   const type = getBlockType(formData);
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
 
   const { error } = await supabase.rpc("set_portal_block_type", {
     block_layout: getString(formData, "layout") || "default",
@@ -577,7 +590,7 @@ export async function upsertPortalBlock(formData: FormData) {
   const description = getString(formData, "description");
   const position = Number(getString(formData, "position") || "0");
   const layout = getString(formData, "layout") || "default";
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
 
   const { error } = await supabase.rpc("upsert_portal_block", {
     block_allow_download: getBoolean(formData, "allow_download", true),
@@ -616,7 +629,7 @@ export async function upsertGalleryImage(formData: FormData) {
   const nextImages = images.some((image) => image.id === imageId)
     ? images.map((image) => (image.id === imageId ? nextImage : image))
     : [...images, nextImage];
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
 
   const { error } = await supabase.rpc("upsert_portal_block", {
     block_allow_download: getBoolean(formData, "allow_download", true),
@@ -646,7 +659,7 @@ export async function removeGalleryImage(formData: FormData) {
   const images = getGalleryImages(formData).filter(
     (image) => image.id !== imageId,
   );
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
 
   const { error } = await supabase.rpc("upsert_portal_block", {
     block_allow_download: getBoolean(formData, "allow_download", true),
@@ -683,7 +696,7 @@ export async function reorderGalleryImages(formData: FormData) {
   const missingImages = images.filter(
     (image) => !orderedIds.includes(image.id),
   );
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
 
   const { error } = await supabase.rpc("upsert_portal_block", {
     block_allow_download: getBoolean(formData, "allow_download", true),
@@ -711,7 +724,7 @@ export async function reorderPortalSections(formData: FormData) {
   const orderedBlockIds = getString(formData, "ordered_block_ids")
     .split(",")
     .filter(Boolean);
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
 
   const { error } = await supabase.rpc("reorder_portal_blocks", {
     ordered_block_ids: orderedBlockIds,
@@ -729,7 +742,7 @@ export async function updatePortalDocument(formData: FormData) {
   const locale = getString(formData, "locale") || "en";
   const portalId = getString(formData, "portal_id");
   const documentJson = getString(formData, "document_json");
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
 
   const { data: portal } = await supabase
     .from("portals")
@@ -763,7 +776,7 @@ export async function deletePortalBlock(formData: FormData) {
   const locale = getString(formData, "locale") || "en";
   const portalId = getString(formData, "portal_id");
   const blockId = getString(formData, "block_id");
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
 
   const { error } = await supabase.rpc("delete_portal_block", {
     target_block_id: blockId,
@@ -788,7 +801,7 @@ export async function publishPortalById({
   portalId,
   returnTo = `/${locale}/home`,
 }: PublishPortalInput) {
-  const supabase = await createClient();
+  const supabase = await requireAuthenticatedUser(locale);
 
   const { error } = await supabase.rpc("publish_portal", {
     target_portal_id: portalId,

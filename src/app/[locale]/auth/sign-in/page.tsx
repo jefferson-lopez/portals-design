@@ -41,6 +41,11 @@ export default async function SignInPage({ params, searchParams }: Props) {
               {t("signIn.checkEmail")}
             </p>
           ) : null}
+          {message === "confirmation-expired" ? (
+            <p className="rounded-md border bg-background p-3 text-sm text-muted-foreground">
+              {t("signIn.confirmationExpired")}
+            </p>
+          ) : null}
 
           <SignInForm
             backendEnabled={hasSupabaseEnv()}

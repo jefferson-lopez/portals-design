@@ -136,6 +136,7 @@
       "title": "Iniciar sesión",
       "description": "Entra a tu espacio de Portals Design.",
       "checkEmail": "Revisa tu correo para confirmar la cuenta.",
+      "confirmationExpired": "Este enlace de confirmación no es válido o expiró. Solicita uno nuevo o vuelve a iniciar sesión.",
       "emailPlaceholder": "nombre@ejemplo.com",
       "passwordPlaceholder": "Ingresa tu contraseña",
       "passwordHelp": "La recuperación de contraseña se añadirá en la siguiente iteración.",

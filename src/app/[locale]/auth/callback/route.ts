@@ -10,7 +10,10 @@ export async function GET(
   const { locale } = await params;
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const next = requestUrl.searchParams.get("next") ?? `/${locale}/home`;
+  const requestedNext = requestUrl.searchParams.get("next");
+  const next = isSafeNext(requestedNext, locale)
+    ? requestedNext
+    : `/${locale}/home`;
 
   if (!hasSupabaseEnv()) {
     return NextResponse.redirect(
@@ -18,10 +21,37 @@ export async function GET(
     );
   }
 
-  if (code) {
-    const supabase = await createClient();
-    await supabase.auth.exchangeCodeForSession(code);
+  if (!code) {
+    return redirectToSignIn(request, locale, "confirmation-expired");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+  if (error) {
+    console.error("Email confirmation exchange failed", {
+      code: error.code ?? "unknown",
+      status: error.status,
+    });
+    return redirectToSignIn(request, locale, "confirmation-expired");
   }
 
   redirect(next);
+}
+
+function isSafeNext(
+  value: string | null,
+  locale: string,
+): value is `/${string}` {
+  return Boolean(value?.startsWith(`/${locale}/`) && !value.startsWith("//"));
+}
+
+function redirectToSignIn(
+  request: NextRequest,
+  locale: string,
+  message: string,
+) {
+  const url = new URL(`/${locale}/auth/sign-in`, request.url);
+  url.searchParams.set("message", message);
+  return NextResponse.redirect(url);
 }

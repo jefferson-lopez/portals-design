@@ -136,6 +136,7 @@
       "title": "Log in",
       "description": "Enter your Portals Design workspace.",
       "checkEmail": "Check your email to confirm your account.",
+      "confirmationExpired": "This confirmation link is invalid or expired. Request a new one or log in again.",
       "emailPlaceholder": "name@example.com",
       "passwordPlaceholder": "Enter your password",
       "passwordHelp": "Password recovery will be added in the next iteration.",

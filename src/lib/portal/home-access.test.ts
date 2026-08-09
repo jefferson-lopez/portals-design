@@ -70,7 +70,7 @@ describe("home portal access", () => {
     expect(order).toHaveBeenCalledWith("updated_at", { ascending: false });
   });
 
-  test("returns a controlled failure for auth errors before redirecting", async () => {
+  test("redirects to sign-in for auth errors before loading portals", async () => {
     userResult = {
       data: { user: null },
       error: { code: "auth_service_unavailable", name: "AuthError" },
@@ -79,10 +79,7 @@ describe("home portal access", () => {
     console.error = mock(() => {});
 
     try {
-      await expect(getHomePortals("en")).resolves.toEqual({
-        error: "loadFailed",
-        portals: [],
-      });
+      await expect(getHomePortals("en")).rejects.toThrow();
       expect(from).not.toHaveBeenCalled();
     } finally {
       console.error = originalConsoleError;
