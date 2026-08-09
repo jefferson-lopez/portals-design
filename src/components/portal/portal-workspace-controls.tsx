@@ -141,6 +141,8 @@ import {
   type PortalAssetCategory,
   reconcilePersistedPortalAssets,
   releaseManagedPortalAsset,
+  shouldUseServerOwnedUpload,
+  uploadManagedPortalAsset,
   uploadManagedPortalAssetServerOwned,
 } from "@/lib/portal/portal-assets-client";
 import {
@@ -156,6 +158,7 @@ import {
   focusPortalSectionTitle,
   scrollToPortalSection,
 } from "@/lib/portal/scroll-to-section";
+import { createClient } from "@/lib/supabase/client";
 import type { Portal, PortalVisibility } from "@/lib/supabase/database.types";
 import { cn } from "@/lib/utils";
 
@@ -416,10 +419,14 @@ async function uploadPortalAsset({
   file: File;
   portalId: string;
 }) {
-  return uploadManagedPortalAssetServerOwned({
+  if (shouldUseServerOwnedUpload(file.size)) {
+    return uploadManagedPortalAssetServerOwned({ category, file, portalId });
+  }
+  return uploadManagedPortalAsset({
     category,
     file,
     portalId,
+    storage: createClient().storage,
   });
 }
 

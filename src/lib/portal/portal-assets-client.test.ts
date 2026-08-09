@@ -3,9 +3,15 @@ import { subscribePortalAssetUsageChanges } from "./asset-usage-events";
 import {
   deleteManagedPortalAsset,
   releaseManagedPortalAsset,
+  shouldUseServerOwnedUpload,
   uploadManagedPortalAsset,
   uploadManagedPortalAssetServerOwned,
 } from "./portal-assets-client";
+
+test("routes files above the hosting multipart limit to direct Storage", () => {
+  expect(shouldUseServerOwnedUpload(4 * 1024 * 1024)).toBe(true);
+  expect(shouldUseServerOwnedUpload(4 * 1024 * 1024 + 1)).toBe(false);
+});
 
 describe("managed portal asset upload", () => {
   test("sends bytes to the server-owned upload endpoint", async () => {

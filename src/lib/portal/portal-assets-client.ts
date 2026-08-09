@@ -20,6 +20,15 @@ export type PersistedPortalAsset = {
   state?: "reserved" | "ready";
 };
 
+// Hosting proxies commonly reject multipart bodies around 4–5 MiB before the
+// Next.js route can run. Larger files must bypass the application request and
+// use the signed Storage upload path instead.
+export const MAX_SERVER_OWNED_UPLOAD_BYTES = 4 * 1024 * 1024;
+
+export function shouldUseServerOwnedUpload(sizeBytes: number) {
+  return sizeBytes <= MAX_SERVER_OWNED_UPLOAD_BYTES;
+}
+
 type StorageClient = {
   from: (bucket: string) => {
     uploadToSignedUrl: (
