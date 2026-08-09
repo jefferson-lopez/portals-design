@@ -21,6 +21,7 @@ export default async function HomePage({ params }: Props) {
     <PortalHome
       backendEnabled={backendEnabled}
       copy={{
+        authRequired: t("authRequired"),
         backendDisabled: {
           description: t("backendDisabled.description"),
           title: t("backendDisabled.title"),

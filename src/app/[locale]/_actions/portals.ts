@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { isAuthenticationRequiredError } from "@/lib/auth/auth-error";
 import {
   normalizePortalDocument,
   portalDocumentToJson,
@@ -312,11 +313,22 @@ export async function createPortalFromHome({
   locale: string;
   name: string;
 }) {
-  const portal = await insertPortal({ locale, name: name.trim() });
+  try {
+    const portal = await insertPortal({ locale, name: name.trim() });
 
-  revalidatePath(`/${locale}/home`);
+    revalidatePath(`/${locale}/home`);
 
-  return { id: portal.id };
+    return { error: null, id: portal.id } as const;
+  } catch (error) {
+    if (isAuthenticationRequiredError(error)) {
+      return { error: "authenticationRequired", id: null } as const;
+    }
+
+    console.error("Failed to create portal from home", {
+      name: error instanceof Error ? error.name : "UnknownError",
+    });
+    return { error: "createPortalFailed", id: null } as const;
+  }
 }
 
 export async function createPortal(formData: FormData) {

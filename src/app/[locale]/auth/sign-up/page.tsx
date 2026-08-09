@@ -1,6 +1,5 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { PasswordInput } from "@/components/auth/password-input";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -8,11 +7,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Link } from "@/i18n/navigation";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
-import { signUpWithPassword } from "../../_actions/auth";
+import { SignUpForm } from "./sign-up-form";
 
 type Props = {
   params: Promise<{ locale: string }>;
@@ -32,50 +29,21 @@ export default async function SignUpPage({ params }: Props) {
           <CardDescription>{t("signUp.description")}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
-          <form action={signUpWithPassword}>
-            <input name="locale" type="hidden" value={locale} />
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="full_name">{t("signUp.name")}</FieldLabel>
-                <Input
-                  autoComplete="name"
-                  id="full_name"
-                  name="full_name"
-                  placeholder={t("signUp.namePlaceholder")}
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="email">{t("common.email")}</FieldLabel>
-                <Input
-                  autoComplete="email"
-                  id="email"
-                  name="email"
-                  placeholder={t("signUp.emailPlaceholder")}
-                  required
-                  type="email"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="password">
-                  {t("common.password")}
-                </FieldLabel>
-                <PasswordInput
-                  id="password"
-                  name="password"
-                  minLength={8}
-                  placeholder={t("signUp.passwordPlaceholder")}
-                  required
-                  autoComplete="new-password"
-                  hidePasswordLabel={t("common.hidePassword")}
-                  showPasswordLabel={t("common.showPassword")}
-                />
-              </Field>
-              <Button disabled={!hasSupabaseEnv()} type="submit">
-                {t("signUp.submit")}
-              </Button>
-            </FieldGroup>
-          </form>
+          <SignUpForm
+            backendEnabled={hasSupabaseEnv()}
+            copy={{
+              email: t("common.email"),
+              emailPlaceholder: t("signUp.emailPlaceholder"),
+              hidePassword: t("common.hidePassword"),
+              name: t("signUp.name"),
+              namePlaceholder: t("signUp.namePlaceholder"),
+              password: t("common.password"),
+              passwordPlaceholder: t("signUp.passwordPlaceholder"),
+              showPassword: t("common.showPassword"),
+              submit: t("signUp.submit"),
+            }}
+            locale={locale}
+          />
           <Link
             href="/auth/sign-in"
             className={buttonVariants({ variant: "link" })}

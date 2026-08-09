@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
+import { getSignUpErrorKey } from "@/lib/auth/auth-error";
 import { getSignInErrorKey } from "@/lib/auth/sign-in-error";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,14 +15,12 @@ function getOrigin() {
   return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 }
 
-function actionFailure(message: string): never {
-  throw new Error(message);
-}
-
 export type AuthActionState = {
   message?: string;
   status: "idle" | "error";
 };
+
+export type SignUpActionState = AuthActionState;
 
 export async function signInWithPassword(
   _previousState: AuthActionState,
@@ -63,24 +62,53 @@ export async function signInWithPassword(
   redirect(`/${locale}/home`);
 }
 
-export async function signUpWithPassword(formData: FormData) {
+export async function signUpWithPassword(
+  _previousState: SignUpActionState,
+  formData: FormData,
+): Promise<SignUpActionState> {
   const locale = getString(formData, "locale") || "en";
   const email = getString(formData, "email");
   const password = getString(formData, "password");
   const fullName = getString(formData, "full_name");
-  const supabase = await createClient();
+  const t = await getTranslations({ locale, namespace: "Auth.signUp" });
+  let error: { code?: string; message: string; status?: number } | null = null;
 
-  const { error } = await supabase.auth.signUp({
-    email,
-    options: {
-      data: { full_name: fullName },
-      emailRedirectTo: `${getOrigin()}/${locale}/auth/callback`,
-    },
-    password,
-  });
+  try {
+    const supabase = await createClient();
+    const { error: signOutError } = await supabase.auth.signOut();
+
+    if (signOutError) {
+      console.error("Could not clear the existing session before sign-up", {
+        code: signOutError.code ?? "unknown",
+        status: signOutError.status,
+      });
+      return { message: t("failed"), status: "error" };
+    }
+
+    ({ error } = await supabase.auth.signUp({
+      email,
+      options: {
+        data: { full_name: fullName },
+        emailRedirectTo: `${getOrigin()}/${locale}/auth/callback`,
+      },
+      password,
+    }));
+  } catch (caughtError) {
+    console.error("Unexpected password sign-up failure", {
+      name: caughtError instanceof Error ? caughtError.name : "UnknownError",
+    });
+    return { message: t("failed"), status: "error" };
+  }
 
   if (error) {
-    actionFailure(error.message);
+    const errorKey = getSignUpErrorKey(error);
+    if (errorKey !== "emailRateLimit") {
+      console.error("Password sign-up failed", {
+        code: error.code ?? "unknown",
+        status: error.status,
+      });
+    }
+    return { message: t(errorKey), status: "error" };
   }
 
   redirect(`/${locale}/auth/sign-in?message=check-email`);

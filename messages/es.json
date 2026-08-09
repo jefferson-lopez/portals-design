@@ -64,6 +64,7 @@
     }
   },
   "Home": {
+    "authRequired": "Tu sesión expiró. Inicia sesión de nuevo.",
     "header": {
       "createPortal": "Crear proyecto",
       "signOut": "Cerrar sesión"
@@ -151,7 +152,9 @@
       "emailPlaceholder": "nombre@ejemplo.com",
       "passwordPlaceholder": "Mínimo 8 caracteres",
       "submit": "Crear cuenta",
-      "haveAccount": "Ya tengo cuenta"
+      "haveAccount": "Ya tengo cuenta",
+      "emailRateLimit": "Se alcanzó el límite de correos. Espera unos minutos e inténtalo de nuevo.",
+      "failed": "No pudimos crear tu cuenta. Inténtalo de nuevo."
     }
   },
   "PublicPortal": {

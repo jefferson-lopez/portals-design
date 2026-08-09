@@ -59,6 +59,7 @@ import { usePortalHomeStore } from "@/lib/portal/home-store";
 import { cn } from "@/lib/utils";
 
 export type PortalHomeCopy = {
+  authRequired: string;
   backendDisabled: {
     description: string;
     title: string;
@@ -118,7 +119,10 @@ function CreatePortalDialog({
   copy,
   locale,
 }: {
-  copy: Pick<PortalHomeCopy, "create" | "errorGeneric" | "header">;
+  copy: Pick<
+    PortalHomeCopy,
+    "authRequired" | "create" | "errorGeneric" | "header"
+  >;
   locale: string;
 }) {
   const router = useRouter();
@@ -128,6 +132,19 @@ function CreatePortalDialog({
   const mutation = useMutation({
     mutationFn: (name: string) => createPortalFromHome({ locale, name }),
     onSuccess: async (portal) => {
+      if (portal.error === "authenticationRequired") {
+        toast.error(copy.authRequired);
+        const formData = new FormData();
+        formData.set("locale", locale);
+        await signOut(formData);
+        return;
+      }
+
+      if (portal.error) {
+        toast.error(copy.errorGeneric);
+        return;
+      }
+
       await queryClient.invalidateQueries({
         queryKey: portalsQueryKey(locale),
       });
@@ -178,9 +195,7 @@ function CreatePortalDialog({
                 required
               />
               {mutation.isError ? (
-                <FieldError>
-                  {errorMessage(mutation.error, copy.errorGeneric)}
-                </FieldError>
+                <FieldError>{copy.errorGeneric}</FieldError>
               ) : null}
             </Field>
             <DialogFooter>

@@ -64,6 +64,7 @@
     }
   },
   "Home": {
+    "authRequired": "Your session expired. Please log in again.",
     "header": {
       "createPortal": "Create project",
       "signOut": "Sign out"
@@ -151,7 +152,9 @@
       "emailPlaceholder": "name@example.com",
       "passwordPlaceholder": "At least 8 characters",
       "submit": "Create account",
-      "haveAccount": "I already have an account"
+      "haveAccount": "I already have an account",
+      "emailRateLimit": "The email limit was reached. Wait a few minutes and try again.",
+      "failed": "We could not create your account. Please try again."
     }
   },
   "PublicPortal": {
