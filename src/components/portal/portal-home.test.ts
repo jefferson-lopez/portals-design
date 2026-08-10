@@ -29,6 +29,12 @@ describe("PortalHome", () => {
       expect(messages.intro.eyebrow).toBeUndefined();
       expect(messages.intro.description).toBeUndefined();
       expect(messages.create.title).toBeString();
+      expect(messages.create.visibilityLabel).toBeString();
+      expect(messages.create.visibilityPrivate).toBeString();
+      expect(messages.create.visibilityPublic).toBeString();
+      expect(messages.delete.title).toContain("{name}");
+      expect(messages.delete.description).toContain("{name}");
+      expect(messages.delete.confirm).toBeString();
       expect(messages.settings.title).toContain("{name}");
       expect(messages.portal.lastEdited).toBeString();
       expect(messages.empty.title).toBeString();
@@ -45,6 +51,9 @@ describe("PortalHome", () => {
     expect(spanish.Home.intro.title).toBe("Proyectos");
     expect(pageSource).not.toContain('t("intro.eyebrow")');
     expect(pageSource).not.toContain('t("intro.description")');
+    expect(pageSource).toContain('t.raw("delete.description")');
+    expect(pageSource).toContain('t.raw("delete.title")');
+    expect(pageSource).toContain('t.raw("delete.trigger")');
   });
 
   test("creates a wide editorial hierarchy consistent with the landing", () => {
@@ -76,6 +85,17 @@ describe("PortalHome", () => {
     expect(source).toContain("backdrop-blur");
     expect(source).toContain("copy.intro.title");
     expect(source).toContain("copy.intro.portalCount");
+    expect(source).toContain('autoComplete="off"');
+    expect(source).toContain('defaultValue="private"');
+    expect(source).toContain('name="visibility"');
+    expect(source).toContain("items={[");
+    expect(source).toContain('<SelectItem value="private">');
+    expect(source).toContain('<SelectItem value="public">');
+    expect(source).toContain('<IconLock aria-hidden="true" />');
+    expect(source).toContain('<IconWorld aria-hidden="true" />');
+    expect(source).toContain("deletePortalFromHome");
+    expect(source).toContain('variant="destructive"');
+    expect(source).toContain('<IconTrash data-icon="inline-start" />');
     expect(source).not.toContain("copy.intro.eyebrow");
     expect(source).not.toContain("copy.intro.description");
     expect(source).not.toContain('className="dark"');
@@ -132,7 +152,7 @@ describe("PortalHome", () => {
     );
     const settingsDialog = source.slice(
       source.indexOf("function PortalSettingsDialog"),
-      source.indexOf("function PortalCard"),
+      source.indexOf("function DeletePortalDialog"),
     );
     const createTrigger = createDialog.slice(
       createDialog.indexOf("<DialogTrigger"),

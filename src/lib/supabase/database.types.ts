@@ -692,6 +692,10 @@ export type Database = {
         Args: { target_block_id: string; target_portal_id: string };
         Returns: undefined;
       };
+      delete_portal: {
+        Args: { target_portal_id: string };
+        Returns: boolean;
+      };
       ensure_portal_document: {
         Args: { target_portal_id: string };
         Returns: {

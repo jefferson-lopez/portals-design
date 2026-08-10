@@ -15,6 +15,7 @@ import {
   validateDesignerName,
   validateSlug,
 } from "@/lib/portal/settings";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   Json,
   Portal,
@@ -37,6 +38,8 @@ const blockTypes = new Set<PortalBlockType>([
   "assets",
   "empty",
 ]);
+
+type CreationVisibility = "public" | "private";
 
 export type HomePortal = Pick<
   Portal,
@@ -293,14 +296,15 @@ async function insertPortal({
   locale: string;
   name: string;
   rawSlug?: string;
-  visibility?: PortalVisibility;
+  visibility?: CreationVisibility;
 }) {
   const t = await getTranslations({ locale, namespace: "Actions" });
   if (!name) actionFailure(t("nameRequired"));
+  if (visibility !== "public" && visibility !== "private") {
+    actionFailure(t("visibilityInvalid"));
+  }
   const slug = slugify(rawSlug);
   if (!validateSlug(slug).valid) actionFailure(t("slugInvalid"));
-  if (!["public", "private"].includes(visibility))
-    actionFailure(t("passwordAfterCreation"));
   const supabase = await requireAuthenticatedUser(locale);
 
   const { data, error } = await supabase.rpc("create_portal", {
@@ -320,12 +324,18 @@ async function insertPortal({
 export async function createPortalFromHome({
   locale,
   name,
+  visibility = "private",
 }: {
   locale: string;
   name: string;
+  visibility?: CreationVisibility;
 }) {
   try {
-    const portal = await insertPortal({ locale, name: name.trim() });
+    const portal = await insertPortal({
+      locale,
+      name: name.trim(),
+      visibility,
+    });
 
     revalidatePath(`/${locale}/home`);
 
@@ -344,13 +354,128 @@ export async function createPortalFromHome({
   }
 }
 
+async function getPortalStoragePaths(
+  admin: ReturnType<typeof createAdminClient>,
+  portalId: string,
+  databasePaths: string[],
+) {
+  const bucket = admin.storage.from("portal-assets");
+  const paths = new Set(databasePaths);
+  const { data: assetFolders, error: foldersError } = await bucket.list(
+    portalId,
+    { limit: 1000 },
+  );
+
+  if (foldersError) {
+    throw new Error(foldersError.message);
+  }
+
+  for (const entry of assetFolders ?? []) {
+    if (entry.id) {
+      paths.add(`${portalId}/${entry.name}`);
+      continue;
+    }
+
+    const folder = `${portalId}/${entry.name}`;
+    const { data: files, error: filesError } = await bucket.list(folder, {
+      limit: 1000,
+    });
+
+    if (filesError) {
+      throw new Error(filesError.message);
+    }
+
+    for (const file of files ?? []) {
+      if (file.id) {
+        paths.add(`${folder}/${file.name}`);
+      }
+    }
+  }
+
+  return [...paths];
+}
+
+export async function deletePortalFromHome({
+  locale,
+  portalId,
+}: {
+  locale: string;
+  portalId: string;
+}) {
+  try {
+    const supabase = await requireAuthenticatedUser(locale);
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      return { error: "authenticationRequired" } as const;
+    }
+
+    const { data: portal } = await supabase
+      .from("portals")
+      .select("id")
+      .eq("id", portalId)
+      .eq("owner_id", userData.user.id)
+      .maybeSingle();
+
+    if (!portal) {
+      return { error: "portalNotFound" } as const;
+    }
+
+    const admin = createAdminClient();
+    const { data: assets, error: assetsError } = await admin
+      .from("portal_assets")
+      .select("file_path")
+      .eq("portal_id", portalId);
+
+    if (assetsError) {
+      throw new Error(assetsError.message);
+    }
+
+    const paths = await getPortalStoragePaths(
+      admin,
+      portalId,
+      (assets ?? []).map((asset) => asset.file_path),
+    );
+    for (let index = 0; index < paths.length; index += 100) {
+      const { error } = await admin.storage
+        .from("portal-assets")
+        .remove(paths.slice(index, index + 100));
+
+      if (error) {
+        throw new Error(error.message);
+      }
+    }
+
+    const { error: deleteError } = await supabase.rpc("delete_portal", {
+      target_portal_id: portalId,
+    });
+
+    if (deleteError) {
+      throw new Error(deleteError.message);
+    }
+
+    revalidatePath(`/${locale}/home`);
+    return { error: null } as const;
+  } catch (error) {
+    unstable_rethrow(error);
+
+    console.error("Failed to delete portal", {
+      error: error instanceof Error ? error.name : "UnknownError",
+    });
+    return { error: "deletePortalFailed" } as const;
+  }
+}
+
 export async function createPortal(formData: FormData) {
   const locale = getString(formData, "locale") || "en";
   const name = getString(formData, "name");
   const rawSlug = getString(formData, "slug") || name;
   const coverUrl = getString(formData, "cover_url") || null;
-  const visibility = (getString(formData, "visibility") ||
-    "private") as PortalVisibility;
+  const rawVisibility = getString(formData, "visibility") || "private";
+  if (rawVisibility !== "public" && rawVisibility !== "private") {
+    const t = await getTranslations({ locale, namespace: "Actions" });
+    actionFailure(t("visibilityInvalid"));
+  }
+  const visibility = rawVisibility as CreationVisibility;
   const data = await insertPortal({
     coverUrl,
     locale,

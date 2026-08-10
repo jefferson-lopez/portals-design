@@ -75,10 +75,22 @@
     },
     "create": {
       "title": "Crear proyecto",
-      "description": "Dale un nombre al proyecto. Podrás diseñar toda la experiencia dentro del portal.",
+      "description": "Dale un nombre al proyecto y elige quién puede acceder. Podrás diseñar toda la experiencia dentro del portal.",
       "nameLabel": "Nombre",
       "namePlaceholder": "Nombre del proyecto",
+      "visibilityDescription": "Privado está seleccionado por defecto. Puedes cambiarlo después en la configuración del portal.",
+      "visibilityLabel": "Acceso",
+      "visibilityPrivate": "Privado",
+      "visibilityPublic": "Público",
       "submit": "Crear"
+    },
+    "delete": {
+      "cancel": "Cancelar",
+      "confirm": "Eliminar portal",
+      "deleting": "Eliminando…",
+      "description": "Esto eliminará permanentemente {name}, incluyendo su contenido, configuración y archivos subidos.",
+      "title": "¿Eliminar {name}?",
+      "trigger": "Eliminar {name}"
     },
     "settings": {
       "trigger": "Configurar {name}",
@@ -114,6 +126,7 @@
     "nameRequired": "El nombre del portal es obligatorio.",
     "slugInvalid": "El slug no es válido.",
     "passwordAfterCreation": "Configura la contraseña después de crear el portal.",
+    "visibilityInvalid": "Elige si el portal será público o privado.",
     "createPortalFailed": "No se pudo crear el portal.",
     "portalNotFound": "Portal no encontrado.",
     "designerNameInvalid": "El nombre del diseñador supera 8 palabras o 80 caracteres.",

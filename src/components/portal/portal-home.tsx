@@ -4,17 +4,21 @@ import {
   IconExternalLink,
   IconFolderPlus,
   IconLoader2,
+  IconLock,
   IconLogout,
   IconPlus,
   IconSettings,
   IconSpiral,
+  IconTrash,
+  IconWorld,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { signOut } from "@/app/[locale]/_actions/auth";
 import {
   createPortalFromHome,
+  deletePortalFromHome,
   getHomePortals,
   type HomePortal,
   updatePortalSettings,
@@ -48,11 +52,20 @@ import {
 } from "@/components/ui/empty";
 import {
   Field,
+  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Link, useRouter } from "@/i18n/navigation";
 import { getHomeErrorEvent } from "@/lib/portal/home-error-event";
 import { usePortalHomeStore } from "@/lib/portal/home-store";
@@ -68,6 +81,10 @@ export type PortalHomeCopy = {
     description: string;
     nameLabel: string;
     namePlaceholder: string;
+    visibilityDescription: string;
+    visibilityLabel: string;
+    visibilityPrivate: string;
+    visibilityPublic: string;
     submit: string;
     title: string;
   };
@@ -92,6 +109,14 @@ export type PortalHomeCopy = {
       private: string;
       public: string;
     };
+  };
+  delete: {
+    cancel: string;
+    confirm: string;
+    deleting: string;
+    description: string;
+    title: string;
+    trigger: string;
   };
   settings: {
     description: string;
@@ -130,7 +155,13 @@ function CreatePortalDialog({
   const open = usePortalHomeStore((state) => state.createDialogOpen);
   const setOpen = usePortalHomeStore((state) => state.setCreateDialogOpen);
   const mutation = useMutation({
-    mutationFn: (name: string) => createPortalFromHome({ locale, name }),
+    mutationFn: ({
+      name,
+      visibility,
+    }: {
+      name: string;
+      visibility: "public" | "private";
+    }) => createPortalFromHome({ locale, name, visibility }),
     onSuccess: async (portal) => {
       if (portal.error === "authenticationRequired") {
         toast.error(copy.authRequired);
@@ -177,7 +208,12 @@ function CreatePortalDialog({
           onSubmit={(event) => {
             event.preventDefault();
             const formData = new FormData(event.currentTarget);
-            mutation.mutate(String(formData.get("name") ?? "").trim());
+            mutation.mutate({
+              name: String(formData.get("name") ?? "").trim(),
+              visibility: String(formData.get("visibility") ?? "private") as
+                | "public"
+                | "private",
+            });
           }}
         >
           <FieldGroup>
@@ -188,6 +224,7 @@ function CreatePortalDialog({
               <Input
                 aria-invalid={mutation.isError || undefined}
                 autoFocus
+                autoComplete="off"
                 id="new-portal-name"
                 maxLength={120}
                 name="name"
@@ -197,6 +234,42 @@ function CreatePortalDialog({
               {mutation.isError ? (
                 <FieldError>{copy.errorGeneric}</FieldError>
               ) : null}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="new-portal-visibility">
+                {copy.create.visibilityLabel}
+              </FieldLabel>
+              <FieldDescription>
+                {copy.create.visibilityDescription}
+              </FieldDescription>
+              <Select
+                defaultValue="private"
+                items={[
+                  { label: copy.create.visibilityPrivate, value: "private" },
+                  { label: copy.create.visibilityPublic, value: "public" },
+                ]}
+                name="visibility"
+              >
+                <SelectTrigger
+                  aria-label={copy.create.visibilityLabel}
+                  id="new-portal-visibility"
+                  className="w-full"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="private">
+                      <IconLock aria-hidden="true" />
+                      {copy.create.visibilityPrivate}
+                    </SelectItem>
+                    <SelectItem value="public">
+                      <IconWorld aria-hidden="true" />
+                      {copy.create.visibilityPublic}
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </Field>
             <DialogFooter>
               <Button
@@ -334,12 +407,95 @@ function PortalSettingsDialog({
   );
 }
 
+function DeletePortalDialog({
+  copy,
+  locale,
+  portal,
+}: {
+  copy: Pick<PortalHomeCopy, "authRequired" | "delete" | "errorGeneric">;
+  locale: string;
+  portal: HomePortal;
+}) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const mutation = useMutation({
+    mutationFn: () => deletePortalFromHome({ locale, portalId: portal.id }),
+    onSuccess: async (result) => {
+      if (result.error === "authenticationRequired") {
+        toast.error(copy.authRequired);
+        return;
+      }
+
+      if (result.error) {
+        toast.error(copy.errorGeneric);
+        return;
+      }
+
+      await queryClient.invalidateQueries({
+        queryKey: portalsQueryKey(locale),
+      });
+      setOpen(false);
+    },
+  });
+
+  return (
+    <Dialog onOpenChange={setOpen} open={open}>
+      <DialogTrigger
+        render={
+          <Button
+            aria-label={withPortalName(copy.delete.trigger, portal.name)}
+            className="rounded-full"
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          />
+        }
+      >
+        <IconTrash data-icon="inline-start" />
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {withPortalName(copy.delete.title, portal.name)}
+          </DialogTitle>
+          <DialogDescription>
+            {withPortalName(copy.delete.description, portal.name)}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button
+            className="rounded-full"
+            disabled={mutation.isPending}
+            onClick={() => setOpen(false)}
+            type="button"
+            variant="outline"
+          >
+            {copy.delete.cancel}
+          </Button>
+          <Button
+            className="rounded-full"
+            disabled={mutation.isPending}
+            onClick={() => mutation.mutate()}
+            type="button"
+            variant="destructive"
+          >
+            {mutation.isPending ? copy.delete.deleting : copy.delete.confirm}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PortalCard({
   copy,
   locale,
   portal,
 }: {
-  copy: Pick<PortalHomeCopy, "errorGeneric" | "portal" | "settings">;
+  copy: Pick<
+    PortalHomeCopy,
+    "authRequired" | "delete" | "errorGeneric" | "portal" | "settings"
+  >;
   locale: string;
   portal: HomePortal;
 }) {
@@ -360,7 +516,10 @@ function PortalCard({
         <CardTitle className="pr-8 text-lg">{portal.name}</CardTitle>
         <CardDescription className="truncate">/{portal.slug}</CardDescription>
         <CardAction>
-          <PortalSettingsDialog copy={copy} locale={locale} portal={portal} />
+          <div className="flex items-center gap-1">
+            <PortalSettingsDialog copy={copy} locale={locale} portal={portal} />
+            <DeletePortalDialog copy={copy} locale={locale} portal={portal} />
+          </div>
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col justify-end gap-3">
