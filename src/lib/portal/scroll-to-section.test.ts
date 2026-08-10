@@ -86,6 +86,27 @@ describe("publication target focus", () => {
     assert.equal(focused, true);
   });
 
+  test("requests the add-section dialog after focusing its trigger", () => {
+    const events: Event[] = [];
+    const document = {
+      querySelector: (selector: string) =>
+        selector === "[data-portal-add-section]"
+          ? { focus: () => undefined }
+          : null,
+      dispatchEvent: (event: Event) => {
+        events.push(event);
+        return true;
+      },
+    };
+
+    assert.equal(
+      focusPortalPublicationTarget({ kind: "add-section" }, document),
+      true,
+    );
+    assert.equal(events.length, 1);
+    assert.equal(events[0].type, "portal-open-add-section-dialog");
+  });
+
   test("routes a section-title issue through the existing section helper", () => {
     let focused = false;
     const document = {

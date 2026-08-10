@@ -156,6 +156,7 @@ import type {
 import {
   focusPortalPublicationTarget,
   focusPortalSectionTitle,
+  PORTAL_OPEN_ADD_SECTION_DIALOG_EVENT,
   scrollToPortalSection,
 } from "@/lib/portal/scroll-to-section";
 import { createClient } from "@/lib/supabase/client";
@@ -431,10 +432,12 @@ async function uploadPortalAsset({
 }
 
 export function SectionTypeDialog({
+  openRequestKey,
   onSelectComplete,
   onSelect,
   trigger,
 }: {
+  openRequestKey?: string;
   onSelectComplete?: () => void;
   onSelect: (type: Exclude<PortalSectionType, "empty">) => void;
   trigger: ReactElement;
@@ -442,6 +445,23 @@ export function SectionTypeDialog({
   const t = useTranslations("PortalEditor.sections");
   const [open, setOpen] = useState(false);
   const selectionPendingRef = useRef(false);
+
+  useEffect(() => {
+    if (!openRequestKey) return;
+
+    const openDialog = (event: Event) => {
+      const customEvent = event as CustomEvent<{ key?: string }>;
+      if (customEvent.detail?.key !== openRequestKey) return;
+      setOpen(true);
+    };
+
+    document.addEventListener(PORTAL_OPEN_ADD_SECTION_DIALOG_EVENT, openDialog);
+    return () =>
+      document.removeEventListener(
+        PORTAL_OPEN_ADD_SECTION_DIALOG_EVENT,
+        openDialog,
+      );
+  }, [openRequestKey]);
   return (
     <Dialog
       onOpenChange={setOpen}
@@ -854,7 +874,7 @@ function AddImageTile({
           pending
         />
       ))}
-      {availableSlots === 0 ? null : (
+      {availableSlots === 0 || optimistic.pending.length > 0 ? null : (
         <button
           className={cn(
             "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
@@ -1527,7 +1547,7 @@ function GalleryEditor({
                 saveImages(nextImages);
               }}
             />
-          ) : imageLimitReached ? (
+          ) : imageLimitReached && !isComparison ? (
             <button
               aria-label={t("limitReached")}
               className="flex aspect-square items-center justify-center rounded-xl border border-dashed text-muted-foreground"
@@ -3629,7 +3649,7 @@ export function SettingsDialog({
   portal: Portal;
 }) {
   const t = useTranslations("PortalEditor.settings");
-  const { guardPassword, plan } = usePortalPlan();
+  const { guardPassword } = usePortalPlan();
   const [activeTab, setActiveTab] = useState("general");
   const [open, setOpen] = useState(false);
   const [visibility, setVisibility] = useState<PortalVisibility>(
@@ -3746,7 +3766,6 @@ export function SettingsDialog({
                     </FieldLabel>
                     <Input
                       autoComplete="new-password"
-                      disabled={plan !== "premium"}
                       id="portal-new-password"
                       maxLength={128}
                       minLength={8}

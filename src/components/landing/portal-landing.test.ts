@@ -440,13 +440,13 @@ describe("PortalLanding", () => {
     expect(source).toContain("details.plans.free");
     expect(source).toContain('id="landing-plans-title"');
     expect(english.Landing.details.plans.free.features).toContain(
-      "100 MB shared across Free portals",
+      "100 MB for this portal",
     );
     expect(english.Landing.details.plans.premium.features).toContain(
       "2 GB dedicated to this portal",
     );
     expect(spanish.Landing.details.plans.free.features).toContain(
-      "100 MB compartidos entre portales Gratis",
+      "100 MB para este portal",
     );
     expect(spanish.Landing.details.plans.premium.features).toContain(
       "2 GB dedicados a este portal",

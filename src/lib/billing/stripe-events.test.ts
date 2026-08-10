@@ -2,6 +2,99 @@ import { describe, expect, test } from "bun:test";
 import { resolveStripeEntitlementMutation } from "./stripe-events";
 
 describe("Stripe entitlement event resolution", () => {
+  test("resolves each paid plan amount and acquired plan", () => {
+    for (const [plan, amount] of [
+      ["starter", 499],
+      ["pro", 999],
+      ["premium", 1999],
+    ] as const) {
+      expect(
+        resolveStripeEntitlementMutation({
+          type: "checkout.session.completed",
+          data: {
+            amount_total: amount,
+            client_reference_id: "portal",
+            currency: "usd",
+            mode: "payment",
+            payment_status: "paid",
+            payment_intent: `pi_${plan}`,
+            metadata: {
+              portal_id: "portal",
+              plan,
+              product: `portal_${plan}_v1`,
+            },
+          },
+        }),
+      ).toEqual({
+        portalId: "portal",
+        paymentIntentId: `pi_${plan}`,
+        plan,
+        status: "active",
+      });
+    }
+  });
+
+  test("accepts a legitimate upgrade delta only when checkout state matches", () => {
+    const event = {
+      type: "checkout.session.completed",
+      data: {
+        amount_total: 1000,
+        client_reference_id: "portal",
+        currency: "usd",
+        mode: "payment",
+        payment_status: "paid",
+        payment_intent: "pi_upgrade",
+        metadata: {
+          portal_id: "portal",
+          plan: "premium",
+          product: "portal_premium_v1",
+        },
+      },
+    };
+    expect(
+      resolveStripeEntitlementMutation(event, {
+        amountTotal: 1000,
+        plan: "premium",
+        upgradeFrom: "pro",
+      }),
+    ).toMatchObject({ plan: "premium", status: "active" });
+    expect(
+      resolveStripeEntitlementMutation(event, {
+        amountTotal: 1999,
+        plan: "premium",
+        upgradeFrom: "pro",
+      }),
+    ).toBeNull();
+  });
+
+  test("accepts legacy Premium metadata when the checkout attempt is matched", () => {
+    expect(
+      resolveStripeEntitlementMutation(
+        {
+          type: "checkout.session.completed",
+          data: {
+            amount_total: 1999,
+            client_reference_id: "portal",
+            currency: "usd",
+            mode: "payment",
+            payment_status: "paid",
+            payment_intent: "pi_legacy_premium",
+            metadata: {
+              portal_id: "portal",
+              product: "portal_premium_v1",
+            },
+          },
+        },
+        { amountTotal: 1999, plan: "premium", upgradeFrom: null },
+      ),
+    ).toEqual({
+      portalId: "portal",
+      paymentIntentId: "pi_legacy_premium",
+      plan: "premium",
+      status: "active",
+    });
+  });
+
   test("activates only completed paid checkout sessions", () => {
     expect(
       resolveStripeEntitlementMutation({
@@ -13,12 +106,17 @@ describe("Stripe entitlement event resolution", () => {
           mode: "payment",
           payment_status: "paid",
           payment_intent: "pi_new",
-          metadata: { portal_id: "portal", product: "portal_premium_v1" },
+          metadata: {
+            portal_id: "portal",
+            plan: "premium",
+            product: "portal_premium_v1",
+          },
         },
       }),
     ).toEqual({
       portalId: "portal",
       paymentIntentId: "pi_new",
+      plan: "premium",
       status: "active",
     });
     expect(
@@ -38,7 +136,11 @@ describe("Stripe entitlement event resolution", () => {
       amount_total: 1999,
       client_reference_id: "portal",
       currency: "usd",
-      metadata: { portal_id: "portal", product: "portal_premium_v1" },
+      metadata: {
+        portal_id: "portal",
+        plan: "premium",
+        product: "portal_premium_v1",
+      },
       mode: "payment",
       payment_intent: "pi_new",
       payment_status: "paid",

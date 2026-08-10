@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe, getStripeWebhookSecret } from "@/lib/billing/stripe";
-import { resolveStripeEntitlementMutation } from "@/lib/billing/stripe-events";
+import {
+  type PersistedCheckoutAttempt,
+  resolveStripeEntitlementMutation,
+} from "@/lib/billing/stripe-events";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -69,36 +72,69 @@ export async function POST(request: Request) {
     };
   }
   if (!object) return NextResponse.json({ received: true });
-  const mutation = resolveStripeEntitlementMutation({
-    data: {
-      amount_total: object.amountTotal,
-      client_reference_id: object.client_reference_id,
-      currency: object.currency,
-      metadata: object.metadata,
-      mode: object.mode,
-      payment_intent: object.payment_intent,
-      payment_status: object.payment_status,
-      status: object.status,
+  const admin = createAdminClient();
+  let checkoutAttempt: PersistedCheckoutAttempt | undefined;
+  if (event.type === "checkout.session.completed") {
+    if (!object.client_reference_id || !object.checkoutSessionId) {
+      return NextResponse.json({ received: true });
+    }
+    const attemptId = object.metadata?.checkout_attempt_id;
+    const attemptQuery = admin
+      .from("portal_checkout_attempts")
+      .select("amount_total,plan,upgrade_from,status,purchaser_id")
+      .eq("portal_id", object.client_reference_id);
+    const { data: persisted, error: checkoutAttemptError } = await (attemptId
+      ? attemptQuery.eq("idempotency_key", attemptId)
+      : attemptQuery.eq("stripe_checkout_session_id", object.checkoutSessionId)
+    ).maybeSingle();
+    if (
+      checkoutAttemptError ||
+      !persisted ||
+      !["pending", "completed"].includes(persisted.status) ||
+      (object.metadata?.purchaser_id &&
+        object.metadata.purchaser_id !== persisted.purchaser_id)
+    ) {
+      return NextResponse.json({ received: true });
+    }
+    checkoutAttempt = {
+      amountTotal: persisted.amount_total,
+      plan: persisted.plan as PersistedCheckoutAttempt["plan"],
+      upgradeFrom:
+        persisted.upgrade_from as PersistedCheckoutAttempt["upgradeFrom"],
+    };
+  }
+  const mutation = resolveStripeEntitlementMutation(
+    {
+      data: {
+        amount_total: object.amountTotal,
+        client_reference_id: object.client_reference_id,
+        currency: object.currency,
+        metadata: object.metadata,
+        mode: object.mode,
+        payment_intent: object.payment_intent,
+        payment_status: object.payment_status,
+        status: object.status,
+      },
+      type: event.type,
     },
-    type: event.type,
-  });
+    checkoutAttempt,
+  );
   if (!mutation) return NextResponse.json({ received: true });
 
-  const { error } = await createAdminClient().rpc(
-    "apply_portal_entitlement_event",
-    {
-      event_amount_total: object.amountTotal,
-      event_checkout_session_id: object.checkoutSessionId,
-      event_currency: object.currency,
-      event_created: event.created,
-      event_id: event.id,
-      event_payment_intent_id: mutation.paymentIntentId,
-      event_portal_id: mutation.portalId ?? null,
-      event_purchaser_id: object.metadata?.purchaser_id ?? null,
-      event_status: mutation.status,
-      event_type: event.type,
-    } as never,
-  );
+  const { error } = await admin.rpc("apply_portal_entitlement_event", {
+    event_amount_total: object.amountTotal,
+    event_checkout_session_id: object.checkoutSessionId,
+    event_checkout_attempt_key: object.metadata?.checkout_attempt_id ?? null,
+    event_currency: object.currency,
+    event_created: event.created,
+    event_id: event.id,
+    event_payment_intent_id: mutation.paymentIntentId,
+    event_portal_id: mutation.portalId ?? null,
+    event_purchaser_id: object.metadata?.purchaser_id ?? null,
+    event_status: mutation.status,
+    event_type: event.type,
+    event_plan: mutation.plan ?? object.metadata?.plan ?? "premium",
+  } as never);
   if (error) {
     console.error("Stripe webhook processing failed", {
       code: error.code,

@@ -39,18 +39,24 @@ export function isPortalPlanSnapshot(
 ): value is PortalPlanSnapshot {
   if (!value || typeof value !== "object") return false;
   const snapshot = value as Partial<PortalPlanSnapshot>;
-  return (snapshot.plan === "free" || snapshot.plan === "premium") &&
-    typeof snapshot.canPurchase === "boolean" &&
-    typeof snapshot.storageUsedBytes === "number" &&
-    snapshot.policy === PORTAL_PLANS[snapshot.plan]
-    ? true
-    : Boolean(
-        snapshot.policy &&
-          typeof snapshot.policy.maxUploadBytes === "number" &&
-          typeof snapshot.policy.storageBytes === "number" &&
-          typeof snapshot.policy.totalSections === "number" &&
-          snapshot.policy.sections,
-      );
+  const plan = snapshot.plan as PortalPlan;
+  if (
+    !["free", "starter", "pro", "premium"].includes(plan) ||
+    typeof snapshot.canPurchase !== "boolean" ||
+    typeof snapshot.storageUsedBytes !== "number" ||
+    !snapshot.policy ||
+    typeof snapshot.policy !== "object"
+  )
+    return false;
+  const expected = PORTAL_PLANS[plan];
+  const actual = snapshot.policy;
+  return (
+    actual.maxUploadBytes === expected.maxUploadBytes &&
+    actual.storageBytes === expected.storageBytes &&
+    (actual.totalSections === expected.totalSections ||
+      (plan === "free" && actual.totalSections === null)) &&
+    JSON.stringify(actual.sections) === JSON.stringify(expected.sections)
+  );
 }
 
 export function isSafePendingPortalAction(

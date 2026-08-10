@@ -190,6 +190,12 @@ describe("portal asset validation", () => {
     ).toBe(true);
   });
 
+  test("falls back to the extension when the browser reports an unknown MIME", () => {
+    expect(inferAssetMimeType("mockup.psd", "image/psd")).toBe(
+      "image/vnd.adobe.photoshop",
+    );
+  });
+
   test("checks signatures and unsafe SVG content", () => {
     expect(
       validateAssetDeclaration({

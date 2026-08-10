@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 const migration = new URL(
-  "../../../supabase/migrations/20260808130000_raise_free_upload_limit.sql",
+  "../../../supabase/migrations/20260810120000_multi_plan_billing.sql",
   import.meta.url,
 );
 const reservationCleanupMigration = new URL(
@@ -10,34 +10,77 @@ const reservationCleanupMigration = new URL(
 );
 
 describe("Free portal upload limit migration", () => {
-  test("keeps the storage bucket at the shared 50 MiB upload ceiling", async () => {
+  test("persists and validates the server-owned checkout transition", async () => {
+    const sql = await Bun.file(migration).text();
+    expect(sql).toContain("amount_total");
+    expect(sql).toContain("current_plan");
+    expect(sql).toContain("target_upgrade_from");
+    expect(sql).toContain("current_plan <> target_upgrade_from");
+  });
+
+  test("protects repurchases from stale payment intents and matches one attempt", async () => {
+    const sql = await Bun.file(migration).text();
+    expect(sql).toContain("portal_payment_states");
+    expect(sql).toContain(
+      "stripe_payment_intent_id <> event_payment_intent_id",
+    );
+    expect(sql).toContain(
+      "attempt_upgrade_from is distinct from current_entitlement_plan",
+    );
+    expect(sql).toContain("event_checkout_attempt_key");
+    expect(sql).toContain("idempotency_key::text=event_checkout_attempt_key");
+    expect(sql).not.toContain("where portal_id=event_portal_id;");
+  });
+
+  test("removes vulnerable legacy checkout function overloads", async () => {
     const sql = await Bun.file(migration).text();
 
     expect(sql).toContain(
-      "update storage.buckets set file_size_limit = 52428800",
+      "drop function if exists public.begin_portal_checkout(uuid);",
+    );
+    expect(sql).toContain(
+      "drop function if exists public.apply_portal_entitlement_event(text,text,public.portal_entitlement_status,uuid,uuid,text,text,integer,text);",
+    );
+    expect(sql).toContain(
+      "drop function if exists public.apply_portal_entitlement_event(text,text,public.portal_entitlement_status,uuid,uuid,text,text,integer,text,bigint);",
+    );
+  });
+
+  test("allows same-payment-intent dispute recovery to reactivate entitlement", async () => {
+    const sql = await Bun.file(migration).text();
+
+    expect(sql).toContain(
+      "event_type='charge.dispute.closed' and event_status='active'",
+    );
+    expect(sql).toContain(
+      "where stripe_payment_intent_id=event_payment_intent_id",
+    );
+    expect(sql).toContain("revoked_at=null");
+  });
+  test("keeps the storage bucket at the shared 500 MiB upload ceiling", async () => {
+    const sql = await Bun.file(migration).text();
+
+    expect(sql).toContain(
+      "update storage.buckets set file_size_limit = 524288000",
     );
     expect(sql).toContain("where id = 'portal-assets'");
   });
 
-  test("enforces 50 MiB consistently when reserving and finalizing", async () => {
+  test("enforces 500 MiB consistently when reserving and finalizing", async () => {
     const sql = await Bun.file(migration).text();
 
     expect(sql).toContain("reserve_portal_asset");
     expect(sql).toContain("finalize_portal_asset");
-    expect(sql.match(/max_file_bytes := 52428800/g)).toHaveLength(2);
-    expect(sql).not.toContain("max_file_bytes := case when premium");
+    expect(sql.match(/> 524288000/g)).toHaveLength(2);
   });
 
-  test("preserves shared Free storage and per-portal Premium storage", async () => {
+  test("uses portal-scoped quotas for every plan", async () => {
     const sql = await Bun.file(migration).text();
 
-    expect(
-      sql.match(/case when premium then 2147483648 else 104857600 end/g),
-    ).toHaveLength(2);
+    expect(sql).toContain("case plan when 'starter' then 524288000");
     expect(sql).toContain("where portal_id=target_portal_id");
     expect(sql).toContain("where portal_id=saved.portal_id");
-    expect(sql.match(/p.owner_id=target_owner/g)).toHaveLength(2);
-    expect(sql.match(/not public.portal_has_premium\(p.id\)/g)).toHaveLength(2);
+    expect(sql).toContain("where portal_id=target_portal_id");
   });
 
   test("retains trusted finalization permissions", async () => {
@@ -59,4 +102,5 @@ describe("Free portal upload limit migration", () => {
       "a.state='reserved' and a.reservation_expires_at>now()",
     );
   });
+
 });

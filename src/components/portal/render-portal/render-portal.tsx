@@ -763,6 +763,7 @@ export function RenderPortal({
         {editor ? (
           <div className="mx-auto mt-10">
             <SectionTypeDialog
+              openRequestKey="portal-add-section"
               onSelect={addEditableSection}
               onSelectComplete={activatePendingSection}
               trigger={

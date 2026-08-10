@@ -86,12 +86,49 @@ describe("portal monetization policy", () => {
       "violations.storage_bytes",
     );
   });
-  test("publishes the documented Free and Premium limits", () => {
+  test("publishes all documented plan limits", () => {
     expect(PORTAL_PLANS.free.storageBytes).toBe(100 * 1024 * 1024);
-    expect(PORTAL_PLANS.free.maxUploadBytes).toBe(50 * 1024 * 1024);
+    expect(PORTAL_PLANS.free.maxUploadBytes).toBe(500 * 1024 * 1024);
+    expect(PORTAL_PLANS.starter.storageBytes).toBe(500 * 1024 * 1024);
+    expect(PORTAL_PLANS.starter.totalSections).toBe(30);
+    expect(PORTAL_PLANS.pro.storageBytes).toBe(1024 * 1024 * 1024);
+    expect(PORTAL_PLANS.pro.totalSections).toBe(60);
     expect(PORTAL_PLANS.premium.storageBytes).toBe(2 * 1024 * 1024 * 1024);
-    expect(PORTAL_PLANS.premium.maxUploadBytes).toBe(50 * 1024 * 1024);
+    expect(PORTAL_PLANS.premium.maxUploadBytes).toBe(500 * 1024 * 1024);
     expect(PORTAL_PLANS.premium.totalSections).toBe(100);
+  });
+
+  test("publishes Starter and Pro content limits", () => {
+    expect(PORTAL_PLANS.starter.sections.colors).toEqual({
+      items: 20,
+      sections: 2,
+    });
+    expect(PORTAL_PLANS.starter.sections.files).toEqual({
+      items: 20,
+      sections: 2,
+    });
+    expect(PORTAL_PLANS.starter.sections.fonts).toEqual({
+      items: 5,
+      sections: 2,
+    });
+    expect(PORTAL_PLANS.starter.sections.gallery).toEqual({
+      items: 15,
+      sections: 2,
+    });
+    expect(PORTAL_PLANS.starter.sections.image).toEqual({ sections: 2 });
+    expect(PORTAL_PLANS.starter.sections.text).toEqual({ sections: 4 });
+    expect(PORTAL_PLANS.pro.sections.colors).toEqual({
+      items: 40,
+      sections: 4,
+    });
+    expect(PORTAL_PLANS.pro.sections.files).toEqual({ items: 40, sections: 4 });
+    expect(PORTAL_PLANS.pro.sections.fonts).toEqual({ items: 10, sections: 4 });
+    expect(PORTAL_PLANS.pro.sections.gallery).toEqual({
+      items: 30,
+      sections: 5,
+    });
+    expect(PORTAL_PLANS.pro.sections.image).toEqual({ sections: 5 });
+    expect(PORTAL_PLANS.pro.sections.text).toEqual({ sections: 8 });
   });
 
   test("rejects additions over Free section and item limits", () => {
@@ -142,13 +179,9 @@ describe("portal monetization policy", () => {
     ).toMatchObject({ ok: false, code: "text_sections" });
   });
 
-  test("reserves password visibility for Premium", () => {
-    expect(validatePortalVisibility("password", "free")).toMatchObject({
-      ok: false,
-      code: "password_requires_premium",
-    });
-    expect(validatePortalVisibility("password", "premium")).toEqual({
-      ok: true,
-    });
+  test("allows password visibility for every plan", () => {
+    for (const plan of ["free", "starter", "pro", "premium"] as const) {
+      expect(validatePortalVisibility("password", plan)).toEqual({ ok: true });
+    }
   });
 });

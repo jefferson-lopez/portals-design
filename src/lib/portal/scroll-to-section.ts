@@ -1,5 +1,8 @@
 import type { PortalPublicationTarget } from "./publication-readiness";
 
+export const PORTAL_OPEN_ADD_SECTION_DIALOG_EVENT =
+  "portal-open-add-section-dialog";
+
 type ScrollDocument = {
   getElementById: (id: string) => Pick<HTMLElement, "scrollIntoView"> | null;
 };
@@ -19,6 +22,11 @@ type PublicationFocusDocument = {
     scrollIntoView: HTMLElement["scrollIntoView"];
   } | null;
   querySelector: (selector: string) => PublicationFocusElement | null;
+  dispatchEvent?: (event: Event) => boolean;
+};
+
+type PublicationEventDocument = {
+  dispatchEvent: (event: Event) => boolean;
 };
 
 export function scrollToPortalSection(
@@ -72,12 +80,28 @@ export function focusPortalAddSection(
   return true;
 }
 
+export function requestPortalAddSectionDialog(
+  document: PublicationEventDocument = window.document,
+) {
+  return document.dispatchEvent(
+    new CustomEvent(PORTAL_OPEN_ADD_SECTION_DIALOG_EVENT, {
+      detail: { key: "portal-add-section" },
+    }),
+  );
+}
+
 export function focusPortalPublicationTarget(
   target: PortalPublicationTarget,
   document: PublicationFocusDocument = window.document as unknown as PublicationFocusDocument,
 ) {
   if (target.kind === "portal-name") return focusPortalName(document);
-  if (target.kind === "add-section") return focusPortalAddSection(document);
+  if (target.kind === "add-section") {
+    const focused = focusPortalAddSection(document);
+    if (!focused) return false;
+    if (!document.dispatchEvent) return true;
+    requestPortalAddSectionDialog(document);
+    return true;
+  }
 
   scrollToPortalSection(target.sectionId, document);
   return focusPortalSectionTitle(target.sectionId, document);

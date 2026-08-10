@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { resolveSiteOrigin } from "@/lib/billing/site-origin";
 import {
-  getStripe,
-  PORTAL_PREMIUM_PRICE_CENTS,
-  PORTAL_PREMIUM_TAX_CODE,
-} from "@/lib/billing/stripe";
+  PORTAL_PLAN_PRICES_CENTS,
+  type PortalPlan,
+  planUpgradePriceCents,
+} from "@/lib/billing/portal-policy";
+import { resolveSiteOrigin } from "@/lib/billing/site-origin";
+import { getStripe, PORTAL_PREMIUM_TAX_CODE } from "@/lib/billing/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     locale?: string;
     portalId?: string;
+    plan?: PortalPlan;
   } | null;
   if (!body?.portalId) {
     return NextResponse.json({ error: "portal_id_required" }, { status: 400 });
@@ -41,21 +43,44 @@ export async function POST(request: Request) {
       { status: 401 },
     );
   }
-  const [{ data: portal }, { data: premium }] = await Promise.all([
+  const [{ data: portal }, { data: entitlement }] = await Promise.all([
     supabase
       .from("portals")
       .select("id,name,owner_id")
       .eq("id", body.portalId)
       .eq("owner_id", userData.user.id)
       .maybeSingle(),
-    supabase.rpc("portal_has_premium", { target_portal_id: body.portalId }),
+    supabase
+      .from("portal_entitlements")
+      .select("plan,status")
+      .eq("portal_id", body.portalId)
+      .maybeSingle(),
   ]);
   if (!portal) {
     return NextResponse.json({ error: "portal_not_found" }, { status: 404 });
   }
-  if (premium) {
-    return NextResponse.json({ error: "already_premium" }, { status: 409 });
-  }
+  const currentPlan: PortalPlan =
+    entitlement?.status === "active"
+      ? ((entitlement.plan ?? "premium") as PortalPlan)
+      : "free";
+  const targetPlan = body.plan ?? "premium";
+  if (!(targetPlan in PORTAL_PLAN_PRICES_CENTS))
+    return NextResponse.json({ error: "unsupported_plan" }, { status: 400 });
+  if (
+    currentPlan === targetPlan ||
+    currentPlan === "premium" ||
+    planUpgradePriceCents(currentPlan, targetPlan) <= 0
+  )
+    return NextResponse.json(
+      {
+        error:
+          currentPlan === targetPlan
+            ? "already_on_plan"
+            : "invalid_plan_upgrade",
+      },
+      { status: 409 },
+    );
+  const amountCents = planUpgradePriceCents(currentPlan, targetPlan);
   const locale = /^[a-z]{2}(?:-[A-Z]{2})?$/.test(body.locale ?? "")
     ? body.locale
     : "en";
@@ -73,7 +98,11 @@ export async function POST(request: Request) {
   }
   const { data: attempt, error: attemptError } = await supabase.rpc(
     "begin_portal_checkout",
-    { target_portal_id: portal.id },
+    {
+      target_plan: targetPlan,
+      target_portal_id: portal.id,
+      target_upgrade_from: currentPlan === "free" ? null : currentPlan,
+    },
   );
   if (attemptError || !attempt) {
     return checkoutFailure(
@@ -101,26 +130,31 @@ export async function POST(request: Request) {
             price_data: {
               currency: "usd",
               product_data: {
-                description: "Permanent Premium access for one portal",
-                name: `Portal Premium — ${portal.name}`,
+                description: `Permanent ${targetPlan} access for one portal`,
+                name: `Portal ${targetPlan} — ${portal.name}`,
                 tax_code: PORTAL_PREMIUM_TAX_CODE,
               },
               tax_behavior: "inclusive",
-              unit_amount: PORTAL_PREMIUM_PRICE_CENTS,
+              unit_amount: amountCents,
             },
             quantity: 1,
           },
         ],
         metadata: {
+          checkout_attempt_id: attempt.idempotency_key,
           portal_id: portal.id,
-          product: "portal_premium_v1",
+          plan: targetPlan,
+          product: `portal_${targetPlan}_v1`,
+          upgrade_from: currentPlan === "free" ? "free" : currentPlan,
           purchaser_id: userData.user.id,
         },
         managed_payments: { enabled: false },
         mode: "payment",
         payment_intent_data: {
           metadata: {
+            checkout_attempt_id: attempt.idempotency_key,
             portal_id: portal.id,
+            plan: targetPlan,
             purchaser_id: userData.user.id,
           },
         },

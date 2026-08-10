@@ -24,6 +24,10 @@ const atomicAssetDeletionMigration = new URL(
   "../../../supabase/migrations/20260803130000_atomic_portal_asset_deletion.sql",
   import.meta.url,
 );
+const passwordVisibilityMigration = new URL(
+  "../../../supabase/migrations/20260810130000_allow_password_all_plans.sql",
+  import.meta.url,
+);
 const assetRoute = new URL(
   "../../app/api/portal-assets/route.ts",
   import.meta.url,
@@ -38,11 +42,22 @@ describe("portal monetization migration", () => {
     expect(sql).toContain("finalize_portal_asset");
   });
 
-  test("enforces premium policy in document, privacy, and publish RPCs", async () => {
+  test("enforces plan policy in document and publish RPCs", async () => {
     const sql = await Bun.file(migration).text();
     expect(sql).toContain("validate_portal_document_policy");
-    expect(sql).toContain("Password protection requires Portal Premium");
     expect(sql).toContain("Portal exceeds plan limits and cannot be published");
+  });
+
+  test("allows password visibility for every plan in the server RPC and trigger", async () => {
+    const sql = await Bun.file(passwordVisibilityMigration).text();
+    expect(sql).toContain(
+      "create or replace function public.set_portal_privacy",
+    );
+    expect(sql).not.toContain("Password protection requires Portal Premium");
+    expect(sql).toContain(
+      "create or replace function public.enforce_portal_premium_visibility",
+    );
+    expect(sql).toContain("create trigger portals_enforce_premium_visibility");
   });
 
   test("keeps entitlements attached to portals and webhook events idempotent", async () => {

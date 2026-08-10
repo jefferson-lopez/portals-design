@@ -2,7 +2,6 @@
 
 import {
   IconCloud,
-  IconCrown,
   IconLayoutGrid,
   IconLoader2,
   IconLock,
@@ -32,10 +31,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   fetchPortalPlan,
   isSafePendingPortalAction,
@@ -48,6 +48,7 @@ import {
   PORTAL_PLANS,
   type PortalPlan,
   type PortalUpgradeReason,
+  planUpgradePriceCents,
   upgradeDescriptionKey,
   validatePortalDocumentChange,
   validatePortalPublication,
@@ -132,7 +133,14 @@ export function PortalPlanProvider({
   const [violation, setViolation] = useState<PortalUpgradeReason | null>(null);
   const [violationDetails, setViolationDetails] =
     useState<PortalUpgradeDetails | null>(null);
-  const [checkoutPending, setCheckoutPending] = useState(false);
+  const [checkoutPendingPlan, setCheckoutPendingPlan] = useState<Exclude<
+    PortalPlan,
+    "free"
+  > | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<Exclude<
+    PortalPlan,
+    "free"
+  > | null>(null);
   const pendingActionRef = useRef<SafePendingPortalAction | null>(null);
   const refreshSequence = useRef(0);
   const checkoutResult = searchParams.get("premium");
@@ -178,7 +186,7 @@ export function PortalPlanProvider({
     const poll = async () => {
       const next = await refresh();
       if (cancelled) return;
-      if (next?.plan === "premium") {
+      if (next && next.plan !== "free") {
         let pending: unknown = pendingActionRef.current;
         try {
           pending = JSON.parse(
@@ -212,20 +220,60 @@ export function PortalPlanProvider({
       retry?: SafePendingPortalAction,
       details?: PortalUpgradeDetails,
     ) => {
-      setViolation(code);
-      setViolationDetails(details ?? null);
-      pendingActionRef.current =
-        retry && isSafePendingPortalAction(retry) ? retry : null;
-      if (pendingActionRef.current) {
-        window.sessionStorage.setItem(
-          pendingActionKey,
-          JSON.stringify(pendingActionRef.current),
+      const openUpgradeDialog = () => {
+        setViolation(code);
+        setViolationDetails(details ?? null);
+        setSelectedPlan(
+          snapshot.plan === "free"
+            ? "starter"
+            : snapshot.plan === "starter"
+              ? "pro"
+              : "premium",
         );
-      } else {
-        window.sessionStorage.removeItem(pendingActionKey);
+        pendingActionRef.current =
+          retry && isSafePendingPortalAction(retry) ? retry : null;
+        if (pendingActionRef.current) {
+          window.sessionStorage.setItem(
+            pendingActionKey,
+            JSON.stringify(pendingActionRef.current),
+          );
+        } else {
+          window.sessionStorage.removeItem(pendingActionKey);
+        }
+      };
+
+      if (code === "upgrade_info") {
+        openUpgradeDialog();
+        return;
       }
+
+      const description =
+        code === "storage_bytes"
+          ? t("violations.storage_bytes_detail", {
+              available: formatBytes(
+                Math.max(
+                  0,
+                  snapshot.policy.storageBytes - snapshot.storageUsedBytes,
+                ),
+              ),
+              limit: formatBytes(snapshot.policy.storageBytes),
+              requested: formatBytes(details?.fileSizeBytes ?? 0),
+              used: formatBytes(snapshot.storageUsedBytes),
+            })
+          : code === "upload_bytes"
+            ? t("violations.upload_bytes_detail", {
+                maximum: formatBytes(snapshot.policy.maxUploadBytes),
+                requested: formatBytes(details?.fileSizeBytes ?? 0),
+              })
+            : t(upgradeDescriptionKey(code));
+
+      toast.warning(t("limitTitle"), {
+        action: { label: t("viewPlans"), onClick: openUpgradeDialog },
+        description,
+        id: `portal-plan-limit:${portalId}`,
+      });
     },
-    [pendingActionKey],
+    [pendingActionKey, portalId, snapshot, t],
   );
 
   const guardDocumentChange = useCallback(
@@ -266,7 +314,7 @@ export function PortalPlanProvider({
 
   const guardPassword = useCallback(() => {
     if (status !== "ready") {
-      requestUpgrade("password_requires_premium");
+      requestUpgrade("plan_unavailable");
       return false;
     }
     const result = validatePortalVisibility("password", snapshot.plan);
@@ -297,11 +345,12 @@ export function PortalPlanProvider({
     ],
   );
 
-  async function checkout() {
-    setCheckoutPending(true);
+  async function checkout(plan: Exclude<PortalPlan, "free">) {
+    setSelectedPlan(plan);
+    setCheckoutPendingPlan(plan);
     try {
       const response = await fetch("/api/billing/portal-premium/checkout", {
-        body: JSON.stringify({ locale, portalId }),
+        body: JSON.stringify({ locale, plan, portalId }),
         headers: { "content-type": "application/json" },
         method: "POST",
       });
@@ -321,8 +370,8 @@ export function PortalPlanProvider({
       }
       window.location.assign(body.checkoutUrl);
     } catch (error) {
-      console.error("Portal Premium checkout failed", { error, portalId });
-      setCheckoutPending(false);
+      console.error("Portal plan checkout failed", { error, plan, portalId });
+      setCheckoutPendingPlan(null);
       toast.error(
         t("checkoutUnavailable", {
           reason: error instanceof Error ? error.message : "unknown_error",
@@ -332,12 +381,13 @@ export function PortalPlanProvider({
     }
   }
 
-  const premiumBenefits = [
-    { icon: IconLock, text: t("benefits.password") },
-    { icon: IconCloud, text: t("benefits.storage") },
-    { icon: IconLayoutGrid, text: t("benefits.sections") },
-    { icon: IconPhoto, text: t("benefits.gallery") },
-  ];
+  const eligiblePlans = (["starter", "pro", "premium"] as const).filter(
+    (candidate) => planUpgradePriceCents(snapshot.plan, candidate) > 0,
+  );
+  const activePlan =
+    selectedPlan && eligiblePlans.includes(selectedPlan)
+      ? selectedPlan
+      : (eligiblePlans[0] ?? null);
 
   return (
     <PortalPlanContext.Provider value={value}>
@@ -347,6 +397,7 @@ export function PortalPlanProvider({
           if (!open) {
             setViolation(null);
             setViolationDetails(null);
+            setSelectedPlan(null);
           }
         }}
         open={Boolean(violation)}
@@ -356,7 +407,9 @@ export function PortalPlanProvider({
             <DialogTitle>
               {snapshot.plan === "premium"
                 ? t("limitTitle")
-                : t("upgradeTitle")}
+                : t("upgradeTitle", {
+                    plan: activePlan ? t(activePlan) : t("aPlan"),
+                  })}
             </DialogTitle>
             <DialogDescription>
               {violation === "storage_bytes"
@@ -383,24 +436,9 @@ export function PortalPlanProvider({
                     })
                   : violation
                     ? t(upgradeDescriptionKey(violation))
-                    : t("upgradeDescription")}
+                    : t("compareDescription")}
             </DialogDescription>
           </DialogHeader>
-          {snapshot.plan === "free" ? (
-            <ul
-              aria-label={t("benefits.title")}
-              className="m-0 flex list-none flex-col gap-3 p-0"
-            >
-              {premiumBenefits.map(({ icon: Icon, text }) => (
-                <li className="flex items-center gap-3" key={text}>
-                  <span className="shrink-0 text-primary">
-                    <Icon className="size-4" />
-                  </span>
-                  <span>{text}</span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
           {status === "loading" ? (
             <DialogFooter>
               <Button disabled type="button">
@@ -421,26 +459,97 @@ export function PortalPlanProvider({
                 {t("retry")}
               </Button>
             </DialogFooter>
-          ) : status === "ready" &&
-            snapshot.plan === "free" &&
-            snapshot.canPurchase ? (
-            <DialogFooter>
-              <Button
-                disabled={checkoutPending}
-                onClick={checkout}
-                type="button"
-              >
-                {checkoutPending ? (
-                  <IconLoader2
-                    className="animate-spin"
-                    data-icon="inline-start"
-                  />
-                ) : (
-                  <IconCrown data-icon="inline-start" />
+          ) : status === "ready" && snapshot.canPurchase && activePlan ? (
+            <Tabs
+              className="w-full"
+              onValueChange={(value) =>
+                setSelectedPlan(value as Exclude<PortalPlan, "free">)
+              }
+              value={activePlan}
+            >
+              <TabsList
+                className={cn(
+                  "grid h-auto w-full",
+                  eligiblePlans.length === 1 && "grid-cols-1",
+                  eligiblePlans.length === 2 && "grid-cols-2",
+                  eligiblePlans.length === 3 && "grid-cols-3",
                 )}
-                {t("buy", { price: "$19.99" })}
-              </Button>
-            </DialogFooter>
+                variant="default"
+              >
+                {eligiblePlans.map((candidate) => (
+                  <TabsTrigger key={candidate} value={candidate}>
+                    {t(candidate)}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {eligiblePlans.map((candidate) => {
+                const plan = PORTAL_PLANS[candidate];
+                const benefits = [
+                  { icon: IconLock, text: t("benefits.password") },
+                  {
+                    icon: IconCloud,
+                    text: t("benefits.storage", {
+                      storage: formatBytes(plan.storageBytes),
+                    }),
+                  },
+                  {
+                    icon: IconLayoutGrid,
+                    text: t("benefits.sections", {
+                      sections: plan.totalSections,
+                    }),
+                  },
+                  {
+                    icon: IconPhoto,
+                    text: t("benefits.gallery", {
+                      gallery: plan.sections.gallery?.items ?? 0,
+                    }),
+                  },
+                ];
+                return (
+                  <TabsContent
+                    className="flex flex-col gap-4 pt-4"
+                    key={candidate}
+                    value={candidate}
+                  >
+                    <ul
+                      aria-label={t("benefits.title", { plan: t(candidate) })}
+                      className="m-0 flex list-none flex-col gap-3 p-0"
+                    >
+                      {benefits.map(({ icon: Icon, text }) => (
+                        <li className="flex items-center gap-3" key={text}>
+                          <span className="shrink-0 text-primary">
+                            <Icon className="size-4" />
+                          </span>
+                          <span>{text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <DialogFooter>
+                      <Button
+                        aria-label={t("buyAccessible", {
+                          plan: t(candidate),
+                          price: `$${(planUpgradePriceCents(snapshot.plan, candidate) / 100).toFixed(2)}`,
+                        })}
+                        disabled={checkoutPendingPlan !== null}
+                        onClick={() => void checkout(candidate)}
+                        type="button"
+                      >
+                        {checkoutPendingPlan === candidate ? (
+                          <IconLoader2
+                            className="animate-spin"
+                            data-icon="inline-start"
+                          />
+                        ) : null}
+                        {t("buy", {
+                          plan: t(candidate),
+                          price: `$${(planUpgradePriceCents(snapshot.plan, candidate) / 100).toFixed(2)}`,
+                        })}
+                      </Button>
+                    </DialogFooter>
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
           ) : snapshot.plan === "free" ? (
             <p className="text-muted-foreground text-sm">
               {t("ownerRequired")}
@@ -490,8 +599,8 @@ export function PortalPlanStatus() {
           });
 
   return (
-    <HoverCard>
-      <HoverCardTrigger
+    <Popover>
+      <PopoverTrigger
         render={
           <Button
             aria-label={label}
@@ -499,8 +608,6 @@ export function PortalPlanStatus() {
             className="rounded-full hover:bg-transparent dark:hover:bg-transparent"
             onClick={() => {
               if (status === "error") void refresh();
-              else if (status === "ready" && plan === "free")
-                requestUpgrade("upgrade_info");
             }}
             size="icon-lg"
             type="button"
@@ -549,8 +656,8 @@ export function PortalPlanStatus() {
           </span>
         </span>
         <span className="sr-only">{label}</span>
-      </HoverCardTrigger>
-      <HoverCardContent className="w-64" side="top">
+      </PopoverTrigger>
+      <PopoverContent className="w-72" side="top">
         {status === "ready" ? (
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
@@ -575,11 +682,20 @@ export function PortalPlanStatus() {
                 {Math.round(percent)}%
               </span>
             </div>
+            {plan === "free" ? (
+              <Button
+                className="w-full"
+                onClick={() => requestUpgrade("upgrade_info")}
+                type="button"
+              >
+                {t("upgrade")}
+              </Button>
+            ) : null}
           </div>
         ) : (
           <p className="text-muted-foreground text-sm">{label}</p>
         )}
-      </HoverCardContent>
-    </HoverCard>
+      </PopoverContent>
+    </Popover>
   );
 }

@@ -7,6 +7,15 @@ const checkoutRoute = new URL(
 const stripeConfig = new URL("./stripe.ts", import.meta.url);
 
 describe("Portal Premium Checkout contract", () => {
+  test("supports multi-plan one-time checkout", async () => {
+    const route = await Bun.file(checkoutRoute).text();
+    expect(route).toContain("plan?: PortalPlan");
+    expect(route).toContain("PORTAL_PLAN_PRICES_CENTS");
+    expect(route).toContain("upgrade_from");
+    expect(route).toContain("portal_checkout_attempts");
+    expect(route).toContain("checkout_attempt_id");
+    expect(route).toContain('mode: "payment"');
+  });
   test("classifies the inline product for Stripe Managed Payments", async () => {
     const [route, config] = await Promise.all([
       Bun.file(checkoutRoute).text(),

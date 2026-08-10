@@ -16,14 +16,23 @@ let portalsResult: {
     slug: string;
     updated_at: string;
     visibility: "private" | "public";
+    hasPurchasedPlan?: boolean;
   }>;
   error: null;
 } = { data: [], error: null };
+let entitlementsResult: { data: Array<{ portal_id: string }>; error: null } = {
+  data: [],
+  error: null,
+};
 
 const order = mock(async () => portalsResult);
 const eq = mock(() => ({ order }));
 const select = mock(() => ({ eq }));
-const from = mock(() => ({ select }));
+const entitlementIn = mock(async () => entitlementsResult);
+const entitlementSelect = mock(() => ({ in: entitlementIn }));
+const from = mock((table: string) =>
+  table === "portal_entitlements" ? { select: entitlementSelect } : { select },
+);
 
 mock.module("@/lib/supabase/server", () => ({
   createClient: async () => ({
@@ -40,6 +49,7 @@ afterEach(() => {
     error: null,
   };
   portalsResult = { data: [], error: null };
+  entitlementsResult = { data: [], error: null };
   from.mockClear();
   select.mockClear();
   eq.mockClear();
@@ -56,6 +66,7 @@ describe("home portal access", () => {
           slug: "brand",
           updated_at: "2026-07-24T00:00:00.000Z",
           visibility: "private",
+          hasPurchasedPlan: false,
         },
       ],
       error: null,

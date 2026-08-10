@@ -62,6 +62,33 @@ test("pending uploads expose a pulsing busy visual state", () => {
   expect(controls).toContain('aria-busy="true"');
 });
 
+test("comparison galleries do not render a textual image-limit tile", () => {
+  const gallery = controls.slice(
+    controls.indexOf("function GalleryEditor("),
+    controls.indexOf("function ColorDialog("),
+  );
+
+  expect(gallery).toContain("imageLimitReached && !isComparison");
+  expect(gallery).toContain("const isComparison");
+});
+
+test("image upload affordance stays hidden while an optimistic upload is pending", () => {
+  const imageTile = controls.slice(
+    controls.indexOf("function AddImageTile("),
+    controls.indexOf("function ImageEditor("),
+  );
+
+  expect(imageTile).toContain(
+    "availableSlots === 0 || optimistic.pending.length > 0",
+  );
+});
+
+test("editor quota violations use an actionable toast before opening the plan dialog", () => {
+  expect(provider).toContain('toast.warning(t("limitTitle"');
+  expect(provider).toContain('action: { label: t("viewPlans")');
+  expect(provider).toContain("openUpgradeDialog");
+});
+
 test("plan refreshes cannot let an older quota response overwrite a newer one", () => {
   expect(provider).toContain("const refreshSequence = useRef(0)");
   expect(provider).toContain(
@@ -79,9 +106,9 @@ test("storage progress keeps the last ready percentage visible while refreshing"
   expect(provider).toContain('(status === "ready" ? Math.round(percent) : 0)}');
 });
 
-test("password visibility is gated before a password can be entered", () => {
+test("password visibility is available before a password can be entered", () => {
   expect(controls).toContain("guardPassword");
-  expect(controls).toContain('disabled={plan !== "premium"}');
+  expect(controls).not.toContain('disabled={plan !== "premium"}');
 });
 
 test("loading and fetch errors never present an editor as a non-owner", () => {
@@ -89,7 +116,33 @@ test("loading and fetch errors never present an editor as a non-owner", () => {
   expect(provider).toContain('"loading",');
   expect(provider).toContain('status === "error"');
   expect(provider).toContain('status === "ready" &&');
-  expect(provider).toContain("snapshot.canPurchase ?");
+  expect(provider).toContain("snapshot.canPurchase && activePlan");
+});
+
+test("upgrade modal presents eligible paid plans as tabs with one active purchase action", () => {
+  expect(provider).toContain('from "@/components/ui/tabs"');
+  expect(provider).toContain("<Tabs");
+  expect(provider).toContain("<TabsList");
+  expect(provider).toContain("<TabsTrigger");
+  expect(provider).toContain("<TabsContent");
+  expect(provider).toContain("setSelectedPlan");
+  expect(provider).toContain(
+    "planUpgradePriceCents(snapshot.plan, candidate) > 0",
+  );
+  expect(provider).toContain("checkout(candidate)");
+  expect(provider).toContain("eligiblePlans.includes(selectedPlan)");
+  expect(provider).toContain("PORTAL_PLANS[candidate]");
+  expect(provider).toContain('activePlan ? t(activePlan) : t("aPlan")');
+});
+
+test("upgrade modal keeps checkout loading scoped to the selected plan", () => {
+  expect(provider).toContain("checkoutPendingPlan");
+  expect(provider).toContain("checkoutPendingPlan === candidate");
+  expect(provider).toContain("disabled={checkoutPendingPlan !== null}");
+  expect(provider).toContain('aria-label={t("buyAccessible"');
+  expect(provider).toContain('t("buy", {');
+  expect(provider).toContain('t("compareDescription")');
+  expect(provider).not.toContain("IconCrown");
 });
 
 test("sidebar export uses the portal ZIP action instead of depending on Files", () => {
@@ -104,13 +157,24 @@ test("sidebar export uses the portal ZIP action instead of depending on Files", 
   expect(renderer).toContain("portalExportHref(slug)");
 });
 
-test("storage status is a compact accessible circular control with usage help", () => {
-  expect(provider).toContain("<HoverCard>");
-  expect(provider).toContain("<HoverCardContent");
+test("storage status opens a usage popover with an upgrade action", () => {
+  const status = provider.slice(
+    provider.indexOf("export function PortalPlanStatus()"),
+  );
+  const trigger = status.slice(
+    status.indexOf("<PopoverTrigger"),
+    status.indexOf('>\n        <span className="relative size-7">'),
+  );
+
+  expect(provider).toContain("<Popover>");
+  expect(provider).toContain("<PopoverContent");
+  expect(provider).toContain('t("upgrade")');
   expect(provider).toContain('role="progressbar"');
   expect(provider).toContain("aria-valuenow={percent}");
   expect(provider).toContain("storageUsageState(percent)");
   expect(provider).toContain('requestUpgrade("upgrade_info")');
+  expect(trigger).not.toContain('requestUpgrade("upgrade_info")');
+  expect(provider).toContain('plan === "free"');
   expect(provider).not.toContain('requestUpgrade("total_sections")');
   expect(provider).toContain(
     'className="rounded-full hover:bg-transparent dark:hover:bg-transparent"',
@@ -125,16 +189,19 @@ test("storage status selects copy that explains the quota scope", () => {
   expect(provider).not.toContain('t("storage")');
 });
 
-test("upgrade dialog explains premium benefits with icon-led copy", () => {
-  expect(provider).toContain("premiumBenefits");
+test("upgrade dialog explains selected plan benefits with icon-led copy", () => {
+  expect(provider).toContain("const benefits = [");
+  expect(provider).toContain('text: t("benefits.password")');
+  expect(provider).not.toContain('candidate === "premium"');
   expect(provider).toContain('t("benefits.password")');
-  expect(provider).toContain('t("benefits.storage")');
-  expect(provider).toContain('t("benefits.sections")');
-  expect(provider).toContain('t("benefits.gallery")');
+  expect(provider).toContain('t("benefits.storage",');
+  expect(provider).toContain('t("benefits.sections",');
+  expect(provider).toContain('t("benefits.gallery",');
   expect(provider).toContain("IconLock");
   expect(provider).toContain("IconCloud");
   expect(provider).toContain("IconLayoutGrid");
   expect(provider).toContain("IconPhoto");
+  expect(provider).toContain('<Icon className="size-4" />');
 });
 
 test("font upload dialog closes and clears staged files after saving", () => {

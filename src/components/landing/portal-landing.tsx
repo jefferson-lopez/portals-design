@@ -48,6 +48,8 @@ type LandingDetails = {
   plans: {
     description: string;
     free: LandingPlan;
+    starter: LandingPlan;
+    pro: LandingPlan;
     perPortal: string;
     premium: LandingPlan;
     title: string;
@@ -60,6 +62,7 @@ type LandingPlan = {
   description: string;
   features: string[];
   name: string;
+  price: string;
 };
 
 type PortalLandingProps = {
@@ -485,6 +488,8 @@ export function PortalLanding({
             {(
               [
                 ["free", details.plans.free],
+                ["starter", details.plans.starter],
+                ["pro", details.plans.pro],
                 ["premium", details.plans.premium],
               ] as const
             ).map(([key, plan]) => (
@@ -498,7 +503,9 @@ export function PortalLanding({
                 <CardHeader className="gap-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex flex-col gap-2">
-                      <CardTitle className="text-2xl">{plan.name}</CardTitle>
+                      <CardTitle className="text-2xl">
+                        {plan.name} · {plan.price}
+                      </CardTitle>
                       <CardDescription className="text-base">
                         {plan.description}
                       </CardDescription>

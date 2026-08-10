@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { getPortalPlanSnapshot } from "@/lib/billing/portal-policy";
+import {
+  getPortalPlanSnapshot,
+  type PortalPlan,
+} from "@/lib/billing/portal-policy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -40,30 +43,17 @@ export async function GET(
   }
   const { data: entitlement, error: entitlementError } = await admin
     .from("portal_entitlements")
-    .select("status")
+    .select("status,plan")
     .eq("portal_id", portalId)
     .maybeSingle();
-  const plan = entitlement?.status === "active" ? "premium" : "free";
+  const plan = (
+    entitlement?.status === "active" ? (entitlement.plan ?? "premium") : "free"
+  ) as PortalPlan;
   let assetQuery = admin
     .from("portal_assets")
     .select("size_bytes,state,reservation_expires_at")
     .in("state", ["reserved", "ready"]);
-  if (plan === "premium") {
-    assetQuery = assetQuery.eq("portal_id", portalId);
-  } else {
-    const { data: premiumRows } = await admin
-      .from("portal_entitlements")
-      .select("portal_id")
-      .eq("status", "active");
-    const premiumIds = premiumRows?.map((row) => row.portal_id) ?? [];
-    assetQuery = assetQuery.eq("owner_id", portal.owner_id);
-    if (premiumIds.length > 0)
-      assetQuery = assetQuery.not(
-        "portal_id",
-        "in",
-        `(${premiumIds.join(",")})`,
-      );
-  }
+  assetQuery = assetQuery.eq("portal_id", portalId);
   const { data: assets } = await assetQuery;
   const now = Date.now();
   const storageUsedBytes =

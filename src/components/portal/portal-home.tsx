@@ -115,6 +115,11 @@ export type PortalHomeCopy = {
     confirm: string;
     deleting: string;
     description: string;
+    phraseLabel: string;
+    phrasePlaceholder: string;
+    slugLabel: string;
+    slugInstruction: string;
+    slugPlaceholder: string;
     title: string;
     trigger: string;
   };
@@ -418,8 +423,19 @@ function DeletePortalDialog({
 }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [confirmationPhrase, setConfirmationPhrase] = useState("");
+  const [confirmationSlug, setConfirmationSlug] = useState("");
+  const expectedPhrase = locale === "es" ? "Eliminar" : "Yes delete";
+  const canDelete =
+    confirmationSlug === portal.slug && confirmationPhrase === expectedPhrase;
   const mutation = useMutation({
-    mutationFn: () => deletePortalFromHome({ locale, portalId: portal.id }),
+    mutationFn: () =>
+      deletePortalFromHome({
+        confirmationPhrase,
+        confirmationSlug,
+        locale,
+        portalId: portal.id,
+      }),
     onSuccess: async (result) => {
       if (result.error === "authenticationRequired") {
         toast.error(copy.authRequired);
@@ -435,11 +451,22 @@ function DeletePortalDialog({
         queryKey: portalsQueryKey(locale),
       });
       setOpen(false);
+      setConfirmationPhrase("");
+      setConfirmationSlug("");
     },
   });
 
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (!nextOpen) {
+      setConfirmationPhrase("");
+      setConfirmationSlug("");
+      mutation.reset();
+    }
+  }
+
   return (
-    <Dialog onOpenChange={setOpen} open={open}>
+    <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogTrigger
         render={
           <Button
@@ -462,6 +489,35 @@ function DeletePortalDialog({
             {withPortalName(copy.delete.description, portal.name)}
           </DialogDescription>
         </DialogHeader>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor={`delete-slug-${portal.id}`}>
+              {copy.delete.slugLabel}
+            </FieldLabel>
+            <FieldDescription>
+              {copy.delete.slugInstruction.replace("{slug}", portal.slug)}
+            </FieldDescription>
+            <Input
+              autoComplete="off"
+              id={`delete-slug-${portal.id}`}
+              onChange={(event) => setConfirmationSlug(event.target.value)}
+              placeholder={copy.delete.slugPlaceholder}
+              value={confirmationSlug}
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`delete-phrase-${portal.id}`}>
+              {copy.delete.phraseLabel}
+            </FieldLabel>
+            <Input
+              autoComplete="off"
+              id={`delete-phrase-${portal.id}`}
+              onChange={(event) => setConfirmationPhrase(event.target.value)}
+              placeholder={copy.delete.phrasePlaceholder}
+              value={confirmationPhrase}
+            />
+          </Field>
+        </FieldGroup>
         <DialogFooter>
           <Button
             className="rounded-full"
@@ -474,7 +530,7 @@ function DeletePortalDialog({
           </Button>
           <Button
             className="rounded-full"
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || !canDelete}
             onClick={() => mutation.mutate()}
             type="button"
             variant="destructive"
@@ -518,7 +574,9 @@ function PortalCard({
         <CardAction>
           <div className="flex items-center gap-1">
             <PortalSettingsDialog copy={copy} locale={locale} portal={portal} />
-            <DeletePortalDialog copy={copy} locale={locale} portal={portal} />
+            {!portal.hasPurchasedPlan ? (
+              <DeletePortalDialog copy={copy} locale={locale} portal={portal} />
+            ) : null}
           </div>
         </CardAction>
       </CardHeader>

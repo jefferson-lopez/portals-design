@@ -52,9 +52,14 @@ const mimeByExtension: Record<string, readonly string[]> = {
 
 export function inferAssetMimeType(name: string, provided?: string) {
   const normalizedProvided = normalizeAssetMimeType(provided);
-  if (normalizedProvided && normalizedProvided !== "application/octet-stream")
+  const allowed = mimeByExtension[extension(name)];
+  if (
+    normalizedProvided &&
+    normalizedProvided !== "application/octet-stream" &&
+    allowed?.includes(normalizedProvided)
+  )
     return normalizedProvided;
-  return mimeByExtension[extension(name)]?.[0] ?? "";
+  return allowed?.[0] ?? "";
 }
 
 export function normalizeAssetMimeType(value?: string | null) {

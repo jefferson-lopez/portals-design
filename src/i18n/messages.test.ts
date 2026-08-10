@@ -66,7 +66,7 @@ describe("translation catalogs", () => {
   test("explains whether storage is shared or belongs to one portal", () => {
     expect(es).toHaveProperty(
       "PortalEditor.plan.storageLabels.free",
-      "Compartido entre portales Gratis",
+      "Almacenamiento de este portal",
     );
     expect(es).toHaveProperty(
       "PortalEditor.plan.storageLabels.premium",
@@ -74,7 +74,7 @@ describe("translation catalogs", () => {
     );
     expect(es).toHaveProperty(
       "PortalEditor.plan.storageSummaries.free",
-      "Plan Gratis. {used} de {limit} usados en total entre tus portales Gratis. {percent}%.",
+      "Plan Gratis. {used} de {limit} usados en este portal. {percent}%.",
     );
     expect(es).toHaveProperty(
       "PortalEditor.plan.storageSummaries.premium",
@@ -82,7 +82,7 @@ describe("translation catalogs", () => {
     );
     expect(en).toHaveProperty(
       "PortalEditor.plan.storageLabels.free",
-      "Shared across Free portals",
+      "This portal's storage",
     );
     expect(en).toHaveProperty(
       "PortalEditor.plan.storageLabels.premium",
@@ -90,11 +90,32 @@ describe("translation catalogs", () => {
     );
     expect(en).toHaveProperty(
       "PortalEditor.plan.storageSummaries.free",
-      "Free plan. {used} of {limit} used in total across your Free portals. {percent}%.",
+      "Free plan. {used} of {limit} used by this portal. {percent}%.",
     );
     expect(en).toHaveProperty(
       "PortalEditor.plan.storageSummaries.premium",
       "Premium plan. {used} of {limit} used by this portal. {percent}%.",
+    );
+  });
+
+  test("uses concise plan comparison copy in the upgrade modal", () => {
+    expect(en).toHaveProperty("PortalEditor.plan.buy", "Buy for {price}");
+    expect(es).toHaveProperty("PortalEditor.plan.buy", "Comprar por {price}");
+    expect(en).toHaveProperty(
+      "PortalEditor.plan.buyAccessible",
+      "Buy {plan} for {price}",
+    );
+    expect(es).toHaveProperty(
+      "PortalEditor.plan.buyAccessible",
+      "Comprar {plan} por {price}",
+    );
+    expect(en).toHaveProperty(
+      "PortalEditor.plan.compareDescription",
+      "Compare storage and content limits before continuing.",
+    );
+    expect(es).toHaveProperty(
+      "PortalEditor.plan.compareDescription",
+      "Compara el almacenamiento y los límites de contenido antes de continuar.",
     );
   });
 

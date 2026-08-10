@@ -32,21 +32,48 @@
       ],
       "plans": {
         "title": "Choose the scope for each portal.",
-        "description": "Start free and unlock Premium only for the portals that need more capacity.",
+        "description": "Start free and choose the capacity each portal needs.",
         "perPortal": "Per portal",
         "free": {
           "name": "Free",
+          "price": "$0",
           "description": "For presenting smaller projects and getting started without friction.",
           "features": [
-            "100 MB shared across Free portals",
+            "100 MB for this portal",
             "1 section each for files, typography, colors, and galleries",
             "Up to 2 text sections",
-            "Up to 10 items per section"
+            "Up to 10 items per section",
+            "Password protection for the portal"
           ],
           "cta": "Start free"
         },
+        "starter": {
+          "name": "Starter",
+          "price": "$4.99",
+          "description": "For small client deliveries that need more room.",
+          "features": [
+            "500 MB for this portal",
+            "Up to 30 sections",
+            "Up to 20 files, colors, or images per section",
+            "Password protection for the portal"
+          ],
+          "cta": "Choose Starter"
+        },
+        "pro": {
+          "name": "Pro",
+          "price": "$9.99",
+          "description": "For freelancers and professional handoffs.",
+          "features": [
+            "1 GB for this portal",
+            "Up to 60 sections",
+            "Up to 30 gallery images and 40 files or colors",
+            "Password protection for the portal"
+          ],
+          "cta": "Choose Pro"
+        },
         "premium": {
           "name": "Premium",
+          "price": "$19.99",
           "description": "For fuller handoffs and portals with a distinct identity.",
           "features": [
             "2 GB dedicated to this portal",
@@ -89,6 +116,11 @@
       "confirm": "Delete portal",
       "deleting": "Deleting…",
       "description": "This permanently deletes {name}, including its content, settings, and uploaded files.",
+      "phraseLabel": "Type Yes delete to confirm",
+      "phrasePlaceholder": "Yes delete",
+      "slugLabel": "Type the portal slug",
+      "slugInstruction": "Type this slug exactly: {slug}",
+      "slugPlaceholder": "Portal slug",
       "title": "Delete {name}?",
       "trigger": "Delete {name}"
     },
@@ -290,13 +322,19 @@
   "PortalEditor": {
     "plan": {
       "free": "Free",
+      "starter": "Starter",
+      "pro": "Pro",
       "premium": "Premium",
       "storageLabels": {
-        "free": "Shared across Free portals",
+        "free": "This portal's storage",
+        "starter": "This portal's storage",
+        "pro": "This portal's storage",
         "premium": "This portal's storage"
       },
       "storageSummaries": {
-        "free": "Free plan. {used} of {limit} used in total across your Free portals. {percent}%.",
+        "free": "Free plan. {used} of {limit} used by this portal. {percent}%.",
+        "starter": "Starter plan. {used} of {limit} used by this portal. {percent}%.",
+        "pro": "Pro plan. {used} of {limit} used by this portal. {percent}%.",
         "premium": "Premium plan. {used} of {limit} used by this portal. {percent}%."
       },
       "currentPlan": "Current plan",
@@ -309,31 +347,35 @@
       "loading": "Loading plan…",
       "unavailable": "Plan unavailable",
       "retry": "Retry",
-      "upgradeTitle": "Unlock Premium for this portal",
-      "upgradeDescription": "Premium raises the professional limits for this portal.",
+      "aPlan": "a plan",
+      "upgradeTitle": "Choose {plan} for this portal",
+      "upgradeDescription": "Choose the plan that matches this portal's needs.",
+      "compareDescription": "Compare storage and content limits before continuing.",
       "benefits": {
-        "title": "Premium benefits",
+        "title": "{plan} benefits",
         "password": "Protect your portal with a password.",
-        "storage": "Increase your storage from 100 MB to 2 GB.",
-        "sections": "Add more file, typography, and gallery sections.",
-        "gallery": "Expand your galleries to 15 images."
+        "storage": "Use up to {storage} in this portal.",
+        "sections": "Use up to {sections} sections in this portal.",
+        "gallery": "Use up to {gallery} images in each gallery."
       },
       "limitTitle": "Portal limit reached",
-      "buy": "Unlock for {price}",
-      "cancelled": "Premium checkout was cancelled. No charge was made.",
+      "upgrade": "Upgrade +",
+      "viewPlans": "View plans",
+      "buy": "Buy for {price}",
+      "buyAccessible": "Buy {plan} for {price}",
+      "cancelled": "Plan checkout was cancelled. No charge was made.",
       "checkoutUnavailable": "Checkout could not start. Diagnostic: {reason}",
-      "ownerRequired": "Only the portal owner can unlock Premium.",
+      "ownerRequired": "Only the portal owner can purchase a plan.",
       "violations": {
         "colors_items": "Free portals can include up to 10 colors in a section.",
         "colors_sections": "Free portals can include one colors section.",
         "files_items": "This files section reached its 10-file limit.",
-        "files_sections": "Unlock Premium to add a second files section.",
+        "files_sections": "Choose a higher plan to add another files section.",
         "fonts_items": "A typography section can include up to 3 font families.",
-        "fonts_sections": "Unlock Premium to add a second typography section.",
+        "fonts_sections": "Choose a higher plan to add another typography section.",
         "gallery_items": "This gallery reached the item limit for its plan.",
-        "gallery_sections": "Unlock Premium to add more gallery sections.",
-        "image_sections": "Unlock Premium to add more image sections.",
-        "password_requires_premium": "Password protection is available with Portal Premium.",
+        "gallery_sections": "Choose a higher plan to add more gallery sections.",
+        "image_sections": "Choose a higher plan to add more image sections.",
         "plan_unavailable": "Your portal plan could not be verified. Retry before making changes.",
         "storage_bytes": "This portal reached the storage available on its plan.",
         "storage_bytes_detail": "Storage: {used} of {limit} used. This upload needs {requested}, but only {available} remains.",

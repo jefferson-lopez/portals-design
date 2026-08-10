@@ -44,7 +44,7 @@ type CreationVisibility = "public" | "private";
 export type HomePortal = Pick<
   Portal,
   "id" | "name" | "slug" | "updated_at" | "visibility"
->;
+> & { hasPurchasedPlan: boolean };
 
 export type HomePortalsResult = {
   error: "loadFailed" | null;
@@ -110,7 +110,35 @@ export async function getHomePortals(
       return homePortalsFailure("list-portals", error);
     }
 
-    return { error: null, portals: data };
+    const purchasedPortalIds = new Set<string>();
+    if (data.length > 0) {
+      const { data: entitlements, error: entitlementsError } = await supabase
+        .from("portal_entitlements")
+        .select("portal_id")
+        .in(
+          "portal_id",
+          data.map((portal) => portal.id),
+        );
+
+      if (entitlementsError) {
+        return homePortalsFailure(
+          "list-portal-entitlements",
+          entitlementsError,
+        );
+      }
+
+      for (const entitlement of entitlements ?? []) {
+        purchasedPortalIds.add(entitlement.portal_id);
+      }
+    }
+
+    return {
+      error: null,
+      portals: data.map((portal) => ({
+        ...portal,
+        hasPurchasedPlan: purchasedPortalIds.has(portal.id),
+      })),
+    };
   } catch (error) {
     unstable_rethrow(error);
     return homePortalsFailure("unexpected", error);
@@ -398,9 +426,13 @@ async function getPortalStoragePaths(
 export async function deletePortalFromHome({
   locale,
   portalId,
+  confirmationPhrase,
+  confirmationSlug,
 }: {
   locale: string;
   portalId: string;
+  confirmationPhrase: string;
+  confirmationSlug: string;
 }) {
   try {
     const supabase = await requireAuthenticatedUser(locale);
@@ -411,13 +443,35 @@ export async function deletePortalFromHome({
 
     const { data: portal } = await supabase
       .from("portals")
-      .select("id")
+      .select("id,slug")
       .eq("id", portalId)
       .eq("owner_id", userData.user.id)
       .maybeSingle();
 
     if (!portal) {
       return { error: "portalNotFound" } as const;
+    }
+
+    const expectedPhrase = locale === "es" ? "Eliminar" : "Yes delete";
+    if (
+      confirmationSlug !== portal.slug ||
+      confirmationPhrase !== expectedPhrase
+    ) {
+      return { error: "deleteConfirmationInvalid" } as const;
+    }
+
+    const { data: entitlement, error: entitlementError } = await supabase
+      .from("portal_entitlements")
+      .select("id")
+      .eq("portal_id", portalId)
+      .maybeSingle();
+
+    if (entitlementError) {
+      throw new Error(entitlementError.message);
+    }
+
+    if (entitlement) {
+      return { error: "portalPurchaseProtected" } as const;
     }
 
     const admin = createAdminClient();

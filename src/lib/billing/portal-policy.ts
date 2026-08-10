@@ -1,7 +1,7 @@
 import type { PortalDocument, PortalSectionType } from "@/lib/portal/document";
 import type { PortalVisibility } from "@/lib/supabase/database.types";
 
-export type PortalPlan = "free" | "premium";
+export type PortalPlan = "free" | "starter" | "pro" | "premium";
 export type PortalPolicyCode =
   | "colors_items"
   | "colors_sections"
@@ -12,7 +12,6 @@ export type PortalPolicyCode =
   | "gallery_items"
   | "gallery_sections"
   | "image_sections"
-  | "password_requires_premium"
   | "plan_unavailable"
   | "storage_bytes"
   | "text_sections"
@@ -38,12 +37,35 @@ export type PortalPlanPolicy = {
   sections: SectionLimits;
 };
 
+export const PORTAL_PLAN_PRICES_CENTS: Record<
+  Exclude<PortalPlan, "free">,
+  number
+> = {
+  starter: 499,
+  pro: 999,
+  premium: 1999,
+};
+
+export const PORTAL_PLAN_ORDER: PortalPlan[] = [
+  "free",
+  "starter",
+  "pro",
+  "premium",
+];
+
+export function planUpgradePriceCents(from: PortalPlan, to: PortalPlan) {
+  if (from === to || from === "premium" || to === "free") return 0;
+  const price = (plan: PortalPlan) =>
+    plan === "free" ? 0 : PORTAL_PLAN_PRICES_CENTS[plan];
+  return Math.max(0, price(to) - price(from));
+}
+
 const MiB = 1024 * 1024;
 const GiB = 1024 * MiB;
 
 export const PORTAL_PLANS: Record<PortalPlan, PortalPlanPolicy> = {
   free: {
-    maxUploadBytes: 50 * MiB,
+    maxUploadBytes: 500 * MiB,
     storageBytes: 100 * MiB,
     totalSections: Number.POSITIVE_INFINITY,
     sections: {
@@ -55,8 +77,34 @@ export const PORTAL_PLANS: Record<PortalPlan, PortalPlanPolicy> = {
       text: { sections: 2 },
     },
   },
+  starter: {
+    maxUploadBytes: 500 * MiB,
+    storageBytes: 500 * MiB,
+    totalSections: 30,
+    sections: {
+      colors: { items: 20, sections: 2 },
+      files: { items: 20, sections: 2 },
+      fonts: { items: 5, sections: 2 },
+      gallery: { items: 15, sections: 2 },
+      image: { sections: 2 },
+      text: { sections: 4 },
+    },
+  },
+  pro: {
+    maxUploadBytes: 500 * MiB,
+    storageBytes: GiB,
+    totalSections: 60,
+    sections: {
+      colors: { items: 40, sections: 4 },
+      files: { items: 40, sections: 4 },
+      fonts: { items: 10, sections: 4 },
+      gallery: { items: 30, sections: 5 },
+      image: { sections: 5 },
+      text: { sections: 8 },
+    },
+  },
   premium: {
-    maxUploadBytes: 50 * MiB,
+    maxUploadBytes: 500 * MiB,
     storageBytes: 2 * GiB,
     totalSections: 100,
     sections: {
@@ -158,14 +206,9 @@ export function validatePortalVisibility(
   visibility: PortalVisibility,
   plan: PortalPlan,
 ): PortalPolicyResult {
-  return visibility === "password" && plan !== "premium"
-    ? {
-        code: "password_requires_premium",
-        limit: 0,
-        ok: false,
-        value: 1,
-      }
-    : { ok: true };
+  void visibility;
+  void plan;
+  return { ok: true };
 }
 
 export function getPortalPlanSnapshot(plan: PortalPlan) {

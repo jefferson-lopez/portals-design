@@ -196,29 +196,38 @@ export type Database = {
       };
       portal_checkout_attempts: {
         Row: {
+          amount_total: number;
           created_at: string;
           idempotency_key: string;
+          plan: string;
           portal_id: string;
           purchaser_id: string;
           status: string;
+          upgrade_from: string | null;
           stripe_checkout_session_id: string | null;
           updated_at: string;
         };
         Insert: {
           created_at?: string;
+          amount_total?: number;
           idempotency_key?: string;
+          plan?: string;
           portal_id: string;
           purchaser_id: string;
           status?: string;
+          upgrade_from?: string | null;
           stripe_checkout_session_id?: string | null;
           updated_at?: string;
         };
         Update: {
           created_at?: string;
+          amount_total?: number;
           idempotency_key?: string;
+          plan?: string;
           portal_id?: string;
           purchaser_id?: string;
           status?: string;
+          upgrade_from?: string | null;
           stripe_checkout_session_id?: string | null;
           updated_at?: string;
         };
@@ -271,6 +280,7 @@ export type Database = {
           currency: string;
           id: string;
           portal_id: string;
+          plan: string;
           purchased_at: string | null;
           purchaser_id: string | null;
           revoked_at: string | null;
@@ -285,6 +295,7 @@ export type Database = {
           currency: string;
           id?: string;
           portal_id: string;
+          plan?: string;
           purchased_at?: string | null;
           purchaser_id?: string | null;
           revoked_at?: string | null;
@@ -299,6 +310,7 @@ export type Database = {
           currency?: string;
           id?: string;
           portal_id?: string;
+          plan?: string;
           purchased_at?: string | null;
           purchaser_id?: string | null;
           revoked_at?: string | null;
@@ -582,6 +594,23 @@ export type Database = {
         | {
             Args: {
               event_amount_total: number;
+              event_checkout_attempt_key?: string | null;
+              event_checkout_session_id: string;
+              event_created?: number;
+              event_currency: string;
+              event_id: string;
+              event_payment_intent_id: string;
+              event_plan: string;
+              event_portal_id: string;
+              event_purchaser_id: string;
+              event_status: Database["public"]["Enums"]["portal_entitlement_status"];
+              event_type: string;
+            };
+            Returns: boolean;
+          }
+        | {
+            Args: {
+              event_amount_total: number;
               event_checkout_session_id: string;
               event_created?: number;
               event_currency: string;
@@ -595,13 +624,19 @@ export type Database = {
             Returns: boolean;
           };
       begin_portal_checkout: {
-        Args: { target_portal_id: string };
+        Args: {
+          target_plan?: string;
+          target_portal_id: string;
+          target_upgrade_from?: string | null;
+        };
         Returns: {
           created_at: string;
           idempotency_key: string;
+          plan: string;
           portal_id: string;
           purchaser_id: string;
           status: string;
+          upgrade_from: string | null;
           stripe_checkout_session_id: string | null;
           updated_at: string;
         };
@@ -612,6 +647,7 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      portal_plan: { Args: { target_portal_id: string }; Returns: string };
       can_edit_portal: { Args: { target_portal_id: string }; Returns: boolean };
       create_empty_portal_section: {
         Args: { section_position?: number; target_portal_id: string };

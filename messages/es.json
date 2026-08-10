@@ -32,21 +32,48 @@
       ],
       "plans": {
         "title": "Elige el alcance de cada portal.",
-        "description": "Empieza gratis y desbloquea Premium solo en los portales que necesiten más capacidad.",
+        "description": "Empieza gratis y elige la capacidad que necesita cada portal.",
         "perPortal": "Por portal",
         "free": {
           "name": "Gratis",
+          "price": "$0",
           "description": "Para presentar proyectos pequeños y empezar sin fricción.",
           "features": [
-            "100 MB compartidos entre portales Gratis",
+            "100 MB para este portal",
             "1 sección de archivos, tipografías, colores y galería",
             "Hasta 2 secciones de texto",
-            "Hasta 10 elementos por sección"
+            "Hasta 10 elementos por sección",
+            "Protección del portal con contraseña"
           ],
           "cta": "Empezar gratis"
         },
+        "starter": {
+          "name": "Starter",
+          "price": "$4.99",
+          "description": "Para entregas pequeñas que necesitan más espacio.",
+          "features": [
+            "500 MB para este portal",
+            "Hasta 30 secciones",
+            "Hasta 20 archivos, colores o imágenes por sección",
+            "Protección del portal con contraseña"
+          ],
+          "cta": "Elegir Starter"
+        },
+        "pro": {
+          "name": "Pro",
+          "price": "$9.99",
+          "description": "Para freelancers y entregas profesionales.",
+          "features": [
+            "1 GB para este portal",
+            "Hasta 60 secciones",
+            "Hasta 30 imágenes de galería y 40 archivos o colores",
+            "Protección del portal con contraseña"
+          ],
+          "cta": "Elegir Pro"
+        },
         "premium": {
           "name": "Premium",
+          "price": "$19.99",
           "description": "Para entregas más completas y portales con identidad propia.",
           "features": [
             "2 GB dedicados a este portal",
@@ -89,6 +116,11 @@
       "confirm": "Eliminar portal",
       "deleting": "Eliminando…",
       "description": "Esto eliminará permanentemente {name}, incluyendo su contenido, configuración y archivos subidos.",
+      "phraseLabel": "Escribe Eliminar para confirmar",
+      "phrasePlaceholder": "Eliminar",
+      "slugLabel": "Escribe el slug del portal",
+      "slugInstruction": "Escribe exactamente este slug: {slug}",
+      "slugPlaceholder": "Slug del portal",
       "title": "¿Eliminar {name}?",
       "trigger": "Eliminar {name}"
     },
@@ -290,13 +322,19 @@
   "PortalEditor": {
     "plan": {
       "free": "Gratis",
+      "starter": "Starter",
+      "pro": "Pro",
       "premium": "Premium",
       "storageLabels": {
-        "free": "Compartido entre portales Gratis",
+        "free": "Almacenamiento de este portal",
+        "starter": "Almacenamiento de este portal",
+        "pro": "Almacenamiento de este portal",
         "premium": "Almacenamiento de este portal"
       },
       "storageSummaries": {
-        "free": "Plan Gratis. {used} de {limit} usados en total entre tus portales Gratis. {percent}%.",
+        "free": "Plan Gratis. {used} de {limit} usados en este portal. {percent}%.",
+        "starter": "Plan Starter. {used} de {limit} usados en este portal. {percent}%.",
+        "pro": "Plan Pro. {used} de {limit} usados en este portal. {percent}%.",
         "premium": "Plan Premium. {used} de {limit} usados en este portal. {percent}%."
       },
       "currentPlan": "Plan actual",
@@ -309,31 +347,35 @@
       "loading": "Cargando plan…",
       "unavailable": "Plan no disponible",
       "retry": "Reintentar",
-      "upgradeTitle": "Desbloquea Premium para este portal",
-      "upgradeDescription": "Premium aumenta los límites profesionales de este portal.",
+      "aPlan": "un plan",
+      "upgradeTitle": "Elige {plan} para este portal",
+      "upgradeDescription": "Elige el plan que corresponda a las necesidades de este portal.",
+      "compareDescription": "Compara el almacenamiento y los límites de contenido antes de continuar.",
       "benefits": {
-        "title": "Ventajas de Premium",
+        "title": "Ventajas de {plan}",
         "password": "Protege tu portal con una contraseña.",
-        "storage": "Aumenta tu almacenamiento de 100 MB a 2 GB.",
-        "sections": "Añade más secciones de archivos, tipografías y galerías.",
-        "gallery": "Amplía tus galerías hasta 15 imágenes."
+        "storage": "Usa hasta {storage} en este portal.",
+        "sections": "Usa hasta {sections} secciones en este portal.",
+        "gallery": "Usa hasta {gallery} imágenes en cada galería."
       },
       "limitTitle": "Límite del portal alcanzado",
-      "buy": "Desbloquear por {price}",
-      "cancelled": "El pago de Premium fue cancelado. No se realizó ningún cargo.",
+      "upgrade": "Mejorar +",
+      "viewPlans": "Ver planes",
+      "buy": "Comprar por {price}",
+      "buyAccessible": "Comprar {plan} por {price}",
+      "cancelled": "El pago del plan fue cancelado. No se realizó ningún cargo.",
       "checkoutUnavailable": "No se pudo iniciar el pago. Diagnóstico: {reason}",
-      "ownerRequired": "Solo el propietario del portal puede desbloquear Premium.",
+      "ownerRequired": "Solo el propietario del portal puede comprar un plan.",
       "violations": {
         "colors_items": "Los portales gratis pueden incluir hasta 10 colores por sección.",
         "colors_sections": "Los portales gratis pueden incluir una sección de colores.",
         "files_items": "Esta sección alcanzó su límite de 10 archivos.",
-        "files_sections": "Desbloquea Premium para añadir una segunda sección de archivos.",
+        "files_sections": "Elige un plan superior para añadir otra sección de archivos.",
         "fonts_items": "Una sección de tipografía puede incluir hasta 3 familias.",
-        "fonts_sections": "Desbloquea Premium para añadir una segunda sección de tipografía.",
+        "fonts_sections": "Elige un plan superior para añadir otra sección de tipografía.",
         "gallery_items": "Esta galería alcanzó el límite de elementos de su plan.",
-        "gallery_sections": "Desbloquea Premium para añadir más secciones de galería.",
-        "image_sections": "Desbloquea Premium para añadir más secciones de imagen.",
-        "password_requires_premium": "La protección con contraseña está disponible con Portal Premium.",
+        "gallery_sections": "Elige un plan superior para añadir más secciones de galería.",
+        "image_sections": "Elige un plan superior para añadir más secciones de imagen.",
         "plan_unavailable": "No se pudo verificar el plan del portal. Reinténtalo antes de hacer cambios.",
         "storage_bytes": "Este portal alcanzó el almacenamiento disponible en su plan.",
         "storage_bytes_detail": "Almacenamiento: {used} de {limit} usados. Esta subida necesita {requested}, pero solo quedan {available}.",

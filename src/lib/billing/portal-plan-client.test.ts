@@ -19,6 +19,15 @@ describe("portal plan client contracts", () => {
       }),
     ).toBe(true);
     expect(isPortalPlanSnapshot({ plan: "enterprise" })).toBe(false);
+    expect(
+      isPortalPlanSnapshot({
+        canPurchase: true,
+        entitlementStatus: null,
+        plan: "starter",
+        policy: { ...PORTAL_PLANS.pro },
+        storageUsedBytes: 0,
+      }),
+    ).toBe(false);
   });
 
   test("only retries serializable section actions after checkout", () => {
