@@ -42,8 +42,7 @@
             "100 MB para este portal",
             "1 sección de archivos, tipografías, colores y galería",
             "Hasta 2 secciones de texto",
-            "Hasta 10 elementos por sección",
-            "Protección del portal con contraseña"
+            "Hasta 10 elementos por sección"
           ],
           "cta": "Empezar gratis"
         },
@@ -367,6 +366,7 @@
       "checkoutUnavailable": "No se pudo iniciar el pago. Diagnóstico: {reason}",
       "ownerRequired": "Solo el propietario del portal puede comprar un plan.",
       "violations": {
+        "password_requires_paid_plan": "La protección con contraseña está disponible en los planes Starter, Pro y Premium.",
         "colors_items": "Los portales gratis pueden incluir hasta 10 colores por sección.",
         "colors_sections": "Los portales gratis pueden incluir una sección de colores.",
         "files_items": "Esta sección alcanzó su límite de 10 archivos.",

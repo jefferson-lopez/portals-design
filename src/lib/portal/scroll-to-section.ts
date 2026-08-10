@@ -99,7 +99,7 @@ export function focusPortalPublicationTarget(
     const focused = focusPortalAddSection(document);
     if (!focused) return false;
     if (!document.dispatchEvent) return true;
-    requestPortalAddSectionDialog(document);
+    requestPortalAddSectionDialog(document as PublicationEventDocument);
     return true;
   }
 

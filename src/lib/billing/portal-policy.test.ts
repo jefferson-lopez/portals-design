@@ -179,8 +179,14 @@ describe("portal monetization policy", () => {
     ).toMatchObject({ ok: false, code: "text_sections" });
   });
 
-  test("allows password visibility for every plan", () => {
-    for (const plan of ["free", "starter", "pro", "premium"] as const) {
+  test("allows password visibility only for paid plans", () => {
+    expect(validatePortalVisibility("password", "free")).toEqual({
+      code: "password_requires_paid_plan",
+      limit: 0,
+      ok: false,
+      value: 0,
+    });
+    for (const plan of ["starter", "pro", "premium"] as const) {
       expect(validatePortalVisibility("password", plan)).toEqual({ ok: true });
     }
   });

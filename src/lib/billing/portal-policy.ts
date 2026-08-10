@@ -13,6 +13,7 @@ export type PortalPolicyCode =
   | "gallery_sections"
   | "image_sections"
   | "plan_unavailable"
+  | "password_requires_paid_plan"
   | "storage_bytes"
   | "text_sections"
   | "total_sections"
@@ -206,8 +207,14 @@ export function validatePortalVisibility(
   visibility: PortalVisibility,
   plan: PortalPlan,
 ): PortalPolicyResult {
-  void visibility;
-  void plan;
+  if (visibility === "password" && plan === "free") {
+    return {
+      code: "password_requires_paid_plan",
+      limit: 0,
+      ok: false,
+      value: 0,
+    };
+  }
   return { ok: true };
 }
 

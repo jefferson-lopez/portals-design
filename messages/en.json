@@ -42,8 +42,7 @@
             "100 MB for this portal",
             "1 section each for files, typography, colors, and galleries",
             "Up to 2 text sections",
-            "Up to 10 items per section",
-            "Password protection for the portal"
+            "Up to 10 items per section"
           ],
           "cta": "Start free"
         },
@@ -367,6 +366,7 @@
       "checkoutUnavailable": "Checkout could not start. Diagnostic: {reason}",
       "ownerRequired": "Only the portal owner can purchase a plan.",
       "violations": {
+        "password_requires_paid_plan": "Password protection is available on Starter, Pro, and Premium plans.",
         "colors_items": "Free portals can include up to 10 colors in a section.",
         "colors_sections": "Free portals can include one colors section.",
         "files_items": "This files section reached its 10-file limit.",
