@@ -324,7 +324,9 @@
       "downloadImage": "Descargar {name}",
       "downloadSection": "Descargar {name}",
       "exportAll": "Exportar todos los recursos",
-      "imageFallback": "imagen"
+      "imageFallback": "imagen",
+      "openImage": "Abrir {name} en grande",
+      "imageViewerDescription": "Vista ampliada de la imagen."
     },
     "fonts": {
       "sampleTitle": "Tu asistente, directamente en tu aplicación de mensajes",

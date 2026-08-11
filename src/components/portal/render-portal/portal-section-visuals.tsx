@@ -4,6 +4,13 @@ import {
   PortalFilePreview,
   portalFileTypeFromName,
 } from "@/components/portal/file-preview";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import type {
   PortalColorItem,
   PortalFileItem,
@@ -31,7 +38,9 @@ function ratioClass(image: PortalImageItem) {
   if (image.aspect_ratio === "4/3") return "aspect-[4/3]";
   if (image.aspect_ratio === "16/9") return "aspect-video";
   if (image.aspect_ratio === "21/9") return "aspect-[21/9]";
-  return "min-h-48";
+  // Keep the editor and published viewer on the same frame. The server image
+  // preview is normalized to a 4:3 contain frame as well.
+  return "aspect-[4/3]";
 }
 
 export function PortalImageVisual({
@@ -47,34 +56,63 @@ export function PortalImageVisual({
   image: PortalImageItem;
   isDragging?: boolean;
 }) {
+  const t = useTranslations("PortalViewer.actions");
+  const alt = image.alt_text || t("imageFallback");
+
   if (!image.image_url.trim()) return null;
 
   return (
     <figure className="flex flex-col gap-2">
-      <div
-        className={cn(
-          "group/item relative overflow-hidden rounded-xl bg-muted",
-          ratioClass(image),
-          !image.visible && "opacity-50",
-          isDragging && "opacity-70",
-        )}
-      >
-        {/* biome-ignore lint/performance/noImgElement: user uploaded Storage asset. */}
-        <img
-          alt={image.alt_text}
+      <Dialog>
+        <div
           className={cn(
-            "size-full",
-            imageFitClass(image),
-            dragHandleRef && "cursor-grab active:cursor-grabbing",
+            "group/item relative overflow-hidden rounded-xl bg-muted",
+            ratioClass(image),
+            !image.visible && "opacity-50",
+            isDragging && "opacity-70",
           )}
-          ref={dragHandleRef}
-          src={image.image_url}
-        />
-        <PortalItemActionButtonsOverlay
-          actions={actions}
-          position="top-3-right"
-        />
-      </div>
+        >
+          <DialogTrigger
+            render={
+              <button
+                aria-label={t("openImage", { name: alt })}
+                className="block size-full cursor-zoom-in text-left"
+                type="button"
+              />
+            }
+          >
+            {/* biome-ignore lint/performance/noImgElement: user uploaded Storage asset. */}
+            <img
+              alt={alt}
+              className={cn(
+                "size-full",
+                imageFitClass(image),
+                dragHandleRef && "cursor-grab active:cursor-grabbing",
+              )}
+              ref={dragHandleRef}
+              src={image.image_url}
+            />
+          </DialogTrigger>
+          <PortalItemActionButtonsOverlay
+            actions={actions}
+            position="top-3-right"
+          />
+        </div>
+        <DialogContent className="max-w-[min(96vw,1200px)] gap-4 p-4 sm:p-6">
+          <DialogTitle className="sr-only">{alt}</DialogTitle>
+          <DialogDescription className="sr-only">
+            {t("imageViewerDescription")}
+          </DialogDescription>
+          <div className="flex max-h-[78vh] min-h-[40vh] items-center justify-center overflow-auto rounded-lg bg-black/5 p-2">
+            {/* biome-ignore lint/performance/noImgElement: user uploaded Storage asset. */}
+            <img
+              alt={alt}
+              className="block max-h-[74vh] max-w-full object-contain"
+              src={image.image_url}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
       {caption ?? null}
     </figure>
   );

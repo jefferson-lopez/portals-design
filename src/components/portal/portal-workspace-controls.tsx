@@ -665,7 +665,7 @@ function ImageTile({
           ? "aspect-video"
           : image.aspect_ratio === "21/9"
             ? "aspect-[21/9]"
-            : "min-h-48";
+            : "aspect-[4/3]";
   const fitClass =
     image.fit === "contain"
       ? "object-contain"
@@ -786,7 +786,7 @@ function AddImageTile({
           ? "aspect-video"
           : aspectRatio === "21/9"
             ? "aspect-[21/9]"
-            : "min-h-40";
+            : "aspect-[4/3]";
   function handleFiles(fileList: FileList | null | undefined) {
     const slotsAtSelection = remainingOptimisticUploadSlots(
       maxFiles ?? (category === "gallery" ? Number.POSITIVE_INFINITY : 1),

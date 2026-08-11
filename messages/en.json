@@ -324,7 +324,9 @@
       "downloadImage": "Download {name}",
       "downloadSection": "Download {name}",
       "exportAll": "Export all assets",
-      "imageFallback": "image"
+      "imageFallback": "image",
+      "openImage": "Open {name} large",
+      "imageViewerDescription": "Expanded image view."
     },
     "fonts": {
       "sampleTitle": "Your assistant, right in your messages app",
