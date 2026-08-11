@@ -36,9 +36,10 @@ export default async function PortalOpenGraphImage({
         portal: access.portal
           ? {
               description: access.portal.short_description,
-              fallbackDescription: t("discover", {
-                name: access.portal.name,
-              }),
+              fallbackDescription:
+                access.decision === "preview_required"
+                  ? t("paidDescription", { name: access.portal.name })
+                  : t("discover", { name: access.portal.name }),
               name: access.portal.name,
             }
           : null,

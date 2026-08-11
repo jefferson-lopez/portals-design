@@ -84,6 +84,18 @@ describe("public metadata", () => {
       title: "Atlas",
     });
 
+    expect(
+      resolvePortalSharePresentation({
+        decision: "preview_required",
+        fallback,
+        portal,
+      }),
+    ).toEqual({
+      description: "Confidential launch system.",
+      indexable: false,
+      title: "Atlas",
+    });
+
     for (const decision of ["password_required", "not_found"] as const) {
       const presentation = resolvePortalSharePresentation({
         decision,

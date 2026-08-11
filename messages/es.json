@@ -277,7 +277,8 @@
     "metadata": {
       "description": "Portal creado y compartido con Portals Design.",
       "title": "Portal no encontrado · Portals Design",
-      "discover": "Descubre {name}"
+      "discover": "Descubre {name}",
+      "paidDescription": "Descubre la vista previa de {name} y desbloquea su contenido premium."
     }
   },
   "PortalViewer": {

@@ -246,20 +246,30 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       portal: access.portal
         ? {
             description: access.portal.short_description,
-            fallbackDescription: t("discover", {
-              name: access.portal.name,
-            }),
+            fallbackDescription: isPaidPreviewDecision(access.decision)
+              ? t("paidDescription", {
+                  name: access.portal.name,
+                })
+              : t("discover", {
+                  name: access.portal.name,
+                }),
             name: access.portal.name,
           }
         : null,
     });
-    if (!presentation.indexable) return genericMetadata;
-    return buildPortalMetadata({
+    if (!presentation.indexable && !isPaidPreviewDecision(access.decision)) {
+      return genericMetadata;
+    }
+    const metadata = buildPortalMetadata({
       description: presentation.description,
       locale,
       name: presentation.title,
       slug,
     });
+    if (isPaidPreviewDecision(access.decision)) {
+      metadata.robots = { follow: false, index: false };
+    }
+    return metadata;
   } catch {
     return genericMetadata;
   }

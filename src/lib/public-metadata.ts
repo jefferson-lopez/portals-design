@@ -23,6 +23,14 @@ export function resolvePortalSharePresentation({
     name: string;
   } | null;
 }): PortalSharePresentation {
+  if (decision === "preview_required" && portal) {
+    return {
+      description: portal.description || portal.fallbackDescription,
+      indexable: false,
+      title: portal.name,
+    };
+  }
+
   if (decision !== "allowed" || !portal) {
     return { ...fallback, indexable: false };
   }
