@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 
+mock.module("server-only", () => ({}));
+
 type UserResult = {
   data: { user: { id: string } | null };
   error: { code: string; name: string } | null;
@@ -16,11 +18,16 @@ let portalsResult: {
     slug: string;
     updated_at: string;
     visibility: "private" | "public";
-    hasPurchasedPlan?: boolean;
+    hasPurchasedPlan: boolean;
+    isPurchased: boolean;
   }>;
   error: null;
 } = { data: [], error: null };
 let entitlementsResult: { data: Array<{ portal_id: string }>; error: null } = {
+  data: [],
+  error: null,
+};
+let grantsResult: { data: Array<{ portal_id: string }>; error: null } = {
   data: [],
   error: null,
 };
@@ -30,8 +37,16 @@ const eq = mock(() => ({ order }));
 const select = mock(() => ({ eq }));
 const entitlementIn = mock(async () => entitlementsResult);
 const entitlementSelect = mock(() => ({ in: entitlementIn }));
+const grantEq = mock((column: string) =>
+  column === "status" ? grantsResult : { eq: grantEq },
+);
+const grantSelect = mock(() => ({ eq: grantEq }));
 const from = mock((table: string) =>
-  table === "portal_entitlements" ? { select: entitlementSelect } : { select },
+  table === "portal_entitlements"
+    ? { select: entitlementSelect }
+    : table === "paid_portal_access_grants"
+      ? { select: grantSelect }
+      : { select },
 );
 
 mock.module("@/lib/supabase/server", () => ({
@@ -50,10 +65,13 @@ afterEach(() => {
   };
   portalsResult = { data: [], error: null };
   entitlementsResult = { data: [], error: null };
+  grantsResult = { data: [], error: null };
   from.mockClear();
   select.mockClear();
   eq.mockClear();
   order.mockClear();
+  grantEq.mockClear();
+  grantSelect.mockClear();
 });
 
 describe("home portal access", () => {
@@ -67,6 +85,7 @@ describe("home portal access", () => {
           updated_at: "2026-07-24T00:00:00.000Z",
           visibility: "private",
           hasPurchasedPlan: false,
+          isPurchased: false,
         },
       ],
       error: null,

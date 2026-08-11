@@ -8,15 +8,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
+import { getSafeAuthNext } from "@/lib/auth/auth-redirect";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { SignUpForm } from "./sign-up-form";
 
 type Props = {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<{ next?: string }>;
 };
 
-export default async function SignUpPage({ params }: Props) {
+export default async function SignUpPage({ params, searchParams }: Props) {
   const { locale } = await params;
+  const { next: requestedNext } = await searchParams;
+  const next = getSafeAuthNext(requestedNext, locale);
 
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "Auth" });
@@ -43,9 +47,10 @@ export default async function SignUpPage({ params }: Props) {
               submit: t("signUp.submit"),
             }}
             locale={locale}
+            next={next}
           />
           <Link
-            href="/auth/sign-in"
+            href={`/auth/sign-in?next=${encodeURIComponent(next)}`}
             className={buttonVariants({ variant: "link" })}
           >
             {t("signUp.haveAccount")}

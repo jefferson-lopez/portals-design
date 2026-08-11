@@ -17,6 +17,7 @@ export function SignUpForm({
   backendEnabled,
   copy,
   locale,
+  next,
 }: {
   backendEnabled: boolean;
   copy: {
@@ -31,6 +32,7 @@ export function SignUpForm({
     submit: string;
   };
   locale: string;
+  next: string;
 }) {
   const [state, formAction, isPending] = useActionState(
     signUpWithPassword,
@@ -46,6 +48,7 @@ export function SignUpForm({
   return (
     <form action={formAction}>
       <input name="locale" type="hidden" value={locale} />
+      <input name="next" type="hidden" value={next} />
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor="full_name">{copy.name}</FieldLabel>

@@ -145,6 +145,15 @@ describe("PortalHome", () => {
     );
   });
 
+  test("does not render settings or edit actions for purchased portals", () => {
+    const portalCard = source.slice(
+      source.indexOf("function PortalCard"),
+      source.indexOf("export function PortalHome"),
+    );
+    expect(portalCard).toContain("!isPurchased");
+    expect(portalCard).toContain('isPurchased ? "col-span-2" : null');
+  });
+
   test("keeps every workspace action pill-shaped or circular", () => {
     const createDialog = source.slice(
       source.indexOf("function CreatePortalDialog"),

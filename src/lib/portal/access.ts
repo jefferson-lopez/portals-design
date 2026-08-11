@@ -8,7 +8,8 @@ export const PORTAL_ACCESS_MAX_AGE_SECONDS = 60 * 60;
 export type PortalAccessDecision =
   | "allowed"
   | "not_found"
-  | "password_required";
+  | "password_required"
+  | "preview_required";
 
 export function canExportPublishedSnapshot(input: {
   decision: PortalAccessDecision;
@@ -30,12 +31,16 @@ export function resolveAccessDecision(input: {
   unlocked: boolean;
   userId: string | null;
   visibility: PortalVisibility;
+  hasActivePaidAccess?: boolean;
 }): PortalAccessDecision {
   if (input.userId === input.ownerId) return "allowed";
   if (input.status !== "published") return "not_found";
   if (input.visibility === "public") return "allowed";
   if (input.visibility === "password") {
     return input.unlocked ? "allowed" : "password_required";
+  }
+  if (input.visibility === "paid") {
+    return input.hasActivePaidAccess ? "allowed" : "preview_required";
   }
   return "not_found";
 }

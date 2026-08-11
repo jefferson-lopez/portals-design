@@ -1,6 +1,11 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import type {
+  PaidPreviewAssetSummary,
+  PaidPreviewFile,
+  PaidPreviewImage,
+} from "@/components/portal/paid-preview-projection";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type {
   Json,
@@ -23,6 +28,8 @@ export type ResolvedPortalAccess = {
     | "id"
     | "owner_id"
     | "name"
+    | "created_at"
+    | "updated_at"
     | "slug"
     | "visibility"
     | "status"
@@ -35,6 +42,19 @@ export type ResolvedPortalAccess = {
     | "allow_color_copy"
   > | null;
   publication: Pick<PortalPublication, "id" | "snapshot"> | null;
+  /** Narrow contract for the future paid-preview payload. Not used for authorization. */
+  paidPreview: {
+    assetSummary: PaidPreviewAssetSummary[];
+    description: string | null;
+    name: string;
+    previewImages: PaidPreviewImage[];
+    sampleFiles: PaidPreviewFile[];
+    price: string | null;
+    totalBytes: number;
+    totalFiles: number;
+    totalImages: number;
+    unlockHref: string | null;
+  } | null;
 };
 
 function jsonRecord(value: Json | null | undefined) {
@@ -51,19 +71,273 @@ function booleanValue(value: Json | undefined) {
   return typeof value === "boolean" ? value : false;
 }
 
+function paidPreviewValue(value: Json | undefined) {
+  const record = jsonRecord(value);
+  if (!record) return null;
+  const assetSummary = Array.isArray(record.asset_summary)
+    ? record.asset_summary.flatMap((item) => {
+        const asset = jsonRecord(item);
+        const assetType = stringValue(asset?.asset_type);
+        const count = asset?.count;
+        const totalBytes = asset?.total_bytes;
+        return assetType &&
+          typeof count === "number" &&
+          typeof totalBytes === "number"
+          ? [{ assetType, count, totalBytes }]
+          : [];
+      })
+    : [];
+  const sampleFiles = Array.isArray(record.sample_files)
+    ? record.sample_files.flatMap((item) => {
+        const file = jsonRecord(item);
+        const assetType = stringValue(file?.asset_type);
+        return assetType ? [{ assetType }] : [];
+      })
+    : [];
+  return {
+    assetSummary,
+    description: stringValue(record.description),
+    name: stringValue(record.name) ?? "",
+    previewImages: [],
+    sampleFiles,
+    price: stringValue(record.price),
+    totalBytes: typeof record.total_bytes === "number" ? record.total_bytes : 0,
+    totalFiles: typeof record.total_files === "number" ? record.total_files : 0,
+    totalImages:
+      typeof record.total_images === "number" ? record.total_images : 0,
+    unlockHref: stringValue(record.unlock_href),
+  };
+}
+
+function assetType(asset: {
+  category: string | null;
+  mime_type: string | null;
+  name: string;
+}) {
+  const extension = asset.name.split(".").pop()?.toLowerCase();
+  const knownExtensions = [
+    "pdf",
+    "ai",
+    "ait",
+    "eps",
+    "psd",
+    "psb",
+    "indd",
+    "indt",
+    "idml",
+    "svg",
+    "jpg",
+    "jpeg",
+    "png",
+    "webp",
+    "gif",
+    "avif",
+    "tif",
+    "tiff",
+  ];
+  if (knownExtensions.includes(extension ?? "")) return extension as string;
+  if (asset.category?.trim()) return asset.category.trim();
+  if (asset.mime_type?.startsWith("image/")) return "image";
+  if (asset.mime_type?.includes("pdf")) return "pdf";
+  return asset.mime_type?.split("/").at(-1) || "file";
+}
+
+function jsonArray(value: Json | undefined) {
+  return Array.isArray(value) ? value : [];
+}
+
+function fileSizeBytes(value: Json | undefined) {
+  if (typeof value === "number" && Number.isFinite(value))
+    return Math.max(0, value);
+  if (typeof value !== "string") return 0;
+  const match = value.trim().match(/^(\d+(?:\.\d+)?)\s*(KB|MB|GB|B)?$/i);
+  if (!match) return 0;
+  const amount = Number(match[1]);
+  const unit = (match[2] ?? "B").toUpperCase();
+  return Math.round(
+    amount * ({ B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3 }[unit] ?? 1),
+  );
+}
+
+function snapshotAssetSummary(snapshot: Json | null | undefined) {
+  const root = jsonRecord(snapshot);
+  const document = jsonRecord(root?.document) ?? root;
+  const sections = jsonArray(document?.sections ?? root?.blocks).flatMap(
+    (item) => {
+      const section = jsonRecord(item);
+      return section ? [section] : [];
+    },
+  );
+  const filesWithSizes = sections.flatMap((section) =>
+    section.type === "files" || section.type === "file"
+      ? (section.type === "file"
+          ? [section.content]
+          : jsonArray(jsonRecord(section.content)?.files)
+        ).flatMap((item) => {
+          const file = jsonRecord(item);
+          const name = stringValue(file?.file_name) ?? stringValue(file?.name);
+          return name
+            ? [
+                {
+                  assetType:
+                    stringValue(file?.file_type) ??
+                    stringValue(file?.category) ??
+                    "file",
+                  name,
+                  sizeBytes: fileSizeBytes(file?.file_size),
+                },
+              ]
+            : [];
+        })
+      : [],
+  );
+  const imageCount = sections.reduce((count, section) => {
+    if (section.type === "image") return count + 1;
+    return (
+      count +
+      (section.type === "gallery"
+        ? jsonArray(jsonRecord(section.content)?.images).length
+        : 0)
+    );
+  }, 0);
+  return {
+    files: filesWithSizes.map(({ assetType }) => ({ assetType })),
+    imageCount,
+    totalBytes: filesWithSizes.reduce((sum, file) => sum + file.sizeBytes, 0),
+    totalFiles: filesWithSizes.length,
+  };
+}
+
+async function enrichPaidPreview(
+  portalId: string,
+  preview: ResolvedPortalAccess["paidPreview"],
+) {
+  if (!preview) return null;
+  const admin = createAdminClient();
+  const [
+    { data: offer },
+    { data: assets },
+    { data: publication },
+    { data: documentRow },
+    { data: blocks },
+  ] = await Promise.all([
+    admin
+      .from("paid_portal_offers")
+      .select("price_cents,currency")
+      .eq("portal_id", portalId)
+      .eq("is_active", true)
+      .maybeSingle(),
+    admin
+      .from("portal_assets")
+      .select("id,name,mime_type,category,size_bytes,position")
+      .eq("portal_id", portalId)
+      .eq("state", "ready")
+      .order("position", { ascending: true })
+      .order("name", { ascending: true }),
+    admin
+      .from("portal_publications")
+      .select("snapshot")
+      .eq("portal_id", portalId)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    admin
+      .from("portal_documents")
+      .select("document")
+      .eq("portal_id", portalId)
+      .maybeSingle(),
+    admin
+      .from("portal_blocks")
+      .select("type,content")
+      .eq("portal_id", portalId)
+      .eq("is_visible", true)
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true }),
+  ]);
+  const readyAssets = assets ?? [];
+  const summary = new Map<string, PaidPreviewAssetSummary>();
+  let totalBytes = 0;
+  let totalImages = 0;
+  for (const asset of readyAssets) {
+    const sizeBytes = asset.size_bytes ?? 0;
+    const type = assetType(asset);
+    const current = summary.get(type) ?? {
+      assetType: type,
+      count: 0,
+      totalBytes: 0,
+    };
+    current.count += 1;
+    current.totalBytes += sizeBytes;
+    summary.set(type, current);
+    totalBytes += sizeBytes;
+    if (asset.mime_type?.startsWith("image/")) totalImages += 1;
+  }
+  const selected = readyAssets;
+  const hasPreviewImage = readyAssets.some((asset) =>
+    asset.mime_type?.startsWith("image/"),
+  );
+  const sampleFiles = selected.map((asset) => ({
+    assetType: assetType(asset),
+  }));
+  const price = offer?.price_cents
+    ? new Intl.NumberFormat("en-US", {
+        currency: (offer.currency || "usd").toUpperCase(),
+        style: "currency",
+      }).format(offer.price_cents / 100)
+    : preview.price;
+  const publishedSummary = snapshotAssetSummary(publication?.snapshot);
+  const editorSummary = documentRow?.document
+    ? snapshotAssetSummary(documentRow.document)
+    : snapshotAssetSummary({ blocks: blocks ?? [] } as Json);
+  const snapshot =
+    readyAssets.length === 0
+      ? publishedSummary.totalFiles || publishedSummary.imageCount
+        ? publishedSummary
+        : editorSummary
+      : null;
+  const contentFiles = [...publishedSummary.files, ...editorSummary.files];
+  return {
+    ...preview,
+    assetSummary: summary.size ? [...summary.values()] : preview.assetSummary,
+    previewImages: hasPreviewImage
+      ? [
+          {
+            alt: "Portal preview",
+            src: `/api/portal/paid-preview-image?portal_id=${encodeURIComponent(portalId)}`,
+          },
+        ]
+      : [],
+    price,
+    sampleFiles: contentFiles.length
+      ? contentFiles
+      : sampleFiles.length
+        ? sampleFiles
+        : (snapshot?.files ?? []),
+    totalBytes: readyAssets.length
+      ? totalBytes
+      : (snapshot?.totalBytes ?? totalBytes),
+    totalFiles: readyAssets.length
+      ? readyAssets.length
+      : (snapshot?.totalFiles ?? 0),
+    totalImages: readyAssets.length ? totalImages : (snapshot?.imageCount ?? 0),
+  };
+}
+
 function parsePortalPayload(
   value: Json | null,
-): Pick<ResolvedPortalAccess, "portal" | "publication"> {
+): Pick<ResolvedPortalAccess, "paidPreview" | "portal" | "publication"> {
   const payload = jsonRecord(value);
   const portal = jsonRecord(payload?.portal);
-  if (!portal) return { portal: null, publication: null };
+  if (!portal) return { paidPreview: null, portal: null, publication: null };
   const publication = jsonRecord(payload?.publication);
   return {
+    paidPreview: paidPreviewValue(portal?.paid_preview),
     portal: {
       allow_asset_downloads: booleanValue(portal.allow_asset_downloads),
       allow_color_copy: booleanValue(portal.allow_color_copy),
       allow_downloads: booleanValue(portal.allow_downloads),
       cover_url: stringValue(portal.cover_url),
+      created_at: stringValue(portal.created_at) ?? "",
       designer_name: stringValue(portal.designer_name),
       id: stringValue(portal.id) ?? "",
       name: stringValue(portal.name) ?? "",
@@ -72,6 +346,7 @@ function parsePortalPayload(
       short_description: stringValue(portal.short_description),
       slug: stringValue(portal.slug) ?? "",
       status: (stringValue(portal.status) ?? "draft") as Portal["status"],
+      updated_at: stringValue(portal.updated_at) ?? "",
       visibility: (stringValue(portal.visibility) ??
         "private") as Portal["visibility"],
     },
@@ -105,23 +380,75 @@ export async function resolvePortalAccess(
   const admin = createAdminClient();
   const authClient = await createClient();
   const [{ data: payload }, { data: userData }] = await Promise.all([
-    admin.rpc("get_public_portal_payload", { portal_slug: slug }),
+    authClient.rpc("get_public_portal_payload", { portal_slug: slug }),
     authClient.auth.getUser(),
   ]);
-  const { portal, publication } = parsePortalPayload(payload);
+  let { paidPreview, portal, publication } = parsePortalPayload(payload);
   if (!portal)
-    return { decision: "not_found", portal: null, publication: null };
+    return {
+      decision: "not_found",
+      paidPreview: null,
+      portal: null,
+      publication: null,
+    };
+  if (
+    portal.visibility === "paid" &&
+    (!portal.created_at || !portal.updated_at)
+  ) {
+    const { data: portalMetadata } = await admin
+      .from("portals")
+      .select("created_at,updated_at")
+      .eq("id", portal.id)
+      .maybeSingle();
+    if (portalMetadata) {
+      portal = {
+        ...portal,
+        created_at: portalMetadata.created_at,
+        updated_at: portalMetadata.updated_at,
+      };
+    }
+  }
+  if (portal.visibility === "paid") {
+    paidPreview = await enrichPaidPreview(portal.id, paidPreview);
+  }
+  const userId = userData.user?.id ?? null;
+  const { data: hasActivePaidAccess } =
+    portal.visibility === "paid" && userId
+      ? await authClient.rpc("portal_has_paid_access", {
+          target_portal_id: portal.id,
+        })
+      : { data: false };
   const unlocked =
     portal.visibility === "password" ? await hasValidUnlock(portal.id) : false;
   const decision = resolveAccessDecision({
     ownerId: portal.owner_id,
     status: portal.status,
     unlocked,
-    userId: userData.user?.id ?? null,
+    userId,
     visibility: portal.visibility,
+    hasActivePaidAccess: Boolean(hasActivePaidAccess),
   });
-  if (decision !== "allowed") return { decision, portal, publication: null };
-  return { decision, portal, publication };
+  if (decision !== "allowed")
+    return { decision, paidPreview, portal, publication: null };
+  let authorizedPublication = publication;
+  if (
+    portal.visibility === "paid" &&
+    portal.published_publication_id &&
+    !authorizedPublication
+  ) {
+    const { data } = await admin
+      .from("portal_publications")
+      .select("id,snapshot")
+      .eq("id", portal.published_publication_id)
+      .maybeSingle();
+    authorizedPublication = data;
+  }
+  return {
+    decision,
+    paidPreview,
+    portal,
+    publication: authorizedPublication,
+  };
 }
 
 export function getSnapshotDocument(snapshot: Json | null | undefined) {

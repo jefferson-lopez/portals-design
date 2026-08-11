@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  IconCreditCard,
   IconExternalLink,
   IconFolderPlus,
   IconLoader2,
@@ -59,6 +60,11 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectGroup,
@@ -67,6 +73,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Link, useRouter } from "@/i18n/navigation";
+import {
+  getCountryFlag,
+  STRIPE_CONNECT_COUNTRY_CODES,
+} from "@/lib/billing/connect-countries";
 import { getHomeErrorEvent } from "@/lib/portal/home-error-event";
 import { usePortalHomeStore } from "@/lib/portal/home-store";
 import { cn } from "@/lib/utils";
@@ -97,6 +107,29 @@ export type PortalHomeCopy = {
     createPortal: string;
     signOut: string;
   };
+  connect: {
+    active: string;
+    activeDescription: string;
+    accountId: string;
+    accountEmail: string;
+    charges: string;
+    configure: string;
+    country: string;
+    countryHelp: string;
+    countryRecommended: string;
+    countrySearch: string;
+    countryNoResults: string;
+    inactiveDescription: string;
+    inactiveTitle: string;
+    edit: string;
+    error: string;
+    inactive: string;
+    loading: string;
+    profile: string;
+    payouts: string;
+    activeTitle: string;
+    trigger: string;
+  };
   intro: {
     portalCount: string;
     title: string;
@@ -106,8 +139,10 @@ export type PortalHomeCopy = {
     lastEdited: string;
     view: string;
     visibility: {
+      paid: string;
       private: string;
       public: string;
+      purchased: string;
     };
   };
   delete: {
@@ -132,6 +167,245 @@ export type PortalHomeCopy = {
     trigger: string;
   };
 };
+
+type ConnectStatus = {
+  accountId?: string;
+  accountEmail?: string | null;
+  chargesEnabled?: boolean;
+  connected: boolean;
+  country?: string | null;
+  payoutsEnabled?: boolean;
+  displayName?: string | null;
+};
+
+function ConnectAccountDialog({
+  copy,
+  locale,
+  recommendedCountry,
+}: {
+  copy: PortalHomeCopy["connect"];
+  locale: string;
+  recommendedCountry: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const [countryPopoverOpen, setCountryPopoverOpen] = useState(false);
+  const [country, setCountry] = useState(recommendedCountry ?? "US");
+  const [countrySearch, setCountrySearch] = useState("");
+  const [status, setStatus] = useState<ConnectStatus | null>(null);
+  const [pending, setPending] = useState(false);
+  const countryNames = new Intl.DisplayNames([locale], { type: "region" });
+  const countryOptions = STRIPE_CONNECT_COUNTRY_CODES.map((code) => ({
+    code,
+    label: countryNames.of(code) ?? code,
+  }));
+  const normalizedSearch = countrySearch.trim().toLocaleLowerCase(locale);
+  const filteredCountries = countryOptions.filter(({ code, label }) =>
+    `${label} ${code}`.toLocaleLowerCase(locale).includes(normalizedSearch),
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    setStatus(null);
+    fetch("/api/billing/connect/status")
+      .then((response) => response.json() as Promise<ConnectStatus>)
+      .then(setStatus)
+      .catch(() => setStatus({ connected: false }));
+  }, [open]);
+
+  async function openStripe(mode: "onboarding" | "update") {
+    setPending(true);
+    try {
+      const response = await fetch("/api/billing/connect/onboarding", {
+        body: JSON.stringify({ country, locale, mode }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const result = (await response.json()) as {
+        details?: string;
+        url?: string;
+      };
+      if (!response.ok || !result.url) {
+        throw new Error(result.details ?? copy.error);
+      }
+      window.location.assign(result.url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : copy.error);
+      setPending(false);
+    }
+  }
+
+  const connected = status?.connected === true;
+  return (
+    <Dialog onOpenChange={setOpen} open={open}>
+      <DialogTrigger
+        render={
+          <Button
+            className="rounded-full"
+            size="lg"
+            type="button"
+            variant="outline"
+          />
+        }
+      >
+        <IconCreditCard data-icon="inline-start" />
+        {copy.trigger}
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {connected ? copy.activeTitle : copy.inactiveTitle}
+          </DialogTitle>
+          <DialogDescription>
+            {connected ? copy.activeDescription : copy.inactiveDescription}
+          </DialogDescription>
+        </DialogHeader>
+        {status === null ? (
+          <FieldGroup>
+            <FieldDescription>{copy.loading}</FieldDescription>
+          </FieldGroup>
+        ) : connected ? (
+          <FieldGroup>
+            <Field>
+              <FieldLabel>{copy.profile}</FieldLabel>
+              <FieldDescription>
+                <span className="flex flex-col gap-1">
+                  <span>{status.displayName ?? copy.active}</span>
+                  {status.accountEmail ? (
+                    <span>
+                      {copy.accountEmail}: {status.accountEmail}
+                    </span>
+                  ) : null}
+                  {status.country ? (
+                    <span>
+                      {copy.country}:{" "}
+                      {countryNames.of(status.country) ?? status.country}
+                    </span>
+                  ) : null}
+                  {status.accountId ? (
+                    <span>
+                      {copy.accountId}: {status.accountId}
+                    </span>
+                  ) : null}
+                  <span>
+                    {copy.charges}:{" "}
+                    {status.chargesEnabled ? copy.active : copy.inactive}
+                  </span>
+                  <span>
+                    {copy.payouts}:{" "}
+                    {status.payoutsEnabled ? copy.active : copy.inactive}
+                  </span>
+                </span>
+              </FieldDescription>
+            </Field>
+            <DialogFooter>
+              <Button
+                className="rounded-full"
+                disabled={pending}
+                onClick={() => openStripe("update")}
+                type="button"
+              >
+                {copy.edit}
+              </Button>
+            </DialogFooter>
+          </FieldGroup>
+        ) : (
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="connect-country">{copy.country}</FieldLabel>
+              <FieldDescription>{copy.countryHelp}</FieldDescription>
+              <Popover
+                onOpenChange={setCountryPopoverOpen}
+                open={countryPopoverOpen}
+              >
+                <PopoverTrigger
+                  render={
+                    <Button
+                      aria-label={copy.country}
+                      className="h-10 w-full justify-between px-3 font-normal"
+                      id="connect-country"
+                      type="button"
+                      variant="outline"
+                    />
+                  }
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span aria-hidden="true" className="text-lg leading-none">
+                      {getCountryFlag(country)}
+                    </span>
+                    <span className="truncate">
+                      {countryNames.of(country) ?? country}
+                    </span>
+                  </span>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  className="w-(--anchor-width) p-2"
+                >
+                  <Input
+                    aria-label={copy.countrySearch}
+                    autoFocus
+                    onChange={(event) => setCountrySearch(event.target.value)}
+                    placeholder={copy.countrySearch}
+                    value={countrySearch}
+                  />
+                  <div className="mt-2 flex max-h-64 flex-col gap-1 overflow-y-auto">
+                    {filteredCountries.length === 0 ? (
+                      <p className="px-2 py-4 text-center text-sm text-muted-foreground">
+                        {copy.countryNoResults}
+                      </p>
+                    ) : (
+                      filteredCountries.map(({ code, label }) => (
+                        <button
+                          aria-pressed={country === code}
+                          className="flex items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                          key={code}
+                          onClick={() => {
+                            setCountry(code);
+                            setCountrySearch("");
+                            setCountryPopoverOpen(false);
+                          }}
+                          type="button"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="text-lg leading-none"
+                          >
+                            {getCountryFlag(code)}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {label}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {code}
+                          </span>
+                          {recommendedCountry === code ? (
+                            <Badge variant="secondary">
+                              {copy.countryRecommended}
+                            </Badge>
+                          ) : null}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </Field>
+            <DialogFooter>
+              <Button
+                className="rounded-full"
+                disabled={pending}
+                onClick={() => openStripe("onboarding")}
+                type="button"
+              >
+                {copy.configure}
+              </Button>
+            </DialogFooter>
+          </FieldGroup>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function portalsQueryKey(locale: string) {
   return ["portals", "home", locale] as const;
@@ -425,7 +699,7 @@ function DeletePortalDialog({
   const [open, setOpen] = useState(false);
   const [confirmationPhrase, setConfirmationPhrase] = useState("");
   const [confirmationSlug, setConfirmationSlug] = useState("");
-  const expectedPhrase = locale === "es" ? "Eliminar" : "Yes delete";
+  const expectedPhrase = copy.delete.phrasePlaceholder;
   const canDelete =
     confirmationSlug === portal.slug && confirmationPhrase === expectedPhrase;
   const mutation = useMutation({
@@ -556,6 +830,7 @@ function PortalCard({
   portal: HomePortal;
 }) {
   const isPublic = portal.visibility === "public";
+  const isPurchased = portal.isPurchased;
   const formattedDate = new Date(portal.updated_at).toLocaleDateString(locale, {
     day: "numeric",
     month: "short",
@@ -573,8 +848,14 @@ function PortalCard({
         <CardDescription className="truncate">/{portal.slug}</CardDescription>
         <CardAction>
           <div className="flex items-center gap-1">
-            <PortalSettingsDialog copy={copy} locale={locale} portal={portal} />
-            {!portal.hasPurchasedPlan ? (
+            {!isPurchased ? (
+              <PortalSettingsDialog
+                copy={copy}
+                locale={locale}
+                portal={portal}
+              />
+            ) : null}
+            {!isPurchased && !portal.hasPurchasedPlan ? (
               <DeletePortalDialog copy={copy} locale={locale} portal={portal} />
             ) : null}
           </div>
@@ -582,25 +863,32 @@ function PortalCard({
       </CardHeader>
       <CardContent className="flex flex-1 flex-col justify-end gap-3">
         <Badge variant={isPublic ? "default" : "secondary"}>
-          {isPublic
-            ? copy.portal.visibility.public
-            : copy.portal.visibility.private}
+          {isPurchased
+            ? copy.portal.visibility.purchased
+            : portal.visibility === "paid"
+              ? copy.portal.visibility.paid
+              : isPublic
+                ? copy.portal.visibility.public
+                : copy.portal.visibility.private}
         </Badge>
         <p className="text-xs text-muted-foreground">
           {copy.portal.lastEdited} · {formattedDate}
         </p>
       </CardContent>
       <CardFooter className="grid grid-cols-2 gap-2 border-t">
-        <Link
-          className={cn(buttonVariants(), "w-full rounded-full")}
-          href={`/create/${portal.id}`}
-        >
-          {copy.portal.edit}
-        </Link>
+        {!isPurchased ? (
+          <Link
+            className={cn(buttonVariants(), "w-full rounded-full")}
+            href={`/create/${portal.id}`}
+          >
+            {copy.portal.edit}
+          </Link>
+        ) : null}
         <a
           className={cn(
             buttonVariants({ variant: "outline" }),
             "w-full rounded-full",
+            isPurchased ? "col-span-2" : null,
           )}
           href={`/${locale}/p/${encodeURIComponent(portal.slug)}`}
           rel="noopener noreferrer"
@@ -620,12 +908,14 @@ export function PortalHome({
   initialError,
   initialPortals,
   locale,
+  recommendedCountry,
 }: {
   backendEnabled: boolean;
   copy: PortalHomeCopy;
   initialError: string | null;
   initialPortals: HomePortal[];
   locale: string;
+  recommendedCountry: string | null;
 }) {
   const portalsQuery = useQuery({
     enabled: backendEnabled,
@@ -669,6 +959,13 @@ export function PortalHome({
             <IconSpiral aria-hidden="true" className="size-8 stroke-[1.5]" />
           </Link>
           <div className="flex items-center gap-2">
+            {backendEnabled ? (
+              <ConnectAccountDialog
+                copy={copy.connect}
+                locale={locale}
+                recommendedCountry={recommendedCountry}
+              />
+            ) : null}
             {backendEnabled ? (
               <CreatePortalDialog copy={copy} locale={locale} />
             ) : null}

@@ -44,7 +44,7 @@ type CreationVisibility = "public" | "private";
 export type HomePortal = Pick<
   Portal,
   "id" | "name" | "slug" | "updated_at" | "visibility"
-> & { hasPurchasedPlan: boolean };
+> & { hasPurchasedPlan: boolean; isPurchased: boolean };
 
 export type HomePortalsResult = {
   error: "loadFailed" | null;
@@ -132,12 +132,50 @@ export async function getHomePortals(
       }
     }
 
+    const { data: grants, error: grantsError } = await supabase
+      .from("paid_portal_access_grants")
+      .select("portal_id")
+      .eq("buyer_id", userData.user.id)
+      .eq("status", "paid");
+    if (grantsError)
+      return homePortalsFailure("list-paid-portal-grants", grantsError);
+
+    const ownedPortalIds = new Set(data.map((portal) => portal.id));
+    const purchasedIds = (grants ?? [])
+      .map((grant) => grant.portal_id)
+      .filter((portalId) => !ownedPortalIds.has(portalId));
+    let purchasedPortals: HomePortal[] = [];
+    if (purchasedIds.length > 0) {
+      const admin = createAdminClient();
+      const { data: purchased, error: purchasedError } = await admin
+        .from("portals")
+        .select("id,name,slug,updated_at,visibility")
+        .in("id", purchasedIds)
+        .eq("visibility", "paid")
+        .eq("status", "published");
+      if (purchasedError)
+        return homePortalsFailure("list-purchased-portals", purchasedError);
+      purchasedPortals = (purchased ?? []).map((portal) => ({
+        ...portal,
+        hasPurchasedPlan: false,
+        isPurchased: true,
+      }));
+    }
+
     return {
       error: null,
-      portals: data.map((portal) => ({
-        ...portal,
-        hasPurchasedPlan: purchasedPortalIds.has(portal.id),
-      })),
+      portals: [
+        ...data.map((portal) => ({
+          ...portal,
+          hasPurchasedPlan: purchasedPortalIds.has(portal.id),
+          isPurchased: false,
+        })),
+        ...purchasedPortals,
+      ].sort(
+        (left, right) =>
+          new Date(right.updated_at).getTime() -
+          new Date(left.updated_at).getTime(),
+      ),
     };
   } catch (error) {
     unstable_rethrow(error);
@@ -435,6 +473,7 @@ export async function deletePortalFromHome({
   confirmationSlug: string;
 }) {
   try {
+    const homeT = await getTranslations({ locale, namespace: "Home" });
     const supabase = await requireAuthenticatedUser(locale);
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) {
@@ -452,7 +491,7 @@ export async function deletePortalFromHome({
       return { error: "portalNotFound" } as const;
     }
 
-    const expectedPhrase = locale === "es" ? "Eliminar" : "Yes delete";
+    const expectedPhrase = homeT("delete.phrasePlaceholder");
     if (
       confirmationSlug !== portal.slug ||
       confirmationPhrase !== expectedPhrase
@@ -644,7 +683,7 @@ export async function savePrivacySettings(formData: FormData) {
   const portalId = getString(formData, "portal_id");
   const visibility = getString(formData, "visibility") as PortalVisibility;
   const password = getString(formData, "password") || null;
-  if (!["public", "private", "password"].includes(visibility))
+  if (!["public", "private", "password", "paid"].includes(visibility))
     actionFailure(t("privacyInvalid"));
   if (
     visibility === "password" &&
@@ -654,6 +693,51 @@ export async function savePrivacySettings(formData: FormData) {
     actionFailure(t("passwordLength"));
   }
   const supabase = await requireAuthenticatedUser(locale);
+  if (visibility === "paid") {
+    const priceDollars = Number.parseFloat(getString(formData, "price"));
+    const priceCents = Number.isFinite(priceDollars)
+      ? Math.round(priceDollars * 100)
+      : Number.NaN;
+    if (
+      !Number.isInteger(priceCents) ||
+      priceCents < 500 ||
+      priceCents > 50000
+    ) {
+      actionFailure(t("paidPriceInvalid"));
+    }
+    const previewMetadataValue = getString(formData, "preview_metadata");
+    let previewMetadata: Json = {};
+    if (previewMetadataValue) {
+      try {
+        const parsed = JSON.parse(previewMetadataValue) as unknown;
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          actionFailure(t("paidPreviewInvalid"));
+        }
+        previewMetadata = parsed as Json;
+      } catch {
+        actionFailure(t("paidPreviewInvalid"));
+      }
+    }
+    const { error: offerError } = await supabase.rpc(
+      "upsert_paid_portal_offer",
+      {
+        offer_currency: "usd",
+        offer_is_active: true,
+        offer_preview_metadata: previewMetadata,
+        offer_price_cents: priceCents,
+        target_portal_id: portalId,
+      } as never,
+    );
+    if (offerError) actionFailure(t("paidOfferUnavailable"));
+    const { data: connectReady } = await supabase.rpc(
+      "creator_has_active_connect_onboarding",
+      { target_owner_id: (await supabase.auth.getUser()).data.user?.id ?? "" },
+    );
+    if (!connectReady) {
+      revalidatePath(`/${locale}/create/${portalId}`);
+      return;
+    }
+  }
   const { error } = await supabase.rpc("set_portal_privacy", {
     portal_password: password,
     portal_visibility: visibility,

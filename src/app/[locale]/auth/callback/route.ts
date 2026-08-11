@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { type NextRequest, NextResponse } from "next/server";
+import { getSafeAuthNext } from "@/lib/auth/auth-redirect";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,9 +12,7 @@ export async function GET(
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
   const requestedNext = requestUrl.searchParams.get("next");
-  const next = isSafeNext(requestedNext, locale)
-    ? requestedNext
-    : `/${locale}/home`;
+  const next = getSafeAuthNext(requestedNext, locale);
 
   if (!hasSupabaseEnv()) {
     return NextResponse.redirect(
@@ -22,7 +21,7 @@ export async function GET(
   }
 
   if (!code) {
-    return redirectToSignIn(request, locale, "confirmation-expired");
+    return redirectToSignIn(request, locale, "confirmation-expired", next);
   }
 
   const supabase = await createClient();
@@ -33,25 +32,20 @@ export async function GET(
       code: error.code ?? "unknown",
       status: error.status,
     });
-    return redirectToSignIn(request, locale, "confirmation-expired");
+    return redirectToSignIn(request, locale, "confirmation-expired", next);
   }
 
   redirect(next);
-}
-
-function isSafeNext(
-  value: string | null,
-  locale: string,
-): value is `/${string}` {
-  return Boolean(value?.startsWith(`/${locale}/`) && !value.startsWith("//"));
 }
 
 function redirectToSignIn(
   request: NextRequest,
   locale: string,
   message: string,
+  next: string,
 ) {
   const url = new URL(`/${locale}/auth/sign-in`, request.url);
   url.searchParams.set("message", message);
+  url.searchParams.set("next", next);
   return NextResponse.redirect(url);
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getSignUpErrorKey } from "@/lib/auth/auth-error";
+import { getSafeAuthNext } from "@/lib/auth/auth-redirect";
 import { getSignInErrorKey } from "@/lib/auth/sign-in-error";
 import { resolveSiteOrigin } from "@/lib/billing/site-origin";
 import { createClient } from "@/lib/supabase/server";
@@ -31,6 +32,7 @@ export async function signInWithPassword(
   formData: FormData,
 ): Promise<AuthActionState> {
   const locale = getString(formData, "locale") || "en";
+  const next = getSafeAuthNext(getString(formData, "next"), locale);
   const email = getString(formData, "email");
   const password = getString(formData, "password");
   const t = await getTranslations({ locale, namespace: "Auth.signIn" });
@@ -63,7 +65,7 @@ export async function signInWithPassword(
   }
 
   revalidatePath(`/${locale}/home`);
-  redirect(`/${locale}/home`);
+  redirect(next);
 }
 
 export async function signUpWithPassword(
@@ -71,6 +73,7 @@ export async function signUpWithPassword(
   formData: FormData,
 ): Promise<SignUpActionState> {
   const locale = getString(formData, "locale") || "en";
+  const next = getSafeAuthNext(getString(formData, "next"), locale);
   const email = getString(formData, "email");
   const password = getString(formData, "password");
   const fullName = getString(formData, "full_name");
@@ -93,7 +96,7 @@ export async function signUpWithPassword(
       email,
       options: {
         data: { full_name: fullName },
-        emailRedirectTo: `${getOrigin()}/${locale}/auth/callback`,
+        emailRedirectTo: `${getOrigin()}/${locale}/auth/callback?next=${encodeURIComponent(next)}`,
       },
       password,
     }));
@@ -115,7 +118,9 @@ export async function signUpWithPassword(
     return { message: t(errorKey), status: "error" };
   }
 
-  redirect(`/${locale}/auth/sign-in?message=check-email`);
+  redirect(
+    `/${locale}/auth/sign-in?message=check-email&next=${encodeURIComponent(next)}`,
+  );
 }
 
 export async function signOut(formData: FormData) {

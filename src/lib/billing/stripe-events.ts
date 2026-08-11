@@ -6,6 +6,12 @@ export type PersistedCheckoutAttempt = {
   plan: Exclude<PortalPlan, "free">;
   upgradeFrom: Exclude<PortalPlan, "free" | "premium"> | "free" | null;
 };
+export type PersistedPaidCheckoutAttempt = {
+  amountTotal: number;
+  currency: string;
+  portalId: string;
+  buyerId: string;
+};
 
 type StripeEventLike = {
   data: {
@@ -20,6 +26,50 @@ type StripeEventLike = {
   };
   type: string;
 };
+
+export function resolvePaidPortalPaymentMutation(
+  event: StripeEventLike,
+  checkoutAttempt?: PersistedPaidCheckoutAttempt,
+): {
+  paymentIntentId: string;
+  portalId?: string;
+  buyerId?: string;
+  status: "paid" | "refunded" | "disputed" | "revoked";
+} | null {
+  const paymentIntentId = id(event.data.payment_intent);
+  if (!paymentIntentId) return null;
+  if (event.type === "checkout.session.completed") {
+    const metadata = event.data.metadata;
+    if (
+      !checkoutAttempt ||
+      metadata?.product !== "paid_portal_purchase_v1" ||
+      metadata.portal_id !== checkoutAttempt.portalId ||
+      metadata.buyer_id !== checkoutAttempt.buyerId ||
+      event.data.client_reference_id !== checkoutAttempt.portalId ||
+      event.data.payment_status !== "paid" ||
+      event.data.mode !== "payment" ||
+      event.data.currency?.toLowerCase() !== checkoutAttempt.currency ||
+      event.data.amount_total !== checkoutAttempt.amountTotal
+    )
+      return null;
+    return {
+      paymentIntentId,
+      portalId: checkoutAttempt.portalId,
+      buyerId: checkoutAttempt.buyerId,
+      status: "paid",
+    };
+  }
+  if (event.type === "charge.refunded")
+    return { paymentIntentId, status: "refunded" };
+  if (event.type === "charge.dispute.created")
+    return { paymentIntentId, status: "disputed" };
+  if (event.type === "charge.dispute.closed") {
+    if (event.data.status === "lost")
+      return { paymentIntentId, status: "revoked" };
+    if (event.data.status === "won") return { paymentIntentId, status: "paid" };
+  }
+  return null;
+}
 
 function id(value: string | { id: string } | null | undefined) {
   return typeof value === "string" ? value : value?.id;

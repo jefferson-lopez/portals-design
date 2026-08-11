@@ -22,7 +22,7 @@ describe("authentication route guards", () => {
   test("does not hide confirmation exchange errors and rejects unsafe redirects", () => {
     expect(callbackSource).toContain("exchangeCodeForSession(code)");
     expect(callbackSource).toContain("confirmation-expired");
-    expect(callbackSource).toContain("isSafeNext");
+    expect(callbackSource).toContain("getSafeAuthNext");
   });
 
   test("requires an authenticated user before portal server actions", () => {

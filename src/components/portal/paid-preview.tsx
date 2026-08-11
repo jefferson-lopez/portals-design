@@ -1,0 +1,340 @@
+import { IconCheck, IconLock } from "@tabler/icons-react";
+import Link from "next/link";
+import { getTranslations } from "next-intl/server";
+import type { ReactNode } from "react";
+import type { PortalFileType } from "@/lib/portal/document";
+import { PortalFileTypeIcon } from "./file-preview";
+import {
+  formatPreviewBytes,
+  type PaidPreviewInput,
+  projectPaidPreview,
+} from "./paid-preview-projection";
+import { PaidUnlockButton } from "./paid-unlock-button";
+
+export type PaidPreviewProps = PaidPreviewInput & {
+  createdAt?: string | null;
+  designerName?: string | null;
+  locale: string;
+  portalId: string;
+  slug: string;
+  updatedAt?: string | null;
+  unlockHref?: string | null;
+};
+
+export async function PaidPreview({
+  locale,
+  portalId,
+  slug,
+  createdAt,
+  designerName,
+  updatedAt,
+  unlockHref,
+  ...input
+}: PaidPreviewProps) {
+  const t = await getTranslations({
+    locale,
+    namespace: "PublicPortal.preview",
+  });
+  const preview = projectPaidPreview(input);
+  const previewImage = preview.previewImages[0]?.src;
+  const totalFiles =
+    preview.totalFiles ||
+    preview.assetSummary.reduce((sum, item) => sum + item.count, 0);
+  const totalBytes =
+    preview.totalBytes ||
+    preview.assetSummary.reduce((sum, item) => sum + item.totalBytes, 0);
+  const totalImages =
+    preview.totalImages ||
+    preview.assetSummary.find((item) => item.assetType === "image")?.count ||
+    0;
+  const fileGroups = preview.sampleFiles.reduce<
+    Array<{ count: number; name: string; type: string }>
+  >((groups, file) => {
+    const type = paidPreviewFileType("", file.assetType) ?? file.assetType;
+    const name = fileTypeLabel("", type);
+    if (name === "file" || !hasPaidPreviewIcon(type)) return groups;
+    const existing = groups.find((group) => group.name === name);
+    if (existing) existing.count += 1;
+    else groups.push({ count: 1, name, type });
+    return groups;
+  }, []);
+  const adobeTypes = new Set([
+    "psd",
+    "psb",
+    "ai",
+    "ait",
+    "eps",
+    "indd",
+    "indt",
+    "idml",
+  ]);
+  fileGroups.sort(
+    (left, right) =>
+      Number(!adobeTypes.has(left.type)) -
+        Number(!adobeTypes.has(right.type)) || right.count - left.count,
+  );
+
+  return (
+    <main className="min-h-dvh px-4 py-7 text-foreground sm:px-8 sm:py-10">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
+        <div className="w-full">
+          <div className="grid lg:grid-cols-[1.05fr_0.95fr]">
+            <section className="flex flex-col justify-start p-7 sm:p-12 lg:p-16">
+              <h1 className="max-w-2xl text-3xl font-semibold tracking-[-0.03em] sm:text-5xl">
+                {preview.name}
+              </h1>
+              {preview.description ? (
+                <p className="mt-5 max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
+                  {preview.description}
+                </p>
+              ) : null}
+
+              <div className="mt-10 max-w-xl">
+                <ul className="space-y-3 text-sm">
+                  <InfoItem
+                    label={t("totalFiles")}
+                    value={String(totalFiles)}
+                  />
+                  <InfoItem
+                    label={t("totalImages")}
+                    value={String(totalImages)}
+                  />
+                  <InfoItem
+                    label={t("totalSize")}
+                    value={formatPreviewBytes(totalBytes, locale)}
+                  />
+                  {designerName ? (
+                    <InfoItem label={t("designer")} value={designerName} />
+                  ) : null}
+                  {createdAt ? (
+                    <InfoItem
+                      label={t("createdAt")}
+                      value={formatPreviewDate(createdAt, locale)}
+                    />
+                  ) : null}
+                  {updatedAt ? (
+                    <InfoItem
+                      label={t("updatedAt")}
+                      value={formatPreviewDate(updatedAt, locale)}
+                    />
+                  ) : null}
+                </ul>
+              </div>
+
+              <div className="mt-10">
+                <p className="text-sm font-medium">{t("benefitsTitle")}</p>
+                <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
+                  <Benefit>{t("oneTimePayment")}</Benefit>
+                  <Benefit>{t("lifetimeUpdates")}</Benefit>
+                </ul>
+              </div>
+
+              <div className="mt-10 w-full max-w-xl">
+                {unlockHref ? (
+                  <a
+                    className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                    href={unlockHref}
+                  >
+                    <IconLock className="size-4" />
+                    {t("unlock")}
+                    <span aria-hidden="true">·</span>
+                    {preview.price || "—"}
+                  </a>
+                ) : (
+                  <PaidUnlockButton
+                    locale={locale}
+                    portalId={portalId}
+                    price={preview.price}
+                    slug={slug}
+                  />
+                )}
+              </div>
+            </section>
+
+            <section className="p-7 sm:p-10 lg:pt-16">
+              <div className="mx-auto flex max-w-md flex-col gap-6">
+                <div>
+                  <p className="text-base font-semibold">{t("previewLabel")}</p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {t("previewDescription")}
+                  </p>
+                </div>
+
+                {previewImage ? (
+                  <div className="relative overflow-hidden rounded-2xl">
+                    {/* biome-ignore lint/performance/noImgElement: This URL is a server-generated blurred derivative. */}
+                    <img
+                      alt=""
+                      className="aspect-[16/10] w-full object-cover"
+                      src={previewImage}
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="flex size-12 items-center justify-center rounded-full bg-background/40">
+                        <IconLock className="size-5" />
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div>
+                  <div className="grid grid-cols-5 gap-4">
+                    {fileGroups.length > 0 ? (
+                      fileGroups.map((file) => (
+                        <div
+                          aria-label={file.name}
+                          className="flex size-20 items-center justify-center rounded-xl"
+                          key={`${file.name}-${file.type}`}
+                          role="img"
+                        >
+                          <PortalFileTypeIcon
+                            fallback={{ file: "", image: "" }}
+                            type={paidPreviewFileType("", file.type)}
+                          />
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {t("noFiles")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <footer className="flex flex-col items-center justify-center gap-2 text-center text-xs text-muted-foreground">
+          <div className="flex items-center justify-center gap-1.5">
+            <span>{t("poweredBy")}</span>
+            <Link className="font-medium underline underline-offset-4" href="/">
+              Portals Design
+            </Link>
+          </div>
+        </footer>
+      </div>
+    </main>
+  );
+}
+
+function paidPreviewFileType(
+  name: string,
+  type: string,
+): PortalFileType | undefined {
+  const extension = name.split(".").pop()?.toLowerCase();
+  const knownExtensions = [
+    "pdf",
+    "ai",
+    "ait",
+    "eps",
+    "psd",
+    "psb",
+    "indd",
+    "indt",
+    "idml",
+    "svg",
+    "jpg",
+    "jpeg",
+    "png",
+    "webp",
+    "gif",
+    "avif",
+    "md",
+    "txt",
+    "tif",
+    "tiff",
+  ];
+  const candidate = knownExtensions.includes(extension ?? "")
+    ? extension
+    : type.toLowerCase().split("/").pop();
+  if (candidate === "pdf") return "pdf";
+  if (candidate === "ai") return "ai";
+  if (candidate === "ait") return "ait";
+  if (candidate === "eps" || candidate === "postscript") return "eps";
+  if (candidate === "illustrator") return "ai";
+  if (candidate === "psd") return "psd";
+  if (candidate === "psb") return "psb";
+  if (candidate === "indd") return "indd";
+  if (candidate === "indt") return "indt";
+  if (candidate === "idml") return "idml";
+  if (candidate === "svg") return "svg";
+  if (candidate === "md") return "md";
+  if (candidate === "txt") return "txt";
+  if (candidate === "tif" || candidate === "tiff") return "tiff";
+  if (["jpg", "jpeg", "png", "webp", "gif", "avif"].includes(candidate ?? ""))
+    return "image";
+  return undefined;
+}
+
+function hasPaidPreviewIcon(type: string) {
+  return ["ai", "ait", "eps", "md", "pdf", "psb", "psd", "svg"].includes(type);
+}
+
+function normalizedFileType(name: string, type: string) {
+  const extension = name.split(".").pop()?.toLowerCase();
+  const knownExtensions = [
+    "ai",
+    "ait",
+    "eps",
+    "psd",
+    "psb",
+    "indd",
+    "indt",
+    "idml",
+    "pdf",
+    "svg",
+    "jpg",
+    "jpeg",
+    "png",
+    "webp",
+    "gif",
+    "avif",
+    "md",
+    "txt",
+    "tif",
+    "tiff",
+  ];
+  return knownExtensions.includes(extension ?? "")
+    ? (extension ?? type.toLowerCase())
+    : type.toLowerCase();
+}
+
+function fileTypeLabel(name: string, type: string) {
+  const normalized = normalizedFileType(name, type);
+  if (["ai", "ait"].includes(normalized)) return "Adobe Illustrator";
+  if (normalized === "eps") return "EPS";
+  if (["psd", "psb"].includes(normalized)) return "Adobe Photoshop";
+  if (["indd", "indt", "idml"].includes(normalized)) return "Adobe InDesign";
+  if (normalized === "pdf") return "PDF";
+  return normalized;
+}
+
+function InfoItem({ label, value }: { label: string; value: string }) {
+  return (
+    <li className="flex max-w-xl items-baseline justify-between gap-6">
+      <span className="text-muted-foreground">{label}</span>
+      <strong className="text-right font-medium text-foreground">
+        {value}
+      </strong>
+    </li>
+  );
+}
+
+function Benefit({ children }: { children: ReactNode }) {
+  return (
+    <li className="flex items-center gap-2">
+      <IconCheck className="size-4 shrink-0 text-emerald-600" />
+      <span>{children}</span>
+    </li>
+  );
+}
+
+function formatPreviewDate(value: string, locale: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}

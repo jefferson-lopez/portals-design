@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { PaidPreview } from "@/components/portal/paid-preview";
+import { isPaidPreviewDecision } from "@/components/portal/paid-preview-projection";
 import { PortalDocumentSidebarReadOnly } from "@/components/portal/portal-document-sidebar-read-only";
 import { PortalEntryTransition } from "@/components/portal/portal-entry-transition";
 import { RenderPortal } from "@/components/portal/render-portal";
@@ -20,6 +22,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { confirmPaidPortalCheckout } from "@/lib/billing/confirm-paid-portal-checkout";
 import {
   createDefaultPortalDocument,
   hasPublicSectionContent,
@@ -42,7 +45,7 @@ import { createClient } from "@/lib/supabase/server";
 
 type Props = {
   params: Promise<{ locale: string; slug: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; session_id?: string }>;
 };
 
 async function PasswordGate({
@@ -104,9 +107,11 @@ export default async function PublicPortalPage({
   searchParams,
 }: Props) {
   const { locale, slug } = await params;
-  const { error } = await searchParams;
+  const { error, session_id } = await searchParams;
   setRequestLocale(locale);
   if (!hasSupabaseEnv()) notFound();
+
+  if (session_id) await confirmPaidPortalCheckout(slug, session_id);
 
   const access = await resolvePortalAccess(slug);
   if (!access.portal || access.decision === "not_found") notFound();
@@ -117,6 +122,30 @@ export default async function PublicPortalPage({
         locale={locale}
         name={access.portal.name}
         slug={slug}
+      />
+    );
+  }
+  if (isPaidPreviewDecision(access.decision)) {
+    return (
+      <PaidPreview
+        locale={locale}
+        portalId={access.portal.id}
+        slug={slug}
+        name={access.paidPreview?.name || access.portal.name}
+        description={
+          access.paidPreview?.description ?? access.portal.short_description
+        }
+        createdAt={access.portal.created_at}
+        designerName={access.portal.designer_name}
+        previewImages={access.paidPreview?.previewImages}
+        assetSummary={access.paidPreview?.assetSummary}
+        sampleFiles={access.paidPreview?.sampleFiles}
+        price={access.paidPreview?.price}
+        totalBytes={access.paidPreview?.totalBytes}
+        totalFiles={access.paidPreview?.totalFiles}
+        totalImages={access.paidPreview?.totalImages}
+        updatedAt={access.portal.updated_at}
+        unlockHref={access.paidPreview?.unlockHref}
       />
     );
   }

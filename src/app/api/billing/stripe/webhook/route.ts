@@ -3,6 +3,8 @@ import type Stripe from "stripe";
 import { getStripe, getStripeWebhookSecret } from "@/lib/billing/stripe";
 import {
   type PersistedCheckoutAttempt,
+  type PersistedPaidCheckoutAttempt,
+  resolvePaidPortalPaymentMutation,
   resolveStripeEntitlementMutation,
 } from "@/lib/billing/stripe-events";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -73,6 +75,78 @@ export async function POST(request: Request) {
   }
   if (!object) return NextResponse.json({ received: true });
   const admin = createAdminClient();
+
+  const isPaidProduct = object.metadata?.product === "paid_portal_purchase_v1";
+  let paidAttempt: PersistedPaidCheckoutAttempt | undefined;
+  let paidPurchase: { portal_id: string; buyer_id: string | null } | null =
+    null;
+  if (isPaidProduct && event.type === "checkout.session.completed") {
+    const attemptId = object.metadata?.checkout_attempt_id;
+    if (!attemptId || !object.client_reference_id)
+      return NextResponse.json({ received: true });
+    const { data } = (await admin
+      .from("paid_portal_checkout_attempts" as never)
+      .select("amount_total,currency,portal_id,buyer_id,status")
+      .eq("idempotency_key", attemptId)
+      .eq("portal_id", object.client_reference_id)
+      .maybeSingle()) as {
+      data: (PersistedPaidCheckoutAttempt & { status: string }) | null;
+    };
+    if (!data || !["pending", "completed"].includes(data.status))
+      return NextResponse.json({ received: true });
+    paidAttempt = data;
+  } else if (
+    event.type !== "checkout.session.completed" &&
+    object.payment_intent
+  ) {
+    const { data } = (await admin
+      .from("paid_portal_purchases" as never)
+      .select("portal_id,buyer_id")
+      .eq("stripe_payment_intent_id", object.payment_intent)
+      .maybeSingle()) as {
+      data: { portal_id: string; buyer_id: string | null } | null;
+    };
+    paidPurchase = data;
+  }
+  if (isPaidProduct || paidPurchase) {
+    const paidMutation = resolvePaidPortalPaymentMutation(
+      {
+        data: {
+          amount_total: object.amountTotal,
+          client_reference_id: object.client_reference_id,
+          currency: object.currency,
+          metadata: object.metadata,
+          mode: object.mode,
+          payment_intent: object.payment_intent,
+          payment_status: object.payment_status,
+          status: object.status,
+        },
+        type: event.type,
+      },
+      paidAttempt,
+    );
+    if (!paidMutation || !object.payment_intent)
+      return NextResponse.json({ received: true });
+    const { error } = await admin.rpc(
+      "apply_paid_portal_payment_event" as never,
+      {
+        event_amount_total: object.amountTotal,
+        event_buyer_id: paidMutation.buyerId ?? paidPurchase?.buyer_id ?? null,
+        event_checkout_session_id: object.checkoutSessionId,
+        event_created: event.created,
+        event_currency: object.currency,
+        event_id: event.id,
+        event_payment_intent_id: object.payment_intent,
+        event_portal_id:
+          paidMutation.portalId ?? paidPurchase?.portal_id ?? null,
+        event_status: paidMutation.status,
+        event_type: event.type,
+      } as never,
+    );
+    if (error)
+      return NextResponse.json({ error: "processing_failed" }, { status: 500 });
+    return NextResponse.json({ received: true });
+  }
   let checkoutAttempt: PersistedCheckoutAttempt | undefined;
   if (event.type === "checkout.session.completed") {
     if (!object.client_reference_id || !object.checkoutSessionId) {

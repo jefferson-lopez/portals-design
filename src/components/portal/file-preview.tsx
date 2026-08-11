@@ -1,5 +1,6 @@
 "use client";
 
+import { IconFileText, IconPhoto } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 import type { SVGProps } from "react";
 import type { PortalFileType } from "@/lib/portal/document";
@@ -192,7 +193,28 @@ const SvgIcon = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-function FileTypeIcon({
+const MdIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    {...props}
+    viewBox="0 0 208 128"
+    xmlSpace="preserve"
+  >
+    <path
+      d="M15 5h178a10 10 0 0 1 10 10v98a10 10 0 0 1-10 10H15a10 10 0 0 1-10-10V15A10 10 0 0 1 15 5z"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="10"
+    />
+    <path
+      d="M30 98V30h20l20 25 20-25h20v68H90V59L70 84 50 59v39H30zm125 0-30-33h20V30h20v35h20l-30 33z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+export function PortalFileTypeIcon({
   fallback,
   type,
 }: {
@@ -206,9 +228,13 @@ function FileTypeIcon({
   if (type === "psd" || type === "psb")
     return <PhotoshopIcon className="size-16" />;
   if (type === "svg") return <SvgIcon className="size-16" />;
+  if (type === "md") return <MdIcon className="size-16" />;
+  if (type === "txt") return <IconFileText className="size-16" />;
+  if (type === "image" || type === "tiff")
+    return <IconPhoto className="size-16" />;
   return (
     <span className="font-semibold text-muted-foreground text-xs uppercase">
-      {type === "image" ? fallback.image : fallback.file}
+      {fallback.file}
     </span>
   );
 }
@@ -241,7 +267,7 @@ export function PortalFilePreview({
             src={fileUrl}
           />
         ) : (
-          <FileTypeIcon
+          <PortalFileTypeIcon
             fallback={{
               file: t("fileAbbreviation"),
               image: t("imageAbbreviation"),

@@ -31,9 +31,10 @@ type Props = {
     submit: string;
   };
   locale: string;
+  next: string;
 };
 
-export function SignInForm({ backendEnabled, copy, locale }: Props) {
+export function SignInForm({ backendEnabled, copy, locale, next }: Props) {
   const [state, formAction, isPending] = useActionState(
     signInWithPassword,
     initialState,
@@ -48,6 +49,7 @@ export function SignInForm({ backendEnabled, copy, locale }: Props) {
   return (
     <form action={formAction}>
       <input name="locale" type="hidden" value={locale} />
+      <input name="next" type="hidden" value={next} />
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor="email">{copy.email}</FieldLabel>

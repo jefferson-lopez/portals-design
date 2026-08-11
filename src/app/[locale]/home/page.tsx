@@ -1,5 +1,7 @@
+import { headers } from "next/headers";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { PortalHome } from "@/components/portal/portal-home";
+import { isStripeConnectCountry } from "@/lib/billing/connect-countries";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { getHomePortals } from "../_actions/portals";
 
@@ -9,6 +11,8 @@ type Props = {
 
 export default async function HomePage({ params }: Props) {
   const { locale } = await params;
+  const vercelCountry = (await headers()).get("x-vercel-ip-country");
+  const recommendedCountry = vercelCountry?.toUpperCase();
   const backendEnabled = hasSupabaseEnv();
 
   setRequestLocale(locale);
@@ -36,6 +40,29 @@ export default async function HomePage({ params }: Props) {
           visibilityPublic: t("create.visibilityPublic"),
           submit: t("create.submit"),
           title: t("create.title"),
+        },
+        connect: {
+          active: t("connect.active"),
+          activeDescription: t("connect.activeDescription"),
+          accountId: t("connect.accountId"),
+          accountEmail: t("connect.accountEmail"),
+          charges: t("connect.charges"),
+          configure: t("connect.configure"),
+          country: t("connect.country"),
+          countryHelp: t("connect.countryHelp"),
+          countryRecommended: t("connect.countryRecommended"),
+          countrySearch: t("connect.countrySearch"),
+          countryNoResults: t("connect.countryNoResults"),
+          inactiveDescription: t("connect.inactiveDescription"),
+          inactiveTitle: t("connect.inactiveTitle"),
+          edit: t("connect.edit"),
+          error: t("connect.error"),
+          inactive: t("connect.inactive"),
+          profile: t("connect.profile"),
+          payouts: t("connect.payouts"),
+          activeTitle: t("connect.activeTitle"),
+          loading: t("connect.loading"),
+          trigger: t("connect.trigger"),
         },
         delete: {
           cancel: t("delete.cancel"),
@@ -70,8 +97,10 @@ export default async function HomePage({ params }: Props) {
           lastEdited: t("portal.lastEdited"),
           view: t("portal.view"),
           visibility: {
+            paid: t("portal.visibility.paid"),
             private: t("portal.visibility.private"),
             public: t("portal.visibility.public"),
+            purchased: t("portal.visibility.purchased"),
           },
         },
         settings: {
@@ -86,6 +115,11 @@ export default async function HomePage({ params }: Props) {
       initialError={initialResult.error ? t("errorGeneric") : null}
       initialPortals={initialResult.portals}
       locale={locale}
+      recommendedCountry={
+        recommendedCountry && isStripeConnectCountry(recommendedCountry)
+          ? recommendedCountry
+          : null
+      }
     />
   );
 }

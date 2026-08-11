@@ -41,6 +41,7 @@ type PortalWorkspace = {
   blocks: PortalBlock[];
   document: PortalDocument;
   hasUnpublishedChanges: boolean;
+  paidPriceCents: number | null;
 };
 
 type PublicationSnapshot = {
@@ -160,6 +161,7 @@ async function getWorkspace(
     { data: blocks },
     { data: portalDocumentRow },
     { data: publicationRow },
+    { data: paidOffer },
   ] = await Promise.all([
     supabase
       .from("portal_blocks")
@@ -179,6 +181,14 @@ async function getWorkspace(
           .eq("id", portal.published_publication_id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    supabase
+      .from("paid_portal_offers" as never)
+      .select("price_cents")
+      .eq("portal_id", portalId)
+      .eq("is_active", true)
+      .maybeSingle() as unknown as Promise<{
+      data: { price_cents: number } | null;
+    }>,
   ]);
 
   const fallbackDocument = portalBlocksToDocument(safePortal, blocks ?? []);
@@ -201,6 +211,7 @@ async function getWorkspace(
     blocks: blocks ?? [],
     document,
     hasUnpublishedChanges,
+    paidPriceCents: paidOffer?.price_cents ?? null,
     portal: safePortal,
   };
 }
@@ -218,10 +229,8 @@ export default async function CreatePortalPage({
     namespace: "PortalEditor.workspace",
   });
 
-  const { document, hasUnpublishedChanges, portal } = await getWorkspace(
-    locale,
-    portalId,
-  );
+  const { document, hasUnpublishedChanges, paidPriceCents, portal } =
+    await getWorkspace(locale, portalId);
   return (
     <PortalPlanProvider locale={locale} portalId={portal.id}>
       <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2">
@@ -244,7 +253,11 @@ export default async function CreatePortalPage({
             </Button>
           </Link>
           <div aria-hidden="true" className="h-6 w-px bg-border" />
-          <SettingsDialog locale={locale} portal={portal} />
+          <SettingsDialog
+            initialPaidPriceCents={paidPriceCents}
+            locale={locale}
+            portal={portal}
+          />
           {portal.status === "published" ? (
             <Tooltip>
               <TooltipTrigger render={<span />}>

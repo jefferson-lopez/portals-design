@@ -34,6 +34,210 @@ export type Database = {
   };
   public: {
     Tables: {
+      creator_stripe_accounts: {
+        Row: {
+          stripe_account_id: string;
+          charges_enabled: boolean;
+          created_at: string;
+          details_submitted: boolean;
+          onboarding_status: Database["public"]["Enums"]["creator_stripe_onboarding_status"];
+          owner_id: string;
+          payouts_enabled: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          stripe_account_id: string;
+          charges_enabled?: boolean;
+          created_at?: string;
+          details_submitted?: boolean;
+          onboarding_status?: Database["public"]["Enums"]["creator_stripe_onboarding_status"];
+          owner_id: string;
+          payouts_enabled?: boolean;
+          updated_at?: string;
+        };
+        Update: {
+          stripe_account_id?: string;
+          charges_enabled?: boolean;
+          created_at?: string;
+          details_submitted?: boolean;
+          onboarding_status?: Database["public"]["Enums"]["creator_stripe_onboarding_status"];
+          owner_id?: string;
+          payouts_enabled?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      paid_portal_access_grants: {
+        Row: {
+          buyer_id: string;
+          granted_at: string;
+          portal_id: string;
+          purchase_id: string;
+          revoked_at: string | null;
+          status: Database["public"]["Enums"]["paid_portal_purchase_status"];
+          updated_at: string;
+        };
+        Insert: {
+          buyer_id: string;
+          granted_at?: string;
+          portal_id: string;
+          purchase_id: string;
+          revoked_at?: string | null;
+          status?: Database["public"]["Enums"]["paid_portal_purchase_status"];
+          updated_at?: string;
+        };
+        Update: {
+          buyer_id?: string;
+          granted_at?: string;
+          portal_id?: string;
+          purchase_id?: string;
+          revoked_at?: string | null;
+          status?: Database["public"]["Enums"]["paid_portal_purchase_status"];
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      paid_portal_offers: {
+        Row: {
+          created_at: string;
+          currency: string;
+          is_active: boolean;
+          portal_id: string;
+          preview_metadata: Json;
+          price_cents: number;
+          selected_preview_asset_ids: string[];
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          currency?: string;
+          is_active?: boolean;
+          portal_id: string;
+          preview_metadata?: Json;
+          price_cents: number;
+          selected_preview_asset_ids?: string[];
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          currency?: string;
+          is_active?: boolean;
+          portal_id?: string;
+          preview_metadata?: Json;
+          price_cents?: number;
+          selected_preview_asset_ids?: string[];
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      paid_portal_payment_events: {
+        Row: {
+          event_created: number;
+          event_type: string;
+          processed_at: string;
+          stripe_event_id: string;
+          stripe_payment_intent_id: string;
+        };
+        Insert: {
+          event_created?: number;
+          event_type: string;
+          processed_at?: string;
+          stripe_event_id: string;
+          stripe_payment_intent_id: string;
+        };
+        Update: {
+          event_created?: number;
+          event_type?: string;
+          processed_at?: string;
+          stripe_event_id?: string;
+          stripe_payment_intent_id?: string;
+        };
+        Relationships: [];
+      };
+      paid_portal_purchases: {
+        Row: {
+          amount_total: number;
+          buyer_id: string | null;
+          created_at: string;
+          currency: string;
+          id: string;
+          portal_id: string;
+          purchased_at: string | null;
+          revoked_at: string | null;
+          status: Database["public"]["Enums"]["paid_portal_purchase_status"];
+          stripe_checkout_session_id: string | null;
+          stripe_payment_intent_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          amount_total: number;
+          buyer_id?: string | null;
+          created_at?: string;
+          currency: string;
+          id?: string;
+          portal_id: string;
+          purchased_at?: string | null;
+          revoked_at?: string | null;
+          status?: Database["public"]["Enums"]["paid_portal_purchase_status"];
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          amount_total?: number;
+          buyer_id?: string | null;
+          created_at?: string;
+          currency?: string;
+          id?: string;
+          portal_id?: string;
+          purchased_at?: string | null;
+          revoked_at?: string | null;
+          status?: Database["public"]["Enums"]["paid_portal_purchase_status"];
+          stripe_checkout_session_id?: string | null;
+          stripe_payment_intent_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      paid_portal_checkout_attempts: {
+        Row: {
+          amount_total: number;
+          buyer_id: string;
+          created_at: string;
+          currency: string;
+          id: string;
+          idempotency_key: string;
+          portal_id: string;
+          status: string;
+          stripe_checkout_session_id: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          amount_total: number;
+          buyer_id: string;
+          created_at?: string;
+          currency: string;
+          id?: string;
+          idempotency_key: string;
+          portal_id: string;
+          status?: string;
+          stripe_checkout_session_id?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          amount_total?: number;
+          buyer_id?: string;
+          created_at?: string;
+          currency?: string;
+          id?: string;
+          idempotency_key?: string;
+          portal_id?: string;
+          status?: string;
+          stripe_checkout_session_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       portal_access_sessions: {
         Row: {
           created_at: string;
@@ -576,6 +780,105 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      apply_paid_portal_payment_event: {
+        Args: {
+          event_amount_total: number;
+          event_buyer_id: string;
+          event_checkout_session_id: string;
+          event_created?: number;
+          event_currency: string;
+          event_id: string;
+          event_payment_intent_id: string;
+          event_portal_id: string;
+          event_status: Database["public"]["Enums"]["paid_portal_purchase_status"];
+          event_type: string;
+        };
+        Returns: boolean;
+      };
+      creator_has_active_connect_onboarding: {
+        Args: { target_owner_id: string };
+        Returns: boolean;
+      };
+      begin_paid_portal_checkout: {
+        Args: { target_portal_id: string };
+        Returns: {
+          amount_total: number;
+          buyer_id: string;
+          created_at: string;
+          currency: string;
+          id: string;
+          idempotency_key: string;
+          portal_id: string;
+          status: string;
+          stripe_checkout_session_id: string | null;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "paid_portal_checkout_attempts";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      portal_has_paid_access: {
+        Args: { target_portal_id: string };
+        Returns: boolean;
+      };
+      revoke_paid_portal_grant: {
+        Args: { target_buyer_id: string; target_portal_id: string };
+        Returns: boolean;
+      };
+      upsert_creator_stripe_account: {
+        Args: {
+          account_charges_enabled?: boolean;
+          account_details_submitted?: boolean;
+          account_id: string;
+          account_onboarding_status: Database["public"]["Enums"]["creator_stripe_onboarding_status"];
+          account_payouts_enabled?: boolean;
+        };
+        Returns: {
+          charges_enabled: boolean;
+          created_at: string;
+          details_submitted: boolean;
+          onboarding_status: Database["public"]["Enums"]["creator_stripe_onboarding_status"];
+          owner_id: string;
+          payouts_enabled: boolean;
+          stripe_account_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "creator_stripe_accounts";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      upsert_paid_portal_offer: {
+        Args: {
+          offer_currency?: string;
+          offer_is_active?: boolean;
+          offer_preview_asset_ids?: string[];
+          offer_preview_metadata?: Json;
+          offer_price_cents: number;
+          target_portal_id: string;
+        };
+        Returns: {
+          created_at: string;
+          currency: string;
+          is_active: boolean;
+          portal_id: string;
+          preview_metadata: Json;
+          price_cents: number;
+          selected_preview_asset_ids: string[];
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "paid_portal_offers";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       apply_portal_entitlement_event:
         | {
             Args: {
@@ -1116,7 +1419,23 @@ export type Database = {
       portal_member_role: "owner" | "editor" | "viewer";
       portal_status: "draft" | "published";
       portal_theme: "light" | "dark" | "auto";
-      portal_visibility: "public" | "private" | "password" | "invite_only";
+      portal_visibility:
+        | "public"
+        | "private"
+        | "password"
+        | "invite_only"
+        | "paid";
+      creator_stripe_onboarding_status:
+        | "not_started"
+        | "pending"
+        | "complete"
+        | "restricted";
+      paid_portal_purchase_status:
+        | "pending"
+        | "paid"
+        | "refunded"
+        | "disputed"
+        | "revoked";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -1250,6 +1569,19 @@ export const Constants = {
   },
   public: {
     Enums: {
+      creator_stripe_onboarding_status: [
+        "not_started",
+        "pending",
+        "complete",
+        "restricted",
+      ],
+      paid_portal_purchase_status: [
+        "pending",
+        "paid",
+        "refunded",
+        "disputed",
+        "revoked",
+      ],
       portal_asset_state: ["reserved", "ready"],
       portal_block_type: [
         "text",
@@ -1268,7 +1600,13 @@ export const Constants = {
       portal_member_role: ["owner", "editor", "viewer"],
       portal_status: ["draft", "published"],
       portal_theme: ["light", "dark", "auto"],
-      portal_visibility: ["public", "private", "password", "invite_only"],
+      portal_visibility: [
+        "public",
+        "private",
+        "password",
+        "invite_only",
+        "paid",
+      ],
     },
   },
 } as const;

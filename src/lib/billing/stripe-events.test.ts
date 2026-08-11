@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { resolveStripeEntitlementMutation } from "./stripe-events";
+import {
+  resolvePaidPortalPaymentMutation,
+  resolveStripeEntitlementMutation,
+} from "./stripe-events";
 
 describe("Stripe entitlement event resolution", () => {
   test("resolves each paid plan amount and acquired plan", () => {
@@ -186,5 +189,108 @@ describe("Stripe entitlement event resolution", () => {
         data: { payment_intent: "pi_2", status: "won" },
       }),
     ).toEqual({ paymentIntentId: "pi_2", status: "active" });
+  });
+});
+
+describe("paid portal Stripe event resolution", () => {
+  const attempt = {
+    amountTotal: 5000,
+    currency: "usd",
+    portalId: "portal",
+    buyerId: "buyer",
+  };
+
+  test("separates paid buyer product metadata from creator plans", () => {
+    expect(
+      resolvePaidPortalPaymentMutation(
+        {
+          type: "checkout.session.completed",
+          data: {
+            amount_total: 5000,
+            client_reference_id: "portal",
+            currency: "usd",
+            metadata: {
+              product: "paid_portal_purchase_v1",
+              portal_id: "portal",
+              buyer_id: "buyer",
+            },
+            mode: "payment",
+            payment_intent: "pi_paid",
+            payment_status: "paid",
+          },
+        },
+        attempt,
+      ),
+    ).toEqual({
+      buyerId: "buyer",
+      paymentIntentId: "pi_paid",
+      portalId: "portal",
+      status: "paid",
+    });
+    expect(
+      resolveStripeEntitlementMutation({
+        type: "checkout.session.completed",
+        data: {
+          amount_total: 5000,
+          client_reference_id: "portal",
+          currency: "usd",
+          metadata: { product: "paid_portal_purchase_v1", portal_id: "portal" },
+          mode: "payment",
+          payment_intent: "pi_paid",
+          payment_status: "paid",
+        },
+      }),
+    ).toBeNull();
+  });
+
+  test("maps refunds and dispute outcomes", () => {
+    expect(
+      resolvePaidPortalPaymentMutation({
+        type: "charge.refunded",
+        data: { payment_intent: "pi_paid" },
+      }),
+    ).toMatchObject({ status: "refunded" });
+    expect(
+      resolvePaidPortalPaymentMutation({
+        type: "charge.dispute.created",
+        data: { payment_intent: "pi_paid" },
+      }),
+    ).toMatchObject({ status: "disputed" });
+    expect(
+      resolvePaidPortalPaymentMutation({
+        type: "charge.dispute.closed",
+        data: { payment_intent: "pi_paid", status: "lost" },
+      }),
+    ).toMatchObject({ status: "revoked" });
+    expect(
+      resolvePaidPortalPaymentMutation({
+        type: "charge.dispute.closed",
+        data: { payment_intent: "pi_paid", status: "won" },
+      }),
+    ).toMatchObject({ status: "paid" });
+  });
+
+  test("rejects client-supplied price and duplicate product semantics", () => {
+    expect(
+      resolvePaidPortalPaymentMutation(
+        {
+          type: "checkout.session.completed",
+          data: {
+            amount_total: 499,
+            client_reference_id: "portal",
+            currency: "usd",
+            metadata: {
+              product: "paid_portal_purchase_v1",
+              portal_id: "portal",
+              buyer_id: "buyer",
+            },
+            mode: "payment",
+            payment_intent: "pi_paid",
+            payment_status: "paid",
+          },
+        },
+        attempt,
+      ),
+    ).toBeNull();
   });
 });

@@ -58,6 +58,29 @@ describe("portal access", () => {
     ).toBe("password_required");
   });
 
+  test("returns a preview decision for unpaid paid portals", () => {
+    expect(
+      resolveAccessDecision({
+        ownerId: "a",
+        status: "published",
+        userId: "b",
+        visibility: "paid",
+        unlocked: false,
+        hasActivePaidAccess: false,
+      }),
+    ).toBe("preview_required");
+    expect(
+      resolveAccessDecision({
+        ownerId: "a",
+        status: "published",
+        userId: "b",
+        visibility: "paid",
+        unlocked: false,
+        hasActivePaidAccess: true,
+      }),
+    ).toBe("allowed");
+  });
+
   test("uses scoped cookie names and one-way token hashes", async () => {
     expect(accessCookieName("portal-id")).toBe("portal_access_portal-id");
     expect(await hashOpaqueToken("secret")).toHaveLength(64);

@@ -3641,10 +3641,25 @@ function SlugAvailabilityField({
   );
 }
 
+function ConnectStripeButton({ locale }: { locale: string }) {
+  const t = useTranslations("PortalEditor.settings");
+  return (
+    <Button
+      onClick={() => window.location.assign(`/${locale}/home`)}
+      type="button"
+      variant="outline"
+    >
+      {t("configureConnect")}
+    </Button>
+  );
+}
+
 export function SettingsDialog({
+  initialPaidPriceCents,
   locale,
   portal,
 }: {
+  initialPaidPriceCents: number | null;
   locale: string;
   portal: Portal;
 }) {
@@ -3655,10 +3670,22 @@ export function SettingsDialog({
   const [visibility, setVisibility] = useState<PortalVisibility>(
     portal.visibility,
   );
+  const [connectReady, setConnectReady] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (visibility !== "paid") return;
+    setConnectReady(null);
+    fetch(
+      `/api/billing/connect/status?portalId=${encodeURIComponent(portal.id)}`,
+    )
+      .then((response) => response.json() as Promise<{ connected?: boolean }>)
+      .then((result) => setConnectReady(result.connected === true))
+      .catch(() => setConnectReady(false));
+  }, [portal.id, visibility]);
   const visibilityItems: { label: string; value: PortalVisibility }[] = [
     { label: t("public"), value: "public" },
     { label: t("private"), value: "private" },
     { label: t("password"), value: "password" },
+    { label: t("paid"), value: "paid" },
   ];
 
   return (
@@ -3677,7 +3704,7 @@ export function SettingsDialog({
           </DialogDescription>
         </DialogHeader>
         <Tabs onValueChange={setActiveTab} value={activeTab}>
-          <TabsList variant="line">
+          <TabsList>
             <TabsTrigger value="general">{t("generalTab")}</TabsTrigger>
             <TabsTrigger value="security">{t("securityTab")}</TabsTrigger>
           </TabsList>
@@ -3755,8 +3782,55 @@ export function SettingsDialog({
                     {visibility === "public" && t("publicHelp")}
                     {visibility === "private" && t("privateHelp")}
                     {visibility === "password" && t("passwordHelp")}
+                    {visibility === "paid" && t("paidHelp")}
                   </FieldDescription>
                 </Field>
+                {visibility === "paid" ? (
+                  <Field>
+                    {connectReady === null ? (
+                      <FieldDescription>
+                        {t("connectChecking")}
+                      </FieldDescription>
+                    ) : connectReady ? (
+                      <>
+                        <FieldLabel htmlFor="portal-paid-price">
+                          {t("paidPriceLabel")}
+                        </FieldLabel>
+                        <Input
+                          id="portal-paid-price"
+                          inputMode="decimal"
+                          defaultValue={
+                            initialPaidPriceCents === null
+                              ? ""
+                              : (initialPaidPriceCents / 100).toFixed(2)
+                          }
+                          max={500}
+                          min={5}
+                          name="price"
+                          placeholder="19.99"
+                          required
+                          step="0.01"
+                          type="number"
+                        />
+                        <input
+                          name="preview_metadata"
+                          type="hidden"
+                          value="{}"
+                        />
+                        <FieldDescription>
+                          {t("paidPriceHelp")}
+                        </FieldDescription>
+                      </>
+                    ) : (
+                      <>
+                        <FieldDescription>
+                          {t("connectRequiredForPaid")}
+                        </FieldDescription>
+                        <ConnectStripeButton locale={locale} />
+                      </>
+                    )}
+                  </Field>
+                ) : null}
                 {visibility === "password" ? (
                   <Field>
                     <FieldLabel htmlFor="portal-new-password">
