@@ -19,7 +19,6 @@ import { Link } from "@/i18n/navigation";
 import type { SafePendingPortalAction } from "@/lib/billing/portal-plan-client";
 import {
   ensurePortalAutosave,
-  flushPortalAutosave,
   releasePortalAutosave,
   schedulePortalAutosave,
 } from "@/lib/portal/autosave-coordinator";
@@ -251,12 +250,10 @@ function PortalSummary({
   document,
   editable,
   onPortalChange,
-  onSaveNow,
 }: {
   document: PortalDocument;
   editable?: boolean;
   onPortalChange: (portal: Partial<PortalDocument["portal"]>) => void;
-  onSaveNow: () => void;
 }) {
   const t = useTranslations("PortalViewer.summary");
   const portal = document.portal;
@@ -273,7 +270,6 @@ function PortalSummary({
           )}
           data-portal-editor-field
           data-portal-name
-          onBlur={editable ? onSaveNow : undefined}
           onChange={(event) =>
             editable && onPortalChange({ name: event.currentTarget.value })
           }
@@ -292,7 +288,6 @@ function PortalSummary({
             !editable && "pointer-events-none",
           )}
           data-portal-editor-field
-          onBlur={editable ? onSaveNow : undefined}
           onChange={(event) =>
             editable &&
             onPortalChange({ description: event.currentTarget.value })
@@ -313,7 +308,6 @@ function PortalSectionHeading({
   controls,
   editable,
   onSectionTitleChange,
-  onSaveNow,
   section,
 }: {
   actions: PortalAction[];
@@ -327,7 +321,6 @@ function PortalSectionHeading({
       >
     >,
   ) => void;
-  onSaveNow?: () => void;
   section: RenderPortalProps["document"]["sections"][number];
 }) {
   const t = useTranslations("PortalViewer.section");
@@ -343,7 +336,6 @@ function PortalSectionHeading({
             data-portal-editor-field
             maxLength={70}
             minLength={1}
-            onBlur={onSaveNow}
             onChange={(event) =>
               onSectionTitleChange?.({ title: event.currentTarget.value })
             }
@@ -370,7 +362,6 @@ function PortalSectionHeading({
           className="resize-none border-none bg-transparent! px-0 text-muted-foreground text-sm shadow-none outline-none focus-visible:ring-0"
           data-portal-editor-field
           maxLength={1500}
-          onBlur={onSaveNow}
           onChange={(event) =>
             onSectionTitleChange?.({
               description: event.currentTarget.value,
@@ -586,13 +577,6 @@ export function RenderPortal({
     }));
   }
 
-  function flushAutosave() {
-    if (!editor) return;
-    void flushPortalAutosave(editor.portalId).catch(() => {
-      // The shared status exposes the failure and offers explicit retry.
-    });
-  }
-
   function updateEditableSection(nextSection: PortalSection) {
     if (!editor) return;
     changeEditableDocument((current) => ({
@@ -718,7 +702,6 @@ export function RenderPortal({
           document={renderDocument}
           editable={editable}
           onPortalChange={saveEditablePortal}
-          onSaveNow={flushAutosave}
         />
         <div className="flex flex-col gap-30 pt-10">
           {visibleSections.map((section) => (
@@ -739,7 +722,6 @@ export function RenderPortal({
                   ) : null
                 }
                 editable={editable}
-                onSaveNow={flushAutosave}
                 onSectionTitleChange={(patch) =>
                   updateEditableSectionHeading(section.id, patch)
                 }

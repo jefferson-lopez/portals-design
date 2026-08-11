@@ -842,7 +842,6 @@ function AddImageTile({
             registry: optimistic,
           });
           if (reconciled) {
-            await flushPortalAutosave(portalId);
             releaseManagedPortalAsset(asset.assetId);
           }
         } catch (uploadError) {
@@ -874,7 +873,7 @@ function AddImageTile({
           pending
         />
       ))}
-      {availableSlots === 0 || optimistic.pending.length > 0 ? null : (
+      {availableSlots === 0 ? null : (
         <button
           className={cn(
             "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
@@ -3749,7 +3748,21 @@ export function SettingsDialog({
   const [visibility, setVisibility] = useState<PortalVisibility>(
     portal.visibility,
   );
+  const [paidPrice, setPaidPrice] = useState(() =>
+    initialPaidPriceCents === null
+      ? ""
+      : (initialPaidPriceCents / 100).toFixed(2),
+  );
   const [connectReady, setConnectReady] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!open) {
+      setPaidPrice(
+        initialPaidPriceCents === null
+          ? ""
+          : (initialPaidPriceCents / 100).toFixed(2),
+      );
+    }
+  }, [initialPaidPriceCents, open]);
   useEffect(() => {
     if (visibility !== "paid") return;
     setConnectReady(null);
@@ -3913,11 +3926,7 @@ export function SettingsDialog({
                         <Input
                           id="portal-paid-price"
                           inputMode="decimal"
-                          defaultValue={
-                            initialPaidPriceCents === null
-                              ? ""
-                              : (initialPaidPriceCents / 100).toFixed(2)
-                          }
+                          onChange={(event) => setPaidPrice(event.target.value)}
                           max={500}
                           min={4.35}
                           name="price"
@@ -3925,6 +3934,7 @@ export function SettingsDialog({
                           required
                           step="0.01"
                           type="number"
+                          value={paidPrice}
                         />
                         <input
                           name="preview_metadata"

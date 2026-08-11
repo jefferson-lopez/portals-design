@@ -143,26 +143,47 @@ export function PortalPlanProvider({
   > | null>(null);
   const pendingActionRef = useRef<SafePendingPortalAction | null>(null);
   const refreshSequence = useRef(0);
+  const snapshotRef = useRef(snapshot);
+  const statusRef = useRef(status);
   const checkoutResult = searchParams.get("premium");
   const pendingActionKey = `portal-premium-pending:${portalId}`;
 
   const refresh = useCallback(async () => {
     const requestSequence = ++refreshSequence.current;
-    setStatus("loading");
+    // Once a plan has been verified, refreshes are background revalidations
+    // (for example after an upload). Do not temporarily lock the editor while
+    // that request is in flight.
+    const hasUsableSnapshot =
+      statusRef.current === "ready" && snapshotRef.current.available !== false;
+    if (!hasUsableSnapshot) {
+      statusRef.current = "loading";
+      setStatus("loading");
+    }
     try {
       const next = await fetchPortalPlan(portalId);
       if (requestSequence !== refreshSequence.current) return null;
+      snapshotRef.current = next;
       setSnapshot(next);
+      statusRef.current = "ready";
       setStatus("ready");
       toast.dismiss(`portal-plan-error:${portalId}`);
       return next;
     } catch (error) {
       if (requestSequence !== refreshSequence.current) return null;
       console.error("Portal plan refresh failed", { error, portalId });
-      setStatus("error");
-      toast.error(t("unavailable"), {
-        id: `portal-plan-error:${portalId}`,
-      });
+      if (hasUsableSnapshot) {
+        // The last verified policy is safer than blocking every keystroke on
+        // a transient plan endpoint failure. The next revalidation can heal
+        // the snapshot without interrupting the editor.
+        statusRef.current = "ready";
+        setStatus("ready");
+      } else {
+        statusRef.current = "error";
+        setStatus("error");
+        toast.error(t("unavailable"), {
+          id: `portal-plan-error:${portalId}`,
+        });
+      }
       return null;
     }
   }, [portalId, t]);
