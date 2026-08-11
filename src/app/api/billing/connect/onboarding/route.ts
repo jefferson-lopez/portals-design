@@ -6,19 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 
 const CONNECT_CONFIGURATION = {
-  recipient: {
-    capabilities: {
-      stripe_balance: { stripe_transfers: { requested: true } },
-    },
-  },
   merchant: {
     capabilities: { card_payments: { requested: true } },
   },
 };
-const CONNECT_CONFIGURATIONS = Object.keys(CONNECT_CONFIGURATION) as [
-  "recipient",
-  "merchant",
-];
+const CONNECT_CONFIGURATIONS = ["merchant"] as const;
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
@@ -87,25 +79,20 @@ export async function POST(request: Request) {
               },
             },
             identity: { country },
-            include: [
-              "configuration.merchant",
-              "configuration.recipient",
-              "identity",
-              "requirements",
-            ],
+            include: ["configuration.merchant", "identity", "requirements"],
           })
         ).id;
-    if (existing) {
-      const current = await stripe.v2.core.accounts.retrieve(account, {
-        include: ["configuration.merchant", "configuration.recipient"],
-      });
-      if (!current.applied_configurations.includes("recipient")) {
-        await stripe.v2.core.accounts.update(account, {
-          configuration: { recipient: CONNECT_CONFIGURATION.recipient },
-          include: ["configuration.merchant", "configuration.recipient"],
-        });
-      }
-    }
+    const current = existing
+      ? await stripe.v2.core.accounts.retrieve(account, {
+          include: ["configuration.merchant"],
+        })
+      : null;
+    // Legacy accounts can already have recipient applied. Preserve their
+    // configurations in Account Links, but never add recipient to new or
+    // merchant-only accounts because it is unavailable in some countries.
+    const appliedConfigurations = existing
+      ? current?.applied_configurations
+      : undefined;
     if (!existing) {
       const { error } = await supabase.rpc("upsert_creator_stripe_account", {
         account_charges_enabled: false,
@@ -147,7 +134,7 @@ export async function POST(request: Request) {
       account,
       use_case: {
         account_onboarding: {
-          configurations: CONNECT_CONFIGURATIONS,
+          configurations: appliedConfigurations ?? [...CONNECT_CONFIGURATIONS],
           refresh_url: refreshUrl,
           return_url: returnUrl,
         },

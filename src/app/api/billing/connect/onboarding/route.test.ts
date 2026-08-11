@@ -7,29 +7,31 @@ test("uses the onboarding use case when editing an existing Connect profile", ()
   expect(source).toContain("account_onboarding:");
   expect(source).not.toContain('type: "account_update"');
   expect(source).toContain("const CONNECT_CONFIGURATION = {");
-  expect(source).toContain("configurations: CONNECT_CONFIGURATIONS");
+  expect(source).toContain(
+    "configurations: appliedConfigurations ?? [...CONNECT_CONFIGURATIONS]",
+  );
 });
 
 test("uses the onboarding use case for a new Connect profile", () => {
   expect(source).toContain('type: "account_onboarding"');
   expect(source).toContain("account_onboarding:");
   expect(source).toContain("const CONNECT_CONFIGURATION = {");
-  expect(source).toContain("configurations: CONNECT_CONFIGURATIONS");
-  expect(source).toContain("recipient: {");
-  expect(source).toContain("stripe_balance: {");
-  expect(source).toContain("stripe_transfers: { requested: true }");
   expect(source).toContain(
-    'include: ["configuration.merchant", "configuration.recipient"',
+    "configurations: appliedConfigurations ?? [...CONNECT_CONFIGURATIONS]",
   );
+  expect(source).not.toContain("recipient: {");
+  expect(source).toContain(
+    'const CONNECT_CONFIGURATIONS = ["merchant"] as const;',
+  );
+  expect(source).not.toContain("stripe_transfers");
+  expect(source).toContain('include: ["configuration.merchant", "identity"');
 });
 
-test("aligns existing accounts with recipient before creating the account link", () => {
-  expect(source).toContain("stripe.v2.core.accounts.update");
-  expect(source).toContain(
-    "configuration: { recipient: CONNECT_CONFIGURATION.recipient",
-  );
-  expect(source).toContain("current.applied_configurations");
+test("does not add recipient to existing accounts and preserves their applied configurations", () => {
+  expect(source).not.toContain("stripe.v2.core.accounts.update");
+  expect(source).toContain("current?.applied_configurations");
+  expect(source).toContain("const appliedConfigurations = existing");
   expect(source).toContain("accountLinks.create");
-  expect(source).toContain("configuration.recipient");
+  expect(source).toContain("configurations: appliedConfigurations");
   expect(source).toContain("portalId");
 });

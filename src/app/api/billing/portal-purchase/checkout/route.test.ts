@@ -15,18 +15,14 @@ test("uses persisted offer amount/currency and never accepts a body price", () =
   expect(source).not.toContain("body.currency");
 });
 
-test("keeps buyer metadata separate and uses a ten percent Connect application fee", () => {
+test("keeps buyer metadata separate and uses a ten percent direct-charge application fee", () => {
   expect(source).toContain('product: "paid_portal_purchase_v1"');
-  expect(source).toContain(
-    "transfer_data: { destination: account.stripe_account_id }",
-  );
   expect(source).toContain("Math.floor(attempt.amount_total * 0.1)");
   expect(source).toContain("managed_payments: { enabled: false }");
-  expect(source).toContain(
-    "transfer_data: { destination: account.stripe_account_id }",
-  );
+  expect(source).not.toContain("transfer_data");
+  expect(source).not.toContain("on_behalf_of");
 });
 
-test("uses the merchant configuration for the destination charge", () => {
-  expect(source).toContain("on_behalf_of: account.stripe_account_id");
+test("creates the Checkout Session on the connected account for a direct charge", () => {
+  expect(source).toContain("stripeAccount: account.stripe_account_id");
 });

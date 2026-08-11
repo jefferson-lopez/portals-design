@@ -128,8 +128,8 @@ export async function POST(request: Request) {
           portal_id: attempt.portal_id,
           product: "paid_portal_purchase_v1",
         },
-        // Stripe Managed Payments is incompatible with Connect destination
-        // charges and application fees for this marketplace checkout.
+        // Stripe Managed Payments is incompatible with Connect charges and
+        // application fees for this marketplace checkout.
         managed_payments: { enabled: false } as never,
         mode: "payment",
         payment_intent_data: {
@@ -140,12 +140,15 @@ export async function POST(request: Request) {
             portal_id: attempt.portal_id,
             product: "paid_portal_purchase_v1",
           },
-          on_behalf_of: account.stripe_account_id,
-          transfer_data: { destination: account.stripe_account_id },
         },
         success_url: `${origin}/${validLocale(body.locale)}/p/${portal.slug}?purchase=success&session_id={CHECKOUT_SESSION_ID}`,
       },
-      { idempotencyKey: attempt.idempotency_key },
+      {
+        idempotencyKey: attempt.idempotency_key,
+        // Direct charge: the connected merchant is the Stripe account of
+        // record, while application_fee_amount retains the platform's 10%.
+        stripeAccount: account.stripe_account_id,
+      },
     );
   } catch (error) {
     console.error("Paid portal checkout session creation failed", {
