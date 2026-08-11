@@ -267,6 +267,7 @@ describe("PortalLanding", () => {
     expect(source).toContain("details.pricing.title");
     expect(source).toContain("details.pricing.description");
     expect(source).toContain("{plan.pricing}");
+    expect(source).toContain("from-brand-surface-strong");
     expect(english.Landing.details.pricing).toEqual({
       title: "Put a price on your portal.",
       description:

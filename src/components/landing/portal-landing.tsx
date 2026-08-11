@@ -474,7 +474,7 @@ export function PortalLanding({
         aria-labelledby="landing-pricing-title"
         className="relative z-20 px-5 pb-24 sm:px-8 sm:pb-32 lg:pb-40"
       >
-        <Card className="mx-auto max-w-4xl border-primary/30 bg-gradient-to-br from-primary/20 via-primary/10 to-background">
+        <Card className="mx-auto max-w-4xl border-brand/30 bg-gradient-to-br from-brand-surface-strong via-brand-surface to-background">
           <CardHeader className="gap-4 text-center">
             <h2
               className="text-balance text-3xl font-medium tracking-tight sm:text-5xl"
