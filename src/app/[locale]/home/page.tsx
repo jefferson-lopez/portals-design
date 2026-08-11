@@ -7,10 +7,19 @@ import { getHomePortals } from "../_actions/portals";
 
 type Props = {
   params: Promise<{ locale: string }>;
+  searchParams?: Promise<{ connect?: string; portalId?: string }>;
 };
 
-export default async function HomePage({ params }: Props) {
+export default async function HomePage({ params, searchParams }: Props) {
   const { locale } = await params;
+  const query = await searchParams;
+  const portalId =
+    query?.portalId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      query.portalId,
+    )
+      ? query.portalId
+      : null;
   const vercelCountry = (await headers()).get("x-vercel-ip-country");
   const recommendedCountry = vercelCountry?.toUpperCase();
   const backendEnabled = hasSupabaseEnv();
@@ -112,6 +121,10 @@ export default async function HomePage({ params }: Props) {
           title: t.raw("settings.title") as string,
           trigger: t.raw("settings.trigger") as string,
         },
+      }}
+      connectIntent={{
+        open: query?.connect === "onboarding",
+        portalId,
       }}
       initialError={initialResult.error ? t("errorGeneric") : null}
       initialPortals={initialResult.portals}

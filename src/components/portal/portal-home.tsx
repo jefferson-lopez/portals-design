@@ -36,6 +36,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -59,11 +67,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -182,16 +185,18 @@ type ConnectStatus = {
 function ConnectAccountDialog({
   copy,
   locale,
+  portalId,
+  shouldOpen,
   recommendedCountry,
 }: {
   copy: PortalHomeCopy["connect"];
   locale: string;
+  portalId: string | null;
+  shouldOpen: boolean;
   recommendedCountry: string | null;
 }) {
   const [open, setOpen] = useState(false);
-  const [countryPopoverOpen, setCountryPopoverOpen] = useState(false);
-  const [country, setCountry] = useState(recommendedCountry ?? "US");
-  const [countrySearch, setCountrySearch] = useState("");
+  const [country, setCountry] = useState<string | null>(null);
   const [status, setStatus] = useState<ConnectStatus | null>(null);
   const [pending, setPending] = useState(false);
   const countryNames = new Intl.DisplayNames([locale], { type: "region" });
@@ -199,25 +204,25 @@ function ConnectAccountDialog({
     code,
     label: countryNames.of(code) ?? code,
   }));
-  const normalizedSearch = countrySearch.trim().toLocaleLowerCase(locale);
-  const filteredCountries = countryOptions.filter(({ code, label }) =>
-    `${label} ${code}`.toLocaleLowerCase(locale).includes(normalizedSearch),
-  );
+  useEffect(() => {
+    if (shouldOpen) setOpen(true);
+  }, [shouldOpen]);
 
   useEffect(() => {
     if (!open) return;
     setStatus(null);
-    fetch("/api/billing/connect/status")
+    const query = portalId ? `?portalId=${encodeURIComponent(portalId)}` : "";
+    fetch(`/api/billing/connect/status${query}`)
       .then((response) => response.json() as Promise<ConnectStatus>)
       .then(setStatus)
       .catch(() => setStatus({ connected: false }));
-  }, [open]);
+  }, [open, portalId]);
 
   async function openStripe(mode: "onboarding" | "update") {
     setPending(true);
     try {
       const response = await fetch("/api/billing/connect/onboarding", {
-        body: JSON.stringify({ country, locale, mode }),
+        body: JSON.stringify({ country, locale, mode, portalId }),
         headers: { "content-type": "application/json" },
         method: "POST",
       });
@@ -314,87 +319,53 @@ function ConnectAccountDialog({
             <Field>
               <FieldLabel htmlFor="connect-country">{copy.country}</FieldLabel>
               <FieldDescription>{copy.countryHelp}</FieldDescription>
-              <Popover
-                onOpenChange={setCountryPopoverOpen}
-                open={countryPopoverOpen}
+              <Combobox
+                items={countryOptions}
+                itemToStringValue={(item) => item.label}
+                onValueChange={(item) => setCountry(item?.code ?? null)}
+                value={
+                  country
+                    ? countryOptions.find((item) => item.code === country)
+                    : null
+                }
               >
-                <PopoverTrigger
-                  render={
-                    <Button
-                      aria-label={copy.country}
-                      className="h-10 w-full justify-between px-3 font-normal"
-                      id="connect-country"
-                      type="button"
-                      variant="outline"
-                    />
-                  }
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span aria-hidden="true" className="text-lg leading-none">
-                      {getCountryFlag(country)}
-                    </span>
-                    <span className="truncate">
-                      {countryNames.of(country) ?? country}
-                    </span>
-                  </span>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="start"
-                  className="w-(--anchor-width) p-2"
-                >
-                  <Input
-                    aria-label={copy.countrySearch}
-                    autoFocus
-                    onChange={(event) => setCountrySearch(event.target.value)}
-                    placeholder={copy.countrySearch}
-                    value={countrySearch}
-                  />
-                  <div className="mt-2 flex max-h-64 flex-col gap-1 overflow-y-auto">
-                    {filteredCountries.length === 0 ? (
-                      <p className="px-2 py-4 text-center text-sm text-muted-foreground">
-                        {copy.countryNoResults}
-                      </p>
-                    ) : (
-                      filteredCountries.map(({ code, label }) => (
-                        <button
-                          aria-pressed={country === code}
-                          className="flex items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-                          key={code}
-                          onClick={() => {
-                            setCountry(code);
-                            setCountrySearch("");
-                            setCountryPopoverOpen(false);
-                          }}
-                          type="button"
+                <ComboboxInput
+                  aria-label={copy.country}
+                  id="connect-country"
+                  placeholder={copy.country}
+                />
+                <ComboboxContent>
+                  <ComboboxEmpty>{copy.countryNoResults}</ComboboxEmpty>
+                  <ComboboxList>
+                    {(item) => (
+                      <ComboboxItem key={item.code} value={item}>
+                        <span
+                          aria-hidden="true"
+                          className="text-lg leading-none"
                         >
-                          <span
-                            aria-hidden="true"
-                            className="text-lg leading-none"
-                          >
-                            {getCountryFlag(code)}
-                          </span>
-                          <span className="min-w-0 flex-1 truncate">
-                            {label}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {code}
-                          </span>
-                          {recommendedCountry === code ? (
-                            <Badge variant="secondary">
-                              {copy.countryRecommended}
-                            </Badge>
-                          ) : null}
-                        </button>
-                      ))
+                          {getCountryFlag(item.code)}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {item.label}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {item.code}
+                        </span>
+                        {recommendedCountry === item.code ? (
+                          <Badge variant="secondary">
+                            {copy.countryRecommended}
+                          </Badge>
+                        ) : null}
+                      </ComboboxItem>
                     )}
-                  </div>
-                </PopoverContent>
-              </Popover>
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
             </Field>
             <DialogFooter>
               <Button
                 className="rounded-full"
-                disabled={pending}
+                disabled={pending || !country}
                 onClick={() => openStripe("onboarding")}
                 type="button"
               >
@@ -913,6 +884,7 @@ function PortalCard({
 export function PortalHome({
   backendEnabled,
   copy,
+  connectIntent,
   initialError,
   initialPortals,
   locale,
@@ -920,6 +892,7 @@ export function PortalHome({
 }: {
   backendEnabled: boolean;
   copy: PortalHomeCopy;
+  connectIntent: { open: boolean; portalId: string | null };
   initialError: string | null;
   initialPortals: HomePortal[];
   locale: string;
@@ -971,7 +944,9 @@ export function PortalHome({
               <ConnectAccountDialog
                 copy={copy.connect}
                 locale={locale}
+                portalId={connectIntent.portalId}
                 recommendedCountry={recommendedCountry}
+                shouldOpen={connectIntent.open}
               />
             ) : null}
             {backendEnabled ? (

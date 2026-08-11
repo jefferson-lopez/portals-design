@@ -5,7 +5,17 @@ import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-const CONNECT_CONFIGURATIONS: ["recipient", "merchant"] = [
+const CONNECT_CONFIGURATION = {
+  recipient: {
+    capabilities: {
+      stripe_balance: { stripe_transfers: { requested: true } },
+    },
+  },
+  merchant: {
+    capabilities: { card_payments: { requested: true } },
+  },
+};
+const CONNECT_CONFIGURATIONS = Object.keys(CONNECT_CONFIGURATION) as [
   "recipient",
   "merchant",
 ];
@@ -67,13 +77,7 @@ export async function POST(request: Request) {
       ? existing.stripe_account_id
       : (
           await stripe.v2.core.accounts.create({
-            configuration: {
-              merchant: {
-                capabilities: {
-                  card_payments: { requested: true },
-                },
-              },
-            },
+            configuration: CONNECT_CONFIGURATION,
             contact_email: userData.user.email ?? undefined,
             dashboard: "express",
             defaults: {
@@ -83,9 +87,25 @@ export async function POST(request: Request) {
               },
             },
             identity: { country },
-            include: ["configuration.merchant", "identity", "requirements"],
+            include: [
+              "configuration.merchant",
+              "configuration.recipient",
+              "identity",
+              "requirements",
+            ],
           })
         ).id;
+    if (existing) {
+      const current = await stripe.v2.core.accounts.retrieve(account, {
+        include: ["configuration.merchant", "configuration.recipient"],
+      });
+      if (!current.applied_configurations.includes("recipient")) {
+        await stripe.v2.core.accounts.update(account, {
+          configuration: { recipient: CONNECT_CONFIGURATION.recipient },
+          include: ["configuration.merchant", "configuration.recipient"],
+        });
+      }
+    }
     if (!existing) {
       const { error } = await supabase.rpc("upsert_creator_stripe_account", {
         account_charges_enabled: false,

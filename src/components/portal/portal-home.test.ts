@@ -22,6 +22,9 @@ describe("PortalHome", () => {
       'getTranslations({ locale, namespace: "Home" })',
     );
     expect(pageSource).toContain("copy={");
+    expect(pageSource).toContain("searchParams");
+    expect(pageSource).toContain('query?.connect === "onboarding"');
+    expect(source).toContain("portalId");
 
     for (const messages of [english.Home, spanish.Home]) {
       expect(messages).toBeDefined();
@@ -54,6 +57,24 @@ describe("PortalHome", () => {
     expect(pageSource).toContain('t.raw("delete.description")');
     expect(pageSource).toContain('t.raw("delete.title")');
     expect(pageSource).toContain('t.raw("delete.trigger")');
+  });
+
+  test("uses the official Base UI Combobox for explicit country selection", () => {
+    expect(source).toContain('from "@/components/ui/combobox"');
+    expect(source).toContain("<Combobox");
+    expect(source).toContain("<ComboboxInput");
+    expect(source).toContain("<ComboboxList>");
+    expect(source).toContain("itemToStringValue");
+    expect(source).toContain("useState<string | null>(null)");
+    expect(source).toContain("placeholder={copy.country}");
+    expect(source).toContain("!country");
+    expect(source).toContain(
+      "body: JSON.stringify({ country, locale, mode, portalId })",
+    );
+    expect(source).toContain("shouldOpen");
+    expect(source).toContain("/api/billing/connect/status$" + "{query}");
+    expect(source).not.toContain("<Popover");
+    expect(source).not.toContain("aria-label={copy.countrySearch}");
   });
 
   test("creates a wide editorial hierarchy consistent with the landing", () => {

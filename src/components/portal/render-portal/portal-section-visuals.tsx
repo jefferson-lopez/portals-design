@@ -98,7 +98,7 @@ export function PortalImageVisual({
             position="top-3-right"
           />
         </div>
-        <DialogContent className="max-w-[min(96vw,1200px)] gap-4 p-4 sm:p-6">
+        <DialogContent className="max-w-[min(96vw,1200px)] gap-4 p-2">
           <DialogTitle className="sr-only">{alt}</DialogTitle>
           <DialogDescription className="sr-only">
             {t("imageViewerDescription")}
@@ -107,7 +107,7 @@ export function PortalImageVisual({
             {/* biome-ignore lint/performance/noImgElement: user uploaded Storage asset. */}
             <img
               alt={alt}
-              className="block max-h-[74vh] max-w-full object-contain"
+              className="block rounded-md max-h-[74vh] max-w-full object-contain"
               src={image.image_url}
             />
           </div>

@@ -3710,11 +3710,21 @@ function SlugAvailabilityField({
   );
 }
 
-function ConnectStripeButton({ locale }: { locale: string }) {
+function ConnectStripeButton({
+  locale,
+  portalId,
+}: {
+  locale: string;
+  portalId: string;
+}) {
   const t = useTranslations("PortalEditor.settings");
   return (
     <Button
-      onClick={() => window.location.assign(`/${locale}/home`)}
+      onClick={() =>
+        window.location.assign(
+          `/${locale}/home?connect=onboarding&portalId=${encodeURIComponent(portalId)}`,
+        )
+      }
       type="button"
       variant="outline"
     >
@@ -3930,7 +3940,10 @@ export function SettingsDialog({
                         <FieldDescription>
                           {t("connectRequiredForPaid")}
                         </FieldDescription>
-                        <ConnectStripeButton locale={locale} />
+                        <ConnectStripeButton
+                          locale={locale}
+                          portalId={portal.id}
+                        />
                       </>
                     )}
                   </Field>
