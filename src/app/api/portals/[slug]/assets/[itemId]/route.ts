@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordPaidPortalDownload } from "@/lib/billing/paid-portal-downloads";
 import { normalizePortalDocument } from "@/lib/portal/document";
 import {
   buildExportManifest,
@@ -51,6 +52,14 @@ export async function GET(
       EXPORT_LIMITS.maxFileBytes,
       { ownerId: access.portal.owner_id, portalId: access.portal.id },
     );
+    if (
+      !(await recordPaidPortalDownload({
+        assetId: itemId,
+        kind: "asset",
+        portalId: access.portal.id,
+      }))
+    )
+      return new NextResponse("Forbidden", { status: 403 });
     return new NextResponse(bytes, {
       headers: {
         "Cache-Control": "private, no-store",

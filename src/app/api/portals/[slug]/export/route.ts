@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordPaidPortalDownload } from "@/lib/billing/paid-portal-downloads";
 import {
   normalizePortalDocument,
   portalBlocksToDocument,
@@ -157,6 +158,14 @@ async function createResponse(
       entries: manifest.entries.filter((entry) => entry.category === "colors"),
     };
   if (!manifest.entries.length) return notFound();
+  if (
+    !(await recordPaidPortalDownload({
+      assetId: bodyScope?.kind === "item" ? bodyScope.itemId : undefined,
+      kind: "export",
+      portalId: portal.id,
+    }))
+  )
+    return new NextResponse("Forbidden", { status: 403 });
 
   if (
     scope.kind === "section" &&
