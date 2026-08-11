@@ -9,4 +9,6 @@ test("confirms only the authenticated buyer's paid session and reuses the idempo
   expect(source).toContain("metadata.buyer_id !== userData.user.id");
   expect(source).toContain("apply_paid_portal_payment_event");
   expect(source).toContain(`checkout-confirm:\${session.id}`);
+  expect(source).toContain("stripeAccount: account.stripe_account_id");
+  expect(source).toContain('eq("slug", slug)');
 });

@@ -23,8 +23,27 @@ export async function confirmPaidPortalCheckout(
   if (!userData.user || !sessionId.startsWith("cs_")) return false;
 
   const admin = createAdminClient();
+  const { data: portalOwner } = await admin
+    .from("portals")
+    .select("id,owner_id")
+    .eq("slug", slug)
+    .eq("visibility", "paid")
+    .maybeSingle();
+  if (!portalOwner) return false;
+
+  const { data: account } = await admin
+    .from("creator_stripe_accounts")
+    .select("stripe_account_id")
+    .eq("owner_id", portalOwner.owner_id)
+    .maybeSingle();
+  if (!account) return false;
+
   const session = await getStripe()
-    .checkout.sessions.retrieve(sessionId)
+    .checkout.sessions.retrieve(
+      sessionId,
+      {},
+      { stripeAccount: account.stripe_account_id },
+    )
     .catch(() => null);
   const paymentIntent = session
     ? paymentIntentId(session.payment_intent)

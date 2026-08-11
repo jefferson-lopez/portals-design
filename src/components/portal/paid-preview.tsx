@@ -193,7 +193,7 @@ export async function PaidPreview({
                         </div>
                       ))
                     ) : (
-                      <p className="text-sm text-muted-foreground">
+                      <p className="col-span-5 text-sm text-muted-foreground">
                         {t("noFiles")}
                       </p>
                     )}

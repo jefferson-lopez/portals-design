@@ -119,6 +119,7 @@ export type PortalHomeCopy = {
     configure: string;
     country: string;
     countryHelp: string;
+    emailRecommendation: string;
     countryRecommended: string;
     countrySearch: string;
     countryNoResults: string;
@@ -130,6 +131,7 @@ export type PortalHomeCopy = {
     loading: string;
     profile: string;
     payouts: string;
+    dashboard: string;
     activeTitle: string;
     trigger: string;
   };
@@ -240,6 +242,24 @@ function ConnectAccountDialog({
     }
   }
 
+  async function openDashboard() {
+    setPending(true);
+    try {
+      const response = await fetch("/api/billing/connect/dashboard", {
+        body: null,
+        method: "POST",
+      });
+      const result = (await response.json()) as { url?: string };
+      if (!response.ok || !result.url) {
+        throw new Error(copy.error);
+      }
+      window.location.assign(result.url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : copy.error);
+      setPending(false);
+    }
+  }
+
   const connected = status?.connected === true;
   return (
     <Dialog onOpenChange={setOpen} open={open}>
@@ -307,6 +327,16 @@ function ConnectAccountDialog({
               <Button
                 className="rounded-full"
                 disabled={pending}
+                onClick={openDashboard}
+                type="button"
+                variant="outline"
+              >
+                <IconExternalLink data-icon="inline-start" />
+                {copy.dashboard}
+              </Button>
+              <Button
+                className="rounded-full"
+                disabled={pending}
                 onClick={() => openStripe("update")}
                 type="button"
               >
@@ -362,6 +392,7 @@ function ConnectAccountDialog({
                 </ComboboxContent>
               </Combobox>
             </Field>
+            <FieldDescription>{copy.emailRecommendation}</FieldDescription>
             <DialogFooter>
               <Button
                 className="rounded-full"
