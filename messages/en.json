@@ -30,6 +30,10 @@
           "description": "Turn delivery into a polished extension of the brand instead of one last folder download."
         }
       ],
+      "pricing": {
+        "title": "Put a price on your portal.",
+        "description": "Designers can set a price for portal access and turn a finished presentation into a paid experience for their clients."
+      },
       "plans": {
         "title": "Choose the scope for each portal.",
         "description": "Start free and choose the capacity each portal needs.",
@@ -37,6 +41,7 @@
         "free": {
           "name": "Free",
           "price": "$0",
+          "pricing": "You can still set a price for access to this portal.",
           "description": "For presenting smaller projects and getting started without friction.",
           "features": [
             "100 MB for this portal",
@@ -49,6 +54,7 @@
         "starter": {
           "name": "Starter",
           "price": "$4.99",
+          "pricing": "You can set the price clients pay to access this portal.",
           "description": "For small client deliveries that need more room.",
           "features": [
             "500 MB for this portal",
@@ -61,6 +67,7 @@
         "pro": {
           "name": "Pro",
           "price": "$9.99",
+          "pricing": "You can set the price clients pay to access this portal.",
           "description": "For freelancers and professional handoffs.",
           "features": [
             "1 GB for this portal",
@@ -73,6 +80,7 @@
         "premium": {
           "name": "Premium",
           "price": "$19.99",
+          "pricing": "You can set the price clients pay to access this portal.",
           "description": "For fuller handoffs and portals with a distinct identity.",
           "features": [
             "2 GB dedicated to this portal",

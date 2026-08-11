@@ -45,6 +45,10 @@ type LandingDetails = {
   ctaLabel: string;
   ctaTitle: string;
   description: string;
+  pricing: {
+    description: string;
+    title: string;
+  };
   plans: {
     description: string;
     free: LandingPlan;
@@ -63,6 +67,7 @@ type LandingPlan = {
   features: string[];
   name: string;
   price: string;
+  pricing: string;
 };
 
 type PortalLandingProps = {
@@ -466,6 +471,25 @@ export function PortalLanding({
       </section>
 
       <section
+        aria-labelledby="landing-pricing-title"
+        className="relative z-20 px-5 pb-24 sm:px-8 sm:pb-32 lg:pb-40"
+      >
+        <Card className="mx-auto max-w-4xl border-primary/30 bg-gradient-to-br from-primary/20 via-primary/10 to-background">
+          <CardHeader className="gap-4 text-center">
+            <h2
+              className="text-balance text-3xl font-medium tracking-tight sm:text-5xl"
+              id="landing-pricing-title"
+            >
+              {details.pricing.title}
+            </h2>
+            <CardDescription className="mx-auto max-w-2xl text-balance text-base leading-relaxed sm:text-lg">
+              {details.pricing.description}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </section>
+
+      <section
         aria-labelledby="landing-plans-title"
         className="relative z-20 px-5 py-24 sm:px-8 sm:py-32 lg:py-40"
       >
@@ -509,6 +533,9 @@ export function PortalLanding({
                       <CardDescription className="text-base">
                         {plan.description}
                       </CardDescription>
+                      <p className="text-sm leading-relaxed text-muted-foreground">
+                        {plan.pricing}
+                      </p>
                     </div>
                     <span className="shrink-0 rounded-full border px-3 py-1 text-xs text-muted-foreground">
                       {details.plans.perPortal}

@@ -30,6 +30,10 @@
           "description": "Convierte la entrega en una extensión pulida de la marca, no en una última carpeta para descargar."
         }
       ],
+      "pricing": {
+        "title": "Ponle precio a tu portal.",
+        "description": "Los diseñadores pueden fijar un precio para el acceso al portal y convertir una presentación terminada en una experiencia de pago para sus clientes."
+      },
       "plans": {
         "title": "Elige el alcance de cada portal.",
         "description": "Empieza gratis y elige la capacidad que necesita cada portal.",
@@ -37,6 +41,7 @@
         "free": {
           "name": "Gratis",
           "price": "$0",
+          "pricing": "También puedes fijar un precio para acceder a este portal.",
           "description": "Para presentar proyectos pequeños y empezar sin fricción.",
           "features": [
             "100 MB para este portal",
@@ -49,6 +54,7 @@
         "starter": {
           "name": "Starter",
           "price": "$4.99",
+          "pricing": "Puedes fijar el precio que pagarán los clientes para acceder a este portal.",
           "description": "Para entregas pequeñas que necesitan más espacio.",
           "features": [
             "500 MB para este portal",
@@ -61,6 +67,7 @@
         "pro": {
           "name": "Pro",
           "price": "$9.99",
+          "pricing": "Puedes fijar el precio que pagarán los clientes para acceder a este portal.",
           "description": "Para freelancers y entregas profesionales.",
           "features": [
             "1 GB para este portal",
@@ -73,6 +80,7 @@
         "premium": {
           "name": "Premium",
           "price": "$19.99",
+          "pricing": "Puedes fijar el precio que pagarán los clientes para acceder a este portal.",
           "description": "Para entregas más completas y portales con identidad propia.",
           "features": [
             "2 GB dedicados a este portal",

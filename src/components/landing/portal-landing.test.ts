@@ -262,6 +262,34 @@ describe("PortalLanding", () => {
     });
   });
 
+  test("explains portal pricing and labels every plan as priceable", () => {
+    expect(source).toContain('aria-labelledby="landing-pricing-title"');
+    expect(source).toContain("details.pricing.title");
+    expect(source).toContain("details.pricing.description");
+    expect(source).toContain("{plan.pricing}");
+    expect(english.Landing.details.pricing).toEqual({
+      title: "Put a price on your portal.",
+      description:
+        "Designers can set a price for portal access and turn a finished presentation into a paid experience for their clients.",
+    });
+    expect(spanish.Landing.details.pricing).toEqual({
+      title: "Ponle precio a tu portal.",
+      description:
+        "Los diseñadores pueden fijar un precio para el acceso al portal y convertir una presentación terminada en una experiencia de pago para sus clientes.",
+    });
+
+    for (const locale of [english, spanish]) {
+      for (const plan of [
+        locale.Landing.details.plans.free,
+        locale.Landing.details.plans.starter,
+        locale.Landing.details.plans.pro,
+        locale.Landing.details.plans.premium,
+      ]) {
+        expect(plan.pricing).toBeTruthy();
+      }
+    }
+  });
+
   test("shares large prioritized actions with a transparent initial header", () => {
     expect(PORTAL_LANDING_LAYOUT.initialHeader).toContain("absolute");
     expect(PORTAL_LANDING_LAYOUT.initialHeader).toContain("h-16");
