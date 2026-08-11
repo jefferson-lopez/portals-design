@@ -9,6 +9,10 @@ import {
   portalDocumentToJson,
 } from "@/lib/portal/document";
 import {
+  PAID_PORTAL_MAX_PRICE_CENTS,
+  PAID_PORTAL_MIN_PRICE_CENTS,
+} from "@/lib/portal/paid-access";
+import {
   normalizeDesignerName,
   normalizeSlug,
   normalizeWebsiteUrl,
@@ -482,13 +486,17 @@ export async function deletePortalFromHome({
 
     const { data: portal } = await supabase
       .from("portals")
-      .select("id,slug")
+      .select("id,slug,visibility")
       .eq("id", portalId)
       .eq("owner_id", userData.user.id)
       .maybeSingle();
 
     if (!portal) {
       return { error: "portalNotFound" } as const;
+    }
+
+    if (portal.visibility === "paid") {
+      return { error: "paidPortalProtected" } as const;
     }
 
     const expectedPhrase = homeT("delete.phrasePlaceholder");
@@ -693,6 +701,17 @@ export async function savePrivacySettings(formData: FormData) {
     actionFailure(t("passwordLength"));
   }
   const supabase = await requireAuthenticatedUser(locale);
+  const { data: currentPortal, error: currentPortalError } = await supabase
+    .from("portals")
+    .select("visibility")
+    .eq("id", portalId)
+    .maybeSingle();
+  if (currentPortalError || !currentPortal) {
+    actionFailure(currentPortalError?.message ?? t("portalNotFound"));
+  }
+  if (currentPortal.visibility === "paid" && visibility !== "paid") {
+    actionFailure(t("paidPortalImmutable"));
+  }
   if (visibility === "paid") {
     const priceDollars = Number.parseFloat(getString(formData, "price"));
     const priceCents = Number.isFinite(priceDollars)
@@ -700,8 +719,8 @@ export async function savePrivacySettings(formData: FormData) {
       : Number.NaN;
     if (
       !Number.isInteger(priceCents) ||
-      priceCents < 500 ||
-      priceCents > 50000
+      priceCents < PAID_PORTAL_MIN_PRICE_CENTS ||
+      priceCents > PAID_PORTAL_MAX_PRICE_CENTS
     ) {
       actionFailure(t("paidPriceInvalid"));
     }

@@ -69,6 +69,7 @@ export default async function HomePage({ params }: Props) {
           confirm: t("delete.confirm"),
           deleting: t("delete.deleting"),
           description: t.raw("delete.description") as string,
+          paidProtected: t("delete.paidProtected"),
           phraseLabel: t("delete.phraseLabel"),
           phrasePlaceholder: t("delete.phrasePlaceholder"),
           slugLabel: t("delete.slugLabel"),

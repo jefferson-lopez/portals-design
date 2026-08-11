@@ -26,7 +26,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import type { ReactElement, ReactNode } from "react";
+import type { FormEvent, ReactElement, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { parseColor } from "react-aria-components";
 import { toast } from "sonner";
@@ -3536,27 +3536,50 @@ function SettingsTabForm({
   children,
   locale,
   onSaved,
+  onPaidConfirmationClose,
+  paidConfirmation,
   portal,
 }: {
   action?: (formData: FormData) => Promise<void>;
   children: ReactNode;
   locale: string;
   onSaved: () => void;
+  onPaidConfirmationClose?: () => void;
+  paidConfirmation?: {
+    cancel: string;
+    confirm: string;
+    description: string;
+    title: string;
+  };
   portal: Portal;
 }) {
   const t = useTranslations("PortalEditor.common");
+  const [pendingFormData, setPendingFormData] = useState<FormData | null>(null);
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
   const setHasUnpublishedChanges = usePortalEditorStore(
     (state) => state.setHasUnpublishedChanges,
   );
 
-  async function handleAction(formData: FormData) {
+  async function submitAction(formData: FormData) {
     await action(formData);
     setHasUnpublishedChanges(portal.id, true);
     onSaved();
   }
 
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    if (
+      paidConfirmation &&
+      portal.visibility !== "paid" &&
+      new FormData(event.currentTarget).get("visibility") === "paid"
+    ) {
+      event.preventDefault();
+      setPendingFormData(new FormData(event.currentTarget));
+      setConfirmationOpen(true);
+    }
+  }
+
   return (
-    <form action={handleAction}>
+    <form action={submitAction} onSubmit={handleSubmit}>
       <input name="locale" type="hidden" value={locale} />
       <input name="portal_id" type="hidden" value={portal.id} />
       {children}
@@ -3566,6 +3589,52 @@ function SettingsTabForm({
           {t("saveSettings")}
         </Button>
       </DialogFooter>
+      {paidConfirmation ? (
+        <Dialog
+          onOpenChange={(open) => {
+            setConfirmationOpen(open);
+            if (!open) {
+              setPendingFormData(null);
+              onPaidConfirmationClose?.();
+            }
+          }}
+          open={confirmationOpen}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{paidConfirmation.title}</DialogTitle>
+              <DialogDescription>
+                {paidConfirmation.description}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                onClick={() => {
+                  setConfirmationOpen(false);
+                  setPendingFormData(null);
+                  onPaidConfirmationClose?.();
+                }}
+                type="button"
+                variant="outline"
+              >
+                {paidConfirmation.cancel}
+              </Button>
+              <Button
+                onClick={() => {
+                  if (!pendingFormData) return;
+                  const formData = pendingFormData;
+                  setPendingFormData(null);
+                  setConfirmationOpen(false);
+                  void submitAction(formData);
+                }}
+                type="button"
+              >
+                {paidConfirmation.confirm}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
     </form>
   );
 }
@@ -3744,46 +3813,81 @@ export function SettingsDialog({
               action={savePrivacySettings}
               locale={locale}
               onSaved={() => setOpen(false)}
+              paidConfirmation={
+                portal.visibility === "paid"
+                  ? undefined
+                  : {
+                      cancel: t("paidConfirmationCancel"),
+                      confirm: t("paidConfirmationConfirm"),
+                      description: t("paidConfirmationDescription"),
+                      title: t("paidConfirmationTitle"),
+                    }
+              }
+              onPaidConfirmationClose={() => setVisibility(portal.visibility)}
               portal={portal}
             >
-              <div className="flex flex-col gap-1 pb-4">
-                <h3 className="font-medium">{t("privacyTitle")}</h3>
-                <p className="text-muted-foreground">
-                  {t("privacyDescription")}
-                </p>
-              </div>
               <FieldGroup>
                 <Field>
-                  <FieldLabel>{t("privacy")}</FieldLabel>
-                  <Select
-                    items={visibilityItems}
-                    name="visibility"
-                    onValueChange={(value) => {
-                      if (!value) return;
-                      if (value === "password" && !guardPassword()) return;
-                      setVisibility(value as PortalVisibility);
-                    }}
-                    value={visibility}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder={t("privacyPlaceholder")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {visibilityItems.map((item) => (
-                          <SelectItem key={item.value} value={item.value}>
-                            {item.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  <FieldDescription>
-                    {visibility === "public" && t("publicHelp")}
-                    {visibility === "private" && t("privateHelp")}
-                    {visibility === "password" && t("passwordHelp")}
-                    {visibility === "paid" && t("paidHelp")}
-                  </FieldDescription>
+                  {portal.visibility === "paid" ? (
+                    <output
+                      aria-labelledby="paid-visibility-label"
+                      id="paid-visibility-state"
+                    >
+                      <span
+                        className="text-sm font-medium"
+                        id="paid-visibility-label"
+                      >
+                        {t("privacy")}
+                      </span>
+                      <span className="block text-sm">{t("paid")}</span>
+                      <input
+                        aria-hidden="true"
+                        name="visibility"
+                        type="hidden"
+                        value="paid"
+                      />
+                    </output>
+                  ) : (
+                    <>
+                      <FieldLabel>{t("privacy")}</FieldLabel>
+                      <Select
+                        items={visibilityItems}
+                        name="visibility"
+                        onValueChange={(value) => {
+                          if (!value) return;
+                          if (value === "password" && !guardPassword()) return;
+                          setVisibility(value as PortalVisibility);
+                        }}
+                        value={visibility}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={t("privacyPlaceholder")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {visibilityItems.map((item) => (
+                              <SelectItem key={item.value} value={item.value}>
+                                {item.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
+                  {visibility === "paid" ? (
+                    <FieldDescription>
+                      {portal.visibility === "paid"
+                        ? t("paidImmutable")
+                        : t("paidHelp")}
+                    </FieldDescription>
+                  ) : (
+                    <FieldDescription>
+                      {visibility === "public" && t("publicHelp")}
+                      {visibility === "private" && t("privateHelp")}
+                      {visibility === "password" && t("passwordHelp")}
+                    </FieldDescription>
+                  )}
                 </Field>
                 {visibility === "paid" ? (
                   <Field>
@@ -3805,7 +3909,7 @@ export function SettingsDialog({
                               : (initialPaidPriceCents / 100).toFixed(2)
                           }
                           max={500}
-                          min={5}
+                          min={4.35}
                           name="price"
                           placeholder="19.99"
                           required

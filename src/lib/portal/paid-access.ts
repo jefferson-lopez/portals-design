@@ -1,4 +1,4 @@
-export const PAID_PORTAL_MIN_PRICE_CENTS = 500;
+export const PAID_PORTAL_MIN_PRICE_CENTS = 435;
 export const PAID_PORTAL_MAX_PRICE_CENTS = 50_000;
 
 export type PaidPortalAccessInput = {

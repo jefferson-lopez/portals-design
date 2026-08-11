@@ -44,5 +44,28 @@ describe("portal settings dialog", () => {
     expect(english.PortalEditor.settings.securityTab).toBe("Security");
     expect(spanish.PortalEditor.settings.generalTab).toBe("General");
     expect(spanish.PortalEditor.settings.securityTab).toBe("Seguridad");
+    expect(controlsSource).toContain('portal.visibility === "paid"');
+    expect(controlsSource).toContain('name="visibility"');
+    expect(controlsSource).toContain('type="hidden"');
+    expect(controlsSource).toContain('value="paid"');
+    expect(english.PortalEditor.settings.paidImmutable).not.toContain(
+      "permanent",
+    );
+    expect(spanish.PortalEditor.settings.paidImmutable).not.toContain(
+      "permanente",
+    );
+    expect(controlsSource).toContain("<output");
+    expect(controlsSource).toContain('id="paid-visibility-label"');
+    expect(controlsSource).toContain("setPendingFormData(null);");
+    expect(controlsSource).toContain("onPaidConfirmationClose?.();");
+    expect(controlsSource).toContain("paidConfirmation");
+    expect(controlsSource).toContain("event.preventDefault()");
+    expect(controlsSource).toContain('get("visibility") === "paid"');
+    expect(english.PortalEditor.settings.paidConfirmationDescription).toContain(
+      "permanent",
+    );
+    expect(spanish.PortalEditor.settings.paidConfirmationDescription).toContain(
+      "permanente",
+    );
   });
 });

@@ -24,14 +24,34 @@ const payloadMigration = await Bun.file(
     import.meta.url,
   ),
 ).text();
-const migration = `${baseMigration}\n${hardeningMigration}\n${buyerMigration}\n${payloadMigration}`;
+const priceBoundsMigration = await Bun.file(
+  new URL(
+    "../../../supabase/migrations/20260810212000_allow_paid_portal_prices_from_one_dollar.sql",
+    import.meta.url,
+  ),
+).text();
+const operatingFloorMigration = await Bun.file(
+  new URL(
+    "../../../supabase/migrations/20260810213000_raise_paid_portal_price_floor_to_435.sql",
+    import.meta.url,
+  ),
+).text();
+const immutabilityMigration = await Bun.file(
+  new URL(
+    "../../../supabase/migrations/20260810220000_immutability_paid_portals.sql",
+    import.meta.url,
+  ),
+).text();
+const migration = `${baseMigration}\n${hardeningMigration}\n${buyerMigration}\n${payloadMigration}\n${priceBoundsMigration}\n${operatingFloorMigration}\n${immutabilityMigration}`;
 
 test("defines paid visibility, offer bounds, and owner-only offer configuration", () => {
   expect(migration).toContain(
     "alter type public.portal_visibility add value if not exists 'paid'",
   );
   expect(migration).toContain("paid_portal_offers");
-  expect(migration).toContain("check (price_cents between 500 and 50000)");
+  expect(priceBoundsMigration).toContain(
+    "check (price_cents between 100 and 50000)",
+  );
   expect(migration).toContain("upsert_paid_portal_offer");
   expect(migration).toContain("is_portal_owner(target_portal_id)");
 });
@@ -73,4 +93,49 @@ test("isolates buyer checkout attempts and orders duplicate payment events", () 
     "event_created < coalesce(previous_created, 0)",
   );
   expect(buyerMigration).toContain("on conflict do nothing");
+});
+
+test("updates all paid price bounds to one through five hundred dollars", () => {
+  expect(priceBoundsMigration).toContain(
+    "check (price_cents between 100 and 50000)",
+  );
+  expect(priceBoundsMigration).toContain(
+    "check (amount_total between 100 and 50000)",
+  );
+  expect(priceBoundsMigration).toContain(
+    "offer_price_cents < 100 or offer_price_cents > 50000",
+  );
+});
+
+test("raises the operating floor to four dollars and thirty-five cents", () => {
+  expect(operatingFloorMigration).not.toContain(
+    "update public.paid_portal_offers",
+  );
+  expect(operatingFloorMigration).toContain(
+    "check (price_cents between 435 and 50000) not valid",
+  );
+  expect(operatingFloorMigration).toContain(
+    "check (amount_total between 435 and 50000)",
+  );
+  expect(operatingFloorMigration).toContain(
+    "offer_price_cents < 435 or offer_price_cents > 50000",
+  );
+  expect(operatingFloorMigration).toContain(
+    "check (amount_total between 435 and 50000) not valid",
+  );
+  expect(operatingFloorMigration).toContain("if offer.price_cents < 435 then");
+  expect(operatingFloorMigration).toContain(
+    "Paid portal offer must be updated to at least 435 cents before checkout",
+  );
+});
+
+test("makes paid access immutable and protects paid deletion", () => {
+  expect(immutabilityMigration).toContain(
+    "current_visibility = 'paid' and portal_visibility <> 'paid'",
+  );
+  expect(immutabilityMigration).toContain(
+    "old.visibility = 'paid' and new.visibility <> 'paid'",
+  );
+  expect(immutabilityMigration).toContain("current_visibility = 'paid' then");
+  expect(immutabilityMigration).toContain("Paid portals cannot be deleted");
 });

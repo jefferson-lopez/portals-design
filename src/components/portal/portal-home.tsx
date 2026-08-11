@@ -157,6 +157,7 @@ export type PortalHomeCopy = {
     slugPlaceholder: string;
     title: string;
     trigger: string;
+    paidProtected: string;
   };
   settings: {
     description: string;
@@ -855,7 +856,9 @@ function PortalCard({
                 portal={portal}
               />
             ) : null}
-            {!isPurchased && !portal.hasPurchasedPlan ? (
+            {!isPurchased &&
+            !portal.hasPurchasedPlan &&
+            portal.visibility !== "paid" ? (
               <DeletePortalDialog copy={copy} locale={locale} portal={portal} />
             ) : null}
           </div>
@@ -874,6 +877,11 @@ function PortalCard({
         <p className="text-xs text-muted-foreground">
           {copy.portal.lastEdited} · {formattedDate}
         </p>
+        {portal.visibility === "paid" ? (
+          <p className="text-xs text-muted-foreground">
+            {copy.delete.paidProtected}
+          </p>
+        ) : null}
       </CardContent>
       <CardFooter className="grid grid-cols-2 gap-2 border-t">
         {!isPurchased ? (

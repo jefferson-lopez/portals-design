@@ -94,6 +94,8 @@ describe("PortalHome", () => {
     expect(source).toContain('<IconLock aria-hidden="true" />');
     expect(source).toContain('<IconWorld aria-hidden="true" />');
     expect(source).toContain("deletePortalFromHome");
+    expect(source).toContain('portal.visibility !== "paid"');
+    expect(source).toContain("copy.delete.paidProtected");
     expect(source).toContain('variant="destructive"');
     expect(source).toContain('<IconTrash data-icon="inline-start" />');
     expect(source).not.toContain("copy.intro.eyebrow");

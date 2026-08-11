@@ -5,6 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
+const CONNECT_CONFIGURATIONS: ["recipient", "merchant"] = [
+  "recipient",
+  "merchant",
+];
+
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     country?: string;
@@ -122,7 +127,7 @@ export async function POST(request: Request) {
       account,
       use_case: {
         account_onboarding: {
-          configurations: ["merchant"],
+          configurations: CONNECT_CONFIGURATIONS,
           refresh_url: refreshUrl,
           return_url: returnUrl,
         },
