@@ -116,6 +116,7 @@
       "activeDescription": "Tu cuenta está lista para recibir pagos.",
       "accountId": "ID de cuenta",
       "accountEmail": "Correo de cuenta",
+      "detailsSubmitted": "Datos enviados",
       "charges": "Pagos",
       "configure": "Configurar",
       "country": "País del vendedor",
@@ -138,6 +139,11 @@
       "processing": "Stripe está revisando la información de tu cuenta. No necesitas volver a ingresar el país.",
       "needsInformation": "Stripe necesita información adicional para verificar tu cuenta.",
       "requirementsPending": "Requisitos pendientes: {count}",
+      "verification": "Verificación",
+      "verificationActive": "Verificada",
+      "verificationNeedsInformation": "Requiere más información",
+      "verificationProcessing": "En revisión",
+      "verificationNotStarted": "No iniciada",
       "continue": "Continuar configuración",
       "loading": "Cargando Stripe Connect…",
       "trigger": "Stripe Connect"
@@ -686,6 +692,7 @@
       },
       "ratioAuto": "Automática",
       "altPlaceholder": "Descripción de la imagen",
+      "uploading": "Subiendo…",
       "uploadError": "No se pudo subir la imagen.",
       "remove": "Remover imagen"
     },
@@ -782,6 +789,7 @@
       "upload": "Agregar archivo",
       "limitReached": "Límite de archivos alcanzado",
       "invalidFormat": "Formato no permitido. Usa PDF, AI, EPS, PSD, SVG o imágenes.",
+      "uploading": "Subiendo…",
       "uploadError": "No se pudo subir el archivo."
     },
     "sidebar": {
@@ -843,9 +851,11 @@
       "deleteTrigger": "Eliminar proyecto",
       "deleteModalTitle": "¿Eliminar este proyecto?",
       "deleteModalDescription": "Escribe este slug del proyecto para confirmar la eliminación permanente:",
+      "deleteBlockedDescription": "Este proyecto no se puede eliminar porque alguien ya pagó por él. Su acceso debe permanecer disponible.",
       "deleteSlugLabel": "Slug del proyecto",
       "deleteCancel": "Cancelar",
       "deleteConfirm": "Eliminar proyecto",
+      "deleteUnderstand": "Entendido",
       "deleteDeleting": "Eliminando…",
       "deleteSlugCopied": "Slug del proyecto copiado.",
       "deleteSlugCopyFailed": "No se pudo copiar el slug del proyecto.",

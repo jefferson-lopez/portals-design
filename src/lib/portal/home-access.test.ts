@@ -31,6 +31,14 @@ let grantsResult: { data: Array<{ portal_id: string }>; error: null } = {
   data: [],
   error: null,
 };
+const homeSummary = {
+  portals: [{
+    id: "portal-1", name: "Brand", slug: "brand",
+    updatedAt: "2026-07-24T00:00:00.000Z", visibility: "private",
+    hasPurchasedPlan: false, isPurchased: false, plan: "free",
+    storageUsedBytes: 0, canDelete: true,
+  }],
+};
 
 const order = mock(async () => portalsResult);
 const eq = mock(() => ({ order }));
@@ -52,6 +60,7 @@ const from = mock((table: string) =>
 mock.module("@/lib/supabase/server", () => ({
   createClient: async () => ({
     auth: { getUser: async () => userResult },
+    rpc: async () => ({ data: homeSummary, error: null }),
     from,
   }),
 }));
@@ -93,11 +102,14 @@ describe("home portal access", () => {
 
     await expect(getHomePortals("en")).resolves.toEqual({
       error: null,
-      portals: portalsResult.data,
+      portals: [{
+        id: "portal-1", name: "Brand", slug: "brand",
+        updated_at: "2026-07-24T00:00:00.000Z", visibility: "private",
+        hasPurchasedPlan: false, isPurchased: false, plan: "free",
+        storageUsedBytes: 0, canDelete: true,
+      }],
     });
-    expect(from).toHaveBeenCalledWith("portals");
-    expect(eq).toHaveBeenCalledWith("owner_id", "user-1");
-    expect(order).toHaveBeenCalledWith("updated_at", { ascending: false });
+    expect(from).not.toHaveBeenCalled();
   });
 
   test("redirects to sign-in for auth errors before loading portals", async () => {

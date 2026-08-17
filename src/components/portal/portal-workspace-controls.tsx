@@ -895,7 +895,7 @@ function ImageTile({
       aria-busy={pending}
       className={cn(
         "flex flex-col gap-2",
-        pending && "animate-pulse opacity-60",
+        pending && "animate-pulse",
       )}
     >
       <div
@@ -917,6 +917,12 @@ function ImageTile({
           ref={dragHandleRef}
           src={image.image_url}
         />
+        {pending ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50 text-white">
+            <IconLoader2 className="size-4 animate-spin" />
+            <span className="text-sm">{t("uploading")}</span>
+          </div>
+        ) : null}
         {!pending ? (
           <PortalItemActionsOverlay
             forceVisible={settingsOpen}
@@ -3243,12 +3249,20 @@ function FilesEditor({
             />
           ))}
           {optimistic.pending.map(({ id, value }) => (
-            <div aria-busy="true" className="animate-pulse opacity-60" key={id}>
+            <div
+              aria-busy="true"
+              className="relative animate-pulse"
+              key={id}
+            >
               <PortalFilePreview
                 fileName={value.file_name}
                 fileUrl={value.file_url}
                 type={value.file_type}
               />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-xl bg-black/50 text-white">
+                <IconLoader2 className="size-4 animate-spin" />
+                <span className="text-sm">{t("uploading")}</span>
+              </div>
             </div>
           ))}
           {fileLimitReached ? (
@@ -4126,11 +4140,13 @@ function ConnectStripeButton({
 }
 
 export function SettingsDialog({
+  initialConnectReady,
   initialPaidPriceCents,
   locale,
   portal,
   triggerless = false,
 }: {
+  initialConnectReady: boolean;
   initialPaidPriceCents: number | null;
   locale: string;
   portal: Portal;
@@ -4155,7 +4171,7 @@ export function SettingsDialog({
       ? ""
       : (initialPaidPriceCents / 100).toFixed(2),
   );
-  const [connectReady, setConnectReady] = useState<boolean | null>(null);
+  const [connectReady] = useState(initialConnectReady);
   useEffect(() => {
     if (!open) {
       setPaidPrice(
@@ -4165,16 +4181,6 @@ export function SettingsDialog({
       );
     }
   }, [initialPaidPriceCents, open]);
-  useEffect(() => {
-    if (visibility !== "paid") return;
-    setConnectReady(null);
-    fetch(
-      `/api/billing/connect/status?portalId=${encodeURIComponent(portal.id)}`,
-    )
-      .then((response) => response.json() as Promise<{ connected?: boolean }>)
-      .then((result) => setConnectReady(result.connected === true))
-      .catch(() => setConnectReady(false));
-  }, [portal.id, visibility]);
   const visibilityItems: { label: string; value: PortalVisibility }[] = [
     { label: t("public"), value: "public" },
     { label: t("private"), value: "private" },

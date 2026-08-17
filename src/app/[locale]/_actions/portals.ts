@@ -53,6 +53,9 @@ export type HomePortal = Pick<
   hasPurchasedPlan: boolean;
   isPurchased: boolean;
   purchasedAt?: string;
+  plan?: "free" | "starter" | "pro" | "premium";
+  storageUsedBytes?: number;
+  canDelete?: boolean;
 };
 
 export type HomePortalsResult = {
@@ -99,94 +102,22 @@ export async function getHomePortals(
 ): Promise<HomePortalsResult> {
   try {
     const supabase = await requireAuthenticatedUser(locale);
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-
-    if (userError) {
-      return homePortalsFailure("get-user", userError);
-    }
-
-    if (!userData.user) {
-      redirect(`/${locale}/auth/sign-in`);
-    }
-
-    const { data, error } = await supabase
-      .from("portals")
-      .select("id,name,slug,updated_at,visibility")
-      .eq("owner_id", userData.user.id)
-      .order("updated_at", { ascending: false });
-
-    if (error) {
-      return homePortalsFailure("list-portals", error);
-    }
-
-    const purchasedPortalIds = new Set<string>();
-    if (data.length > 0) {
-      const { data: entitlements, error: entitlementsError } = await supabase
-        .from("portal_entitlements")
-        .select("portal_id")
-        .in(
-          "portal_id",
-          data.map((portal) => portal.id),
-        );
-
-      if (entitlementsError) {
-        return homePortalsFailure(
-          "list-portal-entitlements",
-          entitlementsError,
-        );
-      }
-
-      for (const entitlement of entitlements ?? []) {
-        purchasedPortalIds.add(entitlement.portal_id);
-      }
-    }
-
-    const { data: grants, error: grantsError } = await supabase
-      .from("paid_portal_access_grants")
-      .select("portal_id,granted_at")
-      .eq("buyer_id", userData.user.id)
-      .eq("status", "paid");
-    if (grantsError)
-      return homePortalsFailure("list-paid-portal-grants", grantsError);
-
-    const ownedPortalIds = new Set(data.map((portal) => portal.id));
-    const purchasedIds = (grants ?? [])
-      .map((grant) => grant.portal_id)
-      .filter((portalId) => !ownedPortalIds.has(portalId));
-    let purchasedPortals: HomePortal[] = [];
-    if (purchasedIds.length > 0) {
-      const admin = createAdminClient();
-      const { data: purchased, error: purchasedError } = await admin
-        .from("portals")
-        .select("id,name,slug,updated_at,visibility")
-        .in("id", purchasedIds)
-        .eq("visibility", "paid")
-        .eq("status", "published");
-      if (purchasedError)
-        return homePortalsFailure("list-purchased-portals", purchasedError);
-      purchasedPortals = (purchased ?? []).map((portal) => ({
-        ...portal,
-        hasPurchasedPlan: false,
-        isPurchased: true,
-        purchasedAt: grants?.find((grant) => grant.portal_id === portal.id)
-          ?.granted_at,
-      }));
-    }
-
+    const { data, error } = await supabase.rpc("get_home_workspace_summary");
+    if (error) return homePortalsFailure("read-home-summary", error);
+    const rows = Array.isArray((data as { portals?: unknown })?.portals)
+      ? (data as { portals: Array<Record<string, unknown>> }).portals
+      : [];
     return {
       error: null,
-      portals: [
-        ...data.map((portal) => ({
-          ...portal,
-          hasPurchasedPlan: purchasedPortalIds.has(portal.id),
-          isPurchased: false,
-        })),
-        ...purchasedPortals,
-      ].sort(
-        (left, right) =>
-          new Date(right.updated_at).getTime() -
-          new Date(left.updated_at).getTime(),
-      ),
+      portals: rows.map((portal) => ({
+        id: String(portal.id), name: String(portal.name), slug: String(portal.slug),
+        updated_at: String(portal.updatedAt), visibility: portal.visibility as Portal["visibility"],
+        hasPurchasedPlan: portal.hasPurchasedPlan === true, isPurchased: portal.isPurchased === true,
+        purchasedAt: typeof portal.purchasedAt === "string" ? portal.purchasedAt : undefined,
+        plan: portal.plan === "starter" || portal.plan === "pro" || portal.plan === "premium" ? portal.plan : "free",
+        storageUsedBytes: typeof portal.storageUsedBytes === "number" ? portal.storageUsedBytes : 0,
+        canDelete: portal.canDelete !== false,
+      })),
     };
   } catch (error) {
     unstable_rethrow(error);
@@ -525,20 +456,6 @@ export async function deletePortalFromHome({
       confirmationPhrase !== expectedPhrase
     ) {
       return { error: "deleteConfirmationInvalid" } as const;
-    }
-
-    const { data: entitlement, error: entitlementError } = await supabase
-      .from("portal_entitlements")
-      .select("id")
-      .eq("portal_id", portalId)
-      .maybeSingle();
-
-    if (entitlementError) {
-      throw new Error(entitlementError.message);
-    }
-
-    if (entitlement) {
-      return { error: "portalPurchaseProtected" } as const;
     }
 
     if (portal.visibility === "paid") {

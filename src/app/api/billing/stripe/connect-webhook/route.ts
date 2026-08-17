@@ -54,6 +54,12 @@ export async function POST(request: Request) {
         onboarding_status:
           status.verificationState === "active" ? "complete" : "pending",
         payouts_enabled: status.payoutsEnabled,
+        account_email: account.contact_email ?? null,
+        country: account.identity?.country ?? null,
+        display_name: account.display_name ?? null,
+        requirements_pending: account.requirements?.entries?.length ?? 0,
+        verification_state: status.verificationState,
+        last_synced_at: new Date().toISOString(),
       })
       .eq("stripe_account_id", accountId);
     if (error) throw error;

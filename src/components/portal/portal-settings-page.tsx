@@ -49,6 +49,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRouter } from "@/i18n/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import type { Portal, PortalVisibility } from "@/lib/supabase/database.types";
 
 function formSnapshot(form: HTMLFormElement) {
@@ -69,6 +70,7 @@ function SettingsForm({
   const t = useTranslations("PortalEditor.common");
   const [pending, startTransition] = useTransition();
   const [dirty, setDirty] = useState(false);
+  const queryClient = useQueryClient();
   const formRef = useRef<HTMLFormElement>(null);
   const initialSnapshot = useRef<string | undefined>(undefined);
   const initialDirtyValue = useRef(dirtyValue);
@@ -98,6 +100,7 @@ function SettingsForm({
     startTransition(async () => {
       try {
         await action(formData);
+        await queryClient.invalidateQueries({ queryKey: ["workspace", "home"] });
         initialSnapshot.current = formSnapshot(form);
         initialDirtyValue.current = dirtyValue;
         setDirty(false);
@@ -131,10 +134,14 @@ function SettingsForm({
 }
 
 export function PortalSettingsPage({
+  initialConnectReady,
+  hasPortalPurchase,
   initialPaidPriceCents,
   locale,
   portal,
 }: {
+  initialConnectReady: boolean;
+  hasPortalPurchase: boolean;
   initialPaidPriceCents: number | null;
   locale: string;
   portal: Portal;
@@ -154,20 +161,10 @@ export function PortalSettingsPage({
       ? ""
       : (initialPaidPriceCents / 100).toFixed(2),
   );
-  const [connectReady, setConnectReady] = useState<boolean | null>(null);
+  const [connectReady] = useState(initialConnectReady);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmationSlug, setConfirmationSlug] = useState("");
   const [deletePending, setDeletePending] = useState(false);
-  useEffect(() => {
-    if (visibility !== "paid") return;
-    setConnectReady(null);
-    fetch(
-      `/api/billing/connect/status?portalId=${encodeURIComponent(portal.id)}`,
-    )
-      .then((response) => response.json() as Promise<{ connected?: boolean }>)
-      .then((result) => setConnectReady(result.connected === true))
-      .catch(() => setConnectReady(false));
-  }, [portal.id, visibility]);
   const visibilityItems: { label: string; value: PortalVisibility }[] = [
     { label: t("public"), value: "public" },
     { label: t("private"), value: "private" },
@@ -410,53 +407,69 @@ export function PortalSettingsPage({
           <DialogHeader>
             <DialogTitle>{t("deleteModalTitle")}</DialogTitle>
             <DialogDescription>
-              {t("deleteModalDescription")}
-              <Button
-                className="h-auto p-0 font-semibold underline underline-offset-4"
-                onClick={handleCopySlug}
-                type="button"
-                variant="link"
-              >
-                {portal.slug}
-              </Button>
+              {hasPortalPurchase ? (
+                t("deleteBlockedDescription")
+              ) : (
+                <>
+                  {t("deleteModalDescription")}
+                  <Button
+                    className="h-auto p-0 font-semibold underline underline-offset-4"
+                    onClick={handleCopySlug}
+                    type="button"
+                    variant="link"
+                  >
+                    {portal.slug}
+                  </Button>
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
-          <Field>
-            <FieldLabel htmlFor="delete-project-slug">
-              {t("deleteSlugLabel")}
-            </FieldLabel>
-            <Input
-              autoComplete="off"
-              id="delete-project-slug"
-              onChange={(event) => setConfirmationSlug(event.target.value)}
-              placeholder={portal.slug}
-              value={confirmationSlug}
-            />
-          </Field>
-          <DialogFooter>
-            <Button
-              disabled={deletePending}
-              onClick={() => setDeleteOpen(false)}
-              type="button"
-              variant="outline"
-            >
-              {t("deleteCancel")}
-            </Button>
-            <Button
-              disabled={deletePending || confirmationSlug !== portal.slug}
-              onClick={handleDelete}
-              type="button"
-              variant="destructive"
-            >
-              {deletePending ? (
-                <IconLoader2
-                  className="animate-spin"
-                  data-icon="inline-start"
+          {hasPortalPurchase ? (
+            <DialogFooter>
+              <Button onClick={() => setDeleteOpen(false)} type="button">
+                {t("deleteUnderstand")}
+              </Button>
+            </DialogFooter>
+          ) : (
+            <>
+              <Field>
+                <FieldLabel htmlFor="delete-project-slug">
+                  {t("deleteSlugLabel")}
+                </FieldLabel>
+                <Input
+                  autoComplete="off"
+                  id="delete-project-slug"
+                  onChange={(event) => setConfirmationSlug(event.target.value)}
+                  placeholder={portal.slug}
+                  value={confirmationSlug}
                 />
-              ) : null}
-              {deletePending ? t("deleteDeleting") : t("deleteConfirm")}
-            </Button>
-          </DialogFooter>
+              </Field>
+              <DialogFooter>
+                <Button
+                  disabled={deletePending}
+                  onClick={() => setDeleteOpen(false)}
+                  type="button"
+                  variant="outline"
+                >
+                  {t("deleteCancel")}
+                </Button>
+                <Button
+                  disabled={deletePending || confirmationSlug !== portal.slug}
+                  onClick={handleDelete}
+                  type="button"
+                  variant="destructive"
+                >
+                  {deletePending ? (
+                    <IconLoader2
+                      className="animate-spin"
+                      data-icon="inline-start"
+                    />
+                  ) : null}
+                  {deletePending ? t("deleteDeleting") : t("deleteConfirm")}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

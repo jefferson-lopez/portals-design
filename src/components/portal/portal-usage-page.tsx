@@ -16,7 +16,7 @@ import {
   storagePercent,
   storageUsageState,
 } from "@/lib/billing/portal-plan-client";
-import type { PortalDocument, PortalSectionType } from "@/lib/portal/document";
+import type { PortalSectionType } from "@/lib/portal/document";
 
 const sectionTypes = [
   "text",
@@ -33,33 +33,7 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(bytes ? 1 : 0)} MB`;
 }
 
-function sectionMatchesType(
-  sectionType: PortalSectionType,
-  type: (typeof sectionTypes)[number],
-) {
-  return type === "gallery"
-    ? sectionType === "gallery" || sectionType === "image_comparison"
-    : sectionType === type;
-}
-
-function itemCount(
-  document: PortalDocument,
-  type: (typeof sectionTypes)[number],
-) {
-  return document.sections
-    .filter((section) => sectionMatchesType(section.type, type))
-    .reduce((total, section) => {
-      if (type === "gallery")
-        return total + (section.content.images?.length ?? 0);
-      if (type === "colors")
-        return total + (section.content.colors?.length ?? 0);
-      if (type === "fonts") return total + (section.content.fonts?.length ?? 0);
-      if (type === "files") return total + (section.content.files?.length ?? 0);
-      return total;
-    }, 0);
-}
-
-export function PortalUsagePage({ document }: { document: PortalDocument }) {
+export function PortalUsagePage({ summary }: { summary: Record<string, unknown> }) {
   const t = useTranslations("PortalEditor.plan");
   const { plan, requestUpgrade, snapshot, status } = usePortalPlan();
   const percent = storagePercent(
@@ -69,7 +43,8 @@ export function PortalUsagePage({ document }: { document: PortalDocument }) {
   const state = storageUsageState(percent);
   const used = formatBytes(snapshot.storageUsedBytes);
   const limit = formatBytes(snapshot.policy.storageBytes);
-  const totalSections = document.sections.length;
+  const sectionUsage = (summary.sections ?? {}) as Record<string, { sections?: number; items?: number }>;
+  const totalSections = Number((sectionUsage as Record<string, unknown>).total ?? 0);
   const totalSectionsLimit = snapshot.policy.totalSections;
   const totalSectionsLabel = Number.isFinite(totalSectionsLimit)
     ? String(totalSectionsLimit)
@@ -152,12 +127,10 @@ export function PortalUsagePage({ document }: { document: PortalDocument }) {
             <div className="flex flex-col gap-2">
               {sectionTypes.map((type) => {
                 const sectionLimit = snapshot.policy.sections[type];
-                const count = document.sections.filter((section) =>
-                  sectionMatchesType(section.type, type),
-                ).length;
+                const count = Number(sectionUsage[type]?.sections ?? 0);
                 const items = sectionLimit?.items;
                 const itemUsage =
-                  items === undefined ? null : itemCount(document, type);
+                  items === undefined ? null : Number(sectionUsage[type]?.items ?? 0);
 
                 return (
                   <div

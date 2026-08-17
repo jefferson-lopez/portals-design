@@ -22,6 +22,10 @@ import { prepareDocumentForRendering } from "@/lib/portal/server-assets";
 import type { Json, Portal, PortalBlock } from "@/lib/supabase/database.types";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
+import {
+  getConnectStatusSummary,
+  normalizeConnectStatusSummary,
+} from "@/lib/portal/workspace-read-models";
 
 type Props = {
   params: Promise<{ locale: string; portalId: string }>;
@@ -34,6 +38,7 @@ type PortalWorkspace = {
   document: PortalDocument;
   hasUnpublishedChanges: boolean;
   paidPriceCents: number | null;
+  connectStatus: ReturnType<typeof normalizeConnectStatusSummary>;
 };
 
 type PublicationSnapshot = {
@@ -154,6 +159,7 @@ async function getWorkspace(
     { data: portalDocumentRow },
     { data: publicationRow },
     { data: paidOffer },
+    connectSummary,
   ] = await Promise.all([
     supabase
       .from("portal_blocks")
@@ -181,6 +187,7 @@ async function getWorkspace(
       .maybeSingle() as unknown as Promise<{
       data: { price_cents: number } | null;
     }>,
+    getConnectStatusSummary(supabase),
   ]);
 
   const fallbackDocument = portalBlocksToDocument(safePortal, blocks ?? []);
@@ -204,6 +211,7 @@ async function getWorkspace(
     document,
     hasUnpublishedChanges,
     paidPriceCents: paidOffer?.price_cents ?? null,
+    connectStatus: normalizeConnectStatusSummary(connectSummary),
     portal: safePortal,
   };
 }
@@ -216,8 +224,13 @@ export default async function CreatePortalPage({
   const { focus } = await searchParams;
 
   setRequestLocale(locale);
-  const { document, hasUnpublishedChanges, paidPriceCents, portal } =
-    await getWorkspace(locale, portalId);
+  const {
+    connectStatus,
+    document,
+    hasUnpublishedChanges,
+    paidPriceCents,
+    portal,
+  } = await getWorkspace(locale, portalId);
   return (
     <PortalPlanProvider locale={locale} portalId={portal.id}>
       <WorkspaceProjectRegistration
@@ -238,6 +251,7 @@ export default async function CreatePortalPage({
       />
       <div className="hidden">
         <SettingsDialog
+          initialConnectReady={connectStatus.connected}
           initialPaidPriceCents={paidPriceCents}
           locale={locale}
           portal={portal}

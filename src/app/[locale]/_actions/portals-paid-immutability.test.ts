@@ -21,3 +21,13 @@ test("protects paid portal deletion after a purchase and before removing files",
     source.indexOf('.from("portal_assets")'),
   );
 });
+
+test("does not let an entitlement-only row block deletion", () => {
+  const deletionSource = source.slice(
+    source.indexOf("export async function deletePortalFromHome"),
+    source.indexOf("export async function deletePortalFromSettings"),
+  );
+  expect(deletionSource).not.toContain('from("portal_entitlements")');
+  expect(deletionSource).toContain('if (portal.visibility === "paid")');
+  expect(deletionSource).toContain('from("paid_portal_purchases")');
+});

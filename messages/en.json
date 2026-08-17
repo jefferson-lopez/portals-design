@@ -116,6 +116,7 @@
       "activeDescription": "Your account is ready to receive payments.",
       "accountId": "Account ID",
       "accountEmail": "Account email",
+      "detailsSubmitted": "Details submitted",
       "charges": "Payments",
       "configure": "Set up",
       "country": "Seller country",
@@ -138,6 +139,11 @@
       "processing": "Stripe is reviewing your account information. You do not need to enter the country again.",
       "needsInformation": "Stripe needs more information to verify your account.",
       "requirementsPending": "Pending requirements: {count}",
+      "verification": "Verification",
+      "verificationActive": "Verified",
+      "verificationNeedsInformation": "More information required",
+      "verificationProcessing": "Under review",
+      "verificationNotStarted": "Not started",
       "continue": "Continue setup",
       "loading": "Loading Stripe Connect…",
       "trigger": "Stripe Connect"
@@ -686,6 +692,7 @@
       },
       "ratioAuto": "Automatic",
       "altPlaceholder": "Image description",
+      "uploading": "Uploading…",
       "uploadError": "The image could not be uploaded.",
       "remove": "Remove image"
     },
@@ -782,6 +789,7 @@
       "upload": "Add file",
       "limitReached": "File limit reached",
       "invalidFormat": "Unsupported format. Use PDF, AI, EPS, PSD, SVG, or images.",
+      "uploading": "Uploading…",
       "uploadError": "The file could not be uploaded."
     },
     "sidebar": {
@@ -843,9 +851,11 @@
       "deleteTrigger": "Delete project",
       "deleteModalTitle": "Delete this project?",
       "deleteModalDescription": "Enter this project slug to confirm permanent deletion:",
+      "deleteBlockedDescription": "This project cannot be deleted because someone has already paid for it. Their access must remain available.",
       "deleteSlugLabel": "Project slug",
       "deleteCancel": "Cancel",
       "deleteConfirm": "Delete project",
+      "deleteUnderstand": "Understood",
       "deleteDeleting": "Deleting…",
       "deleteSlugCopied": "Project slug copied.",
       "deleteSlugCopyFailed": "The project slug could not be copied.",

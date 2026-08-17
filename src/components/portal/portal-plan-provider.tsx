@@ -117,18 +117,20 @@ export function PortalPlanProvider({
   children,
   locale,
   portalId,
+  initialSnapshot,
 }: {
   children: ReactNode;
   locale: string;
   portalId: string;
+  initialSnapshot?: PortalPlanSnapshot;
 }) {
   const t = useTranslations("PortalEditor.plan");
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [snapshot, setSnapshot] = useState(fallbackSnapshot);
+  const [snapshot, setSnapshot] = useState(initialSnapshot ?? fallbackSnapshot);
   const [status, setStatus] = useState<"error" | "loading" | "ready">(
-    "loading",
+    initialSnapshot ? "ready" : "loading",
   );
   const [violation, setViolation] = useState<PortalUpgradeReason | null>(null);
   const [violationDetails, setViolationDetails] =
@@ -189,8 +191,9 @@ export function PortalPlanProvider({
   }, [portalId, t]);
 
   useEffect(() => {
+    if (initialSnapshot) return;
     void refresh();
-  }, [refresh]);
+  }, [initialSnapshot, refresh]);
 
   useEffect(
     () =>

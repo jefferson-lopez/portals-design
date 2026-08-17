@@ -73,12 +73,10 @@ import {
   getCountryFlag,
   STRIPE_CONNECT_COUNTRY_CODES,
 } from "@/lib/billing/connect-countries";
-import {
-  fetchPortalPlan,
-  storagePercent,
-} from "@/lib/billing/portal-plan-client";
+import { storagePercent } from "@/lib/billing/portal-plan-client";
 import { getHomeErrorEvent } from "@/lib/portal/home-error-event";
 import { usePortalHomeStore } from "@/lib/portal/home-store";
+import { workspaceQueryKeys } from "@/lib/portal/workspace-read-models";
 
 export type PortalHomeCopy = {
   authRequired: string;
@@ -131,6 +129,7 @@ export type PortalHomeCopy = {
     activeDescription: string;
     accountId: string;
     accountEmail: string;
+    detailsSubmitted: string;
     charges: string;
     configure: string;
     country: string;
@@ -154,6 +153,11 @@ export type PortalHomeCopy = {
     processing: string;
     needsInformation: string;
     requirementsPending: string;
+    verification: string;
+    verificationActive: string;
+    verificationNeedsInformation: string;
+    verificationProcessing: string;
+    verificationNotStarted: string;
     continue: string;
     trigger: string;
   };
@@ -205,6 +209,7 @@ type ConnectStatus = {
   accountExists?: boolean;
   accountId?: string;
   accountEmail?: string | null;
+  detailsSubmitted?: boolean;
   chargesEnabled?: boolean;
   connected: boolean;
   country?: string | null;
@@ -216,6 +221,8 @@ type ConnectStatus = {
     | "not_started"
     | "processing";
   displayName?: string | null;
+  lastSyncedAt?: string | null;
+  needsSync?: boolean;
 };
 
 export function ConnectAccountDialog({
@@ -226,6 +233,7 @@ export function ConnectAccountDialog({
   recommendedCountry,
   hideTrigger = false,
   standalone = false,
+  initialStatus,
 }: {
   copy: PortalHomeCopy["connect"];
   hideTrigger?: boolean;
@@ -234,11 +242,50 @@ export function ConnectAccountDialog({
   shouldOpen: boolean;
   recommendedCountry: string | null;
   standalone?: boolean;
+  initialStatus?: ConnectStatus;
 }) {
   const [open, setOpen] = useState(standalone);
   const [country, setCountry] = useState<string | null>(null);
-  const [status, setStatus] = useState<ConnectStatus | null>(null);
   const [pending, setPending] = useState(false);
+  const initialStatusNeedsSync = Boolean(
+    initialStatus &&
+      (initialStatus.needsSync === true ||
+        !initialStatus.accountEmail ||
+        !initialStatus.country ||
+        !initialStatus.displayName ||
+        !initialStatus.lastSyncedAt),
+  );
+  const statusQuery = useQuery({
+    enabled: open,
+    initialData: initialStatus,
+    initialDataUpdatedAt: initialStatus ? Date.now() : undefined,
+    queryFn: async () => {
+      const query = portalId ? `?portalId=${encodeURIComponent(portalId)}` : "";
+      const response = await fetch(`/api/billing/connect/status${query}`);
+      if (!response.ok) throw new Error("Unable to load Stripe Connect status");
+      const refreshed = (await response.json()) as ConnectStatus;
+      // Never turn a server-provided existing account into onboarding because
+      // a stale route/cache response temporarily omitted the row.
+      if (initialStatus?.accountExists && refreshed.accountExists !== true) {
+        return {
+          ...initialStatus,
+          ...refreshed,
+          accountExists: true,
+          accountId: refreshed.accountId ?? initialStatus.accountId,
+        };
+      }
+      return refreshed;
+    },
+    queryKey: workspaceQueryKeys.connect(initialStatus?.accountId),
+    staleTime: initialStatusNeedsSync
+      ? 0
+      : initialStatus
+        ? Number.POSITIVE_INFINITY
+        : 0,
+  });
+  const status =
+    statusQuery.data ??
+    (statusQuery.isError ? initialStatus ?? { connected: false } : null);
   const countryNames = new Intl.DisplayNames([locale], { type: "region" });
   const countryOptions = STRIPE_CONNECT_COUNTRY_CODES.map((code) => ({
     code,
@@ -247,16 +294,6 @@ export function ConnectAccountDialog({
   useEffect(() => {
     if (shouldOpen) setOpen(true);
   }, [shouldOpen]);
-
-  useEffect(() => {
-    if (!open) return;
-    setStatus(null);
-    const query = portalId ? `?portalId=${encodeURIComponent(portalId)}` : "";
-    fetch(`/api/billing/connect/status${query}`)
-      .then((response) => response.json() as Promise<ConnectStatus>)
-      .then(setStatus)
-      .catch(() => setStatus({ connected: false }));
-  }, [open, portalId]);
 
   async function openStripe(mode: "onboarding" | "update") {
     setPending(true);
@@ -299,6 +336,14 @@ export function ConnectAccountDialog({
   }
 
   const connected = status?.connected === true;
+  const verificationLabel =
+    status?.verificationState === "active"
+      ? copy.verificationActive
+      : status?.verificationState === "needs_information"
+        ? copy.verificationNeedsInformation
+        : status?.verificationState === "processing"
+          ? copy.verificationProcessing
+          : copy.verificationNotStarted;
   const content = (
     <>
       {standalone ? null : (
@@ -334,6 +379,12 @@ export function ConnectAccountDialog({
                 </span>
               </div>
             ) : null}
+            {status.displayName ? (
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">{copy.profile}</span>
+                <span className="font-medium text-right">{status.displayName}</span>
+              </div>
+            ) : null}
             {status.country ? (
               <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="text-muted-foreground">{copy.country}</span>
@@ -351,6 +402,16 @@ export function ConnectAccountDialog({
               </div>
             ) : null}
             <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-muted-foreground">{copy.verification}</span>
+              <Badge variant="secondary">{verificationLabel}</Badge>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-muted-foreground">{copy.detailsSubmitted}</span>
+              <span className="font-medium text-right">
+                {status.detailsSubmitted ? copy.activeShort : copy.inactive}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-sm">
               <span className="text-muted-foreground">{copy.charges}</span>
               {status.chargesEnabled ? (
                 <Badge className="bg-green-500/10 text-green-700 dark:text-green-300">
@@ -360,6 +421,14 @@ export function ConnectAccountDialog({
                 <span className="font-medium text-right">{copy.inactive}</span>
               )}
             </div>
+            {status.requirementsPending ? (
+              <FieldDescription>
+                {copy.requirementsPending.replace(
+                  "{count}",
+                  String(status.requirementsPending),
+                )}
+              </FieldDescription>
+            ) : null}
             <div className="flex items-center justify-between gap-3 text-sm">
               <span className="text-muted-foreground">{copy.payouts}</span>
               {status.payoutsEnabled ? (
@@ -507,9 +576,7 @@ export function ConnectAccountDialog({
   );
 }
 
-function portalsQueryKey(locale: string) {
-  return ["portals", "home", locale] as const;
-}
+const portalsQueryKey = workspaceQueryKeys.home;
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -696,9 +763,16 @@ function DeletePortalDialog({
       <DialogTrigger
         render={
           <Button
-            aria-label={withPortalName(copy.delete.trigger, portal.name)}
+            aria-label={
+              portal.canDelete
+                ? withPortalName(copy.delete.trigger, portal.name)
+                : copy.delete.paidProtected
+            }
             className="rounded-full"
+            disabled={!portal.canDelete}
             size="icon-sm"
+            title={portal.canDelete ? undefined : copy.delete.paidProtected}
+            onClick={(event) => event.stopPropagation()}
             type="button"
             variant="ghost"
           />
@@ -811,12 +885,6 @@ function PortalCard({
   portal: HomePortal;
 }) {
   const router = useRouter();
-  const planQuery = useQuery({
-    queryFn: () => fetchPortalPlan(portal.id),
-    queryKey: ["portal-plan", portal.id],
-    enabled: !portal.isPurchased,
-    staleTime: 30_000,
-  });
   const purchasedDate = portal.purchasedAt
     ? new Date(portal.purchasedAt).toLocaleDateString(undefined, {
         day: "numeric",
@@ -832,14 +900,16 @@ function PortalCard({
       year: "numeric",
     },
   );
-  const usagePercent = planQuery.data
-    ? Math.round(
-        storagePercent(
-          planQuery.data.storageUsedBytes,
-          planQuery.data.policy.storageBytes,
-        ),
-      )
-    : 0;
+  const plan = portal.plan ?? "free";
+  const storageLimit = {
+    free: 100,
+    starter: 500,
+    pro: 1024,
+    premium: 2048,
+  }[plan] * 1024 * 1024;
+  const usagePercent = Math.round(
+    storagePercent(portal.storageUsedBytes ?? 0, storageLimit),
+  );
   const visibility =
     portal.visibility === "paid"
       ? {
@@ -900,20 +970,20 @@ function PortalCard({
               {copy.portal.visibility.purchased}
             </Badge>
           </CardAction>
-        ) : planQuery.data ? (
-          <CardAction>
+        ) : (
+          <CardAction className="flex items-center gap-1">
             <Badge
               className={
-                planQuery.data.plan === "free"
+                plan === "free"
                   ? undefined
                   : "bg-green-500/10 text-green-700 dark:text-green-300"
               }
-              variant={planQuery.data.plan === "free" ? "default" : "secondary"}
+              variant={plan === "free" ? "default" : "secondary"}
             >
-              {copy.portal.plan[planQuery.data.plan]}
+              {copy.portal.plan[plan]}
             </Badge>
           </CardAction>
-        ) : null}
+        )}
       </CardHeader>
       <CardContent className="flex flex-col items-start gap-2 pt-0 text-sm">
         {portal.isPurchased ? (
@@ -970,11 +1040,10 @@ export function PortalHome({
       error: initialError ? ("loadFailed" as const) : null,
       portals: initialPortals,
     },
-    initialDataUpdatedAt: 0,
+    initialDataUpdatedAt: initialError ? 0 : Date.now(),
     queryFn: () => getHomePortals(locale),
     queryKey: portalsQueryKey(locale),
-    refetchOnMount: "always",
-    staleTime: 0,
+    staleTime: 30_000,
   });
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const filteredPortals = portalsQuery.data.portals.filter((portal) => {

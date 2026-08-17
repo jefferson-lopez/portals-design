@@ -42,9 +42,13 @@ export async function GET(request: Request) {
     account.stripe_account_id,
     { include: ["configuration.merchant", "identity", "requirements"] },
   );
-  const { detailsSubmitted, chargesEnabled, payoutsEnabled } =
-    getConnectAccountStatus(stripeAccount);
-  const { error } = await supabase.rpc("upsert_creator_stripe_account", {
+  const {
+    detailsSubmitted,
+    chargesEnabled,
+    payoutsEnabled,
+    verificationState,
+  } = getConnectAccountStatus(stripeAccount);
+  const { error } = await supabase.rpc("upsert_creator_stripe_account_projection", {
     account_charges_enabled: chargesEnabled,
     account_details_submitted: detailsSubmitted,
     account_id: account.stripe_account_id,
@@ -53,6 +57,13 @@ export async function GET(request: Request) {
         ? "complete"
         : "pending",
     account_payouts_enabled: payoutsEnabled,
+    account_email: stripeAccount.contact_email ?? null,
+    account_country: stripeAccount.identity?.country ?? null,
+    account_display_name: stripeAccount.display_name ?? null,
+    account_requirements_pending:
+      stripeAccount.requirements?.entries?.length ?? 0,
+    account_verification_state: verificationState,
+    account_last_synced_at: new Date().toISOString(),
   } as never);
   const destination = new URL(
     portal ? `/${locale}/create/${portal.id}` : `/${locale}/home`,

@@ -36,6 +36,12 @@ export type Database = {
     Tables: {
       creator_stripe_accounts: {
         Row: {
+          account_email: string | null;
+          country: string | null;
+          display_name: string | null;
+          requirements_pending: number;
+          verification_state: string;
+          last_synced_at: string | null;
           stripe_account_id: string;
           charges_enabled: boolean;
           created_at: string;
@@ -46,6 +52,12 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          account_email?: string | null;
+          country?: string | null;
+          display_name?: string | null;
+          requirements_pending?: number;
+          verification_state?: string;
+          last_synced_at?: string | null;
           stripe_account_id: string;
           charges_enabled?: boolean;
           created_at?: string;
@@ -56,6 +68,12 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          account_email?: string | null;
+          country?: string | null;
+          display_name?: string | null;
+          requirements_pending?: number;
+          verification_state?: string;
+          last_synced_at?: string | null;
           stripe_account_id?: string;
           charges_enabled?: boolean;
           created_at?: string;
@@ -780,6 +798,18 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      get_home_workspace_summary: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
+      get_portal_usage_summary: {
+        Args: { target_portal_id: string };
+        Returns: Json;
+      };
+      get_connect_status_summary: {
+        Args: Record<PropertyKey, never>;
+        Returns: Json;
+      };
       ai_credit_cost: {
         Args: {
           target_operation: Database["public"]["Enums"]["ai_credit_operation"];
@@ -884,6 +914,49 @@ export type Database = {
           account_payouts_enabled?: boolean;
         };
         Returns: {
+          account_email: string | null;
+          country: string | null;
+          display_name: string | null;
+          requirements_pending: number;
+          verification_state: string;
+          last_synced_at: string | null;
+          charges_enabled: boolean;
+          created_at: string;
+          details_submitted: boolean;
+          onboarding_status: Database["public"]["Enums"]["creator_stripe_onboarding_status"];
+          owner_id: string;
+          payouts_enabled: boolean;
+          stripe_account_id: string;
+          updated_at: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "creator_stripe_accounts";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      upsert_creator_stripe_account_projection: {
+        Args: {
+          account_charges_enabled?: boolean;
+          account_details_submitted?: boolean;
+          account_id: string;
+          account_onboarding_status: Database["public"]["Enums"]["creator_stripe_onboarding_status"];
+          account_payouts_enabled?: boolean;
+          account_email?: string | null;
+          account_country?: string | null;
+          account_display_name?: string | null;
+          account_requirements_pending?: number;
+          account_verification_state?: string;
+          account_last_synced_at?: string | null;
+        };
+        Returns: {
+          account_email: string | null;
+          country: string | null;
+          display_name: string | null;
+          requirements_pending: number;
+          verification_state: string;
+          last_synced_at: string | null;
           charges_enabled: boolean;
           created_at: string;
           details_submitted: boolean;

@@ -4,6 +4,8 @@ import { PortalSettingsPage } from "@/components/portal/portal-settings-page";
 import { PortalWorkspaceToolbar } from "@/components/portal/portal-workspace-toolbar";
 import { WorkspaceProjectRegistration } from "@/components/portal/workspace-sidebar";
 import { getWorkspacePortal } from "@/lib/portal/workspace-portal";
+import { PORTAL_PLANS } from "@/lib/billing/portal-policy";
+import type { PortalPlan } from "@/lib/billing/portal-policy";
 
 export default async function PortalSettingsRoute({
   params,
@@ -12,9 +14,26 @@ export default async function PortalSettingsRoute({
 }) {
   const { locale, portalId } = await params;
   setRequestLocale(locale);
-  const { paidPriceCents, portal } = await getWorkspacePortal(locale, portalId);
+  const {
+    canPurchase,
+    connectStatus,
+    hasPortalPurchase,
+    paidPriceCents,
+    plan,
+    portal,
+  } =
+    await getWorkspacePortal(locale, portalId);
+  const normalizedPlan: PortalPlan = plan === "starter" || plan === "pro" || plan === "premium" ? plan : "free";
+  const initialSnapshot = {
+    available: true,
+    canPurchase,
+    entitlementStatus: normalizedPlan === "free" ? null : ("active" as const),
+    plan: normalizedPlan,
+    policy: PORTAL_PLANS[normalizedPlan],
+    storageUsedBytes: 0,
+  };
   return (
-    <PortalPlanProvider locale={locale} portalId={portal.id}>
+    <PortalPlanProvider initialSnapshot={initialSnapshot} locale={locale} portalId={portal.id}>
       <WorkspaceProjectRegistration
         project={{ id: portal.id, name: portal.name }}
       />
@@ -25,7 +44,9 @@ export default async function PortalSettingsRoute({
       />
       <main className="mx-auto flex min-w-0 w-full max-w-[calc(900px-240px-2rem)] px-4 pb-24 md:px-6">
         <PortalSettingsPage
+          initialConnectReady={connectStatus.connected}
           initialPaidPriceCents={paidPriceCents}
+          hasPortalPurchase={hasPortalPurchase}
           locale={locale}
           portal={portal}
         />

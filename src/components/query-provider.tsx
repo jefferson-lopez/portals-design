@@ -12,7 +12,10 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
             retry: 0,
           },
           queries: {
+            gcTime: 5 * 60_000,
             refetchOnWindowFocus: false,
+            refetchOnReconnect: true,
+            retry: 1,
             staleTime: 30_000,
           },
         },

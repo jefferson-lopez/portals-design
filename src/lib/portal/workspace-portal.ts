@@ -6,6 +6,10 @@ import {
 import type { Portal } from "@/lib/supabase/database.types";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
+import {
+  getConnectStatusSummary,
+  normalizeConnectStatusSummary,
+} from "@/lib/portal/workspace-read-models";
 
 export async function getWorkspacePortal(locale: string, portalId: string) {
   if (!hasSupabaseEnv()) notFound();
@@ -25,7 +29,7 @@ export async function getWorkspacePortal(locale: string, portalId: string) {
   if (!portal) notFound();
 
   const safePortal = { ...portal, password_hash: null } as Portal;
-  const [{ data: documentRow }, { data: blocks }] = await Promise.all([
+  const [{ data: documentRow }, { data: blocks }, connectSummary] = await Promise.all([
     supabase
       .from("portal_documents")
       .select("document")
@@ -37,6 +41,7 @@ export async function getWorkspacePortal(locale: string, portalId: string) {
       .eq("portal_id", portalId)
       .order("position", { ascending: true })
       .order("created_at", { ascending: true }),
+    getConnectStatusSummary(supabase),
   ]);
 
   const { data: paidOffer } = (await supabase
@@ -46,11 +51,30 @@ export async function getWorkspacePortal(locale: string, portalId: string) {
     .eq("is_active", true)
     .maybeSingle()) as unknown as { data: { price_cents: number } | null };
 
+  const { data: paidPurchase } = await supabase
+    .from("paid_portal_purchases")
+    .select("id")
+    .eq("portal_id", portalId)
+    .limit(1)
+    .maybeSingle();
+  const { data: entitlement } = await supabase
+    .from("portal_entitlements")
+    .select("status,plan")
+    .eq("portal_id", portalId)
+    .eq("status", "active")
+    .maybeSingle();
+  const plan = entitlement?.status === "active"
+    ? (entitlement.plan ?? "premium")
+    : "free";
   return {
     document: documentRow?.document
       ? normalizePortalDocument(documentRow.document, safePortal)
       : portalBlocksToDocument(safePortal, blocks ?? []),
     paidPriceCents: paidOffer?.price_cents ?? null,
+    hasPortalPurchase: portal.visibility === "paid" && Boolean(paidPurchase),
+    plan,
+    canPurchase: portal.owner_id === userData.user.id,
+    connectStatus: normalizeConnectStatusSummary(connectSummary),
     portal: safePortal,
   };
 }

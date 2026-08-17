@@ -9,6 +9,12 @@ const creationSource = await Bun.file(
 const pageSource = await Bun.file(
   new URL("../../app/[locale]/(workspace)/home/page.tsx", import.meta.url),
 ).text();
+const usagePageSource = await Bun.file(
+  new URL("../../app/[locale]/(workspace)/create/[portalId]/usage/page.tsx", import.meta.url),
+).text();
+const planProviderSource = await Bun.file(
+  new URL("./portal-plan-provider.tsx", import.meta.url),
+).text();
 const globalStyles = await Bun.file(
   new URL("../../app/globals.css", import.meta.url),
 ).text();
@@ -83,15 +89,35 @@ describe("PortalHome", () => {
     );
     expect(source).toContain("shouldOpen");
     expect(source).toContain("/api/billing/connect/status$" + "{query}");
+    expect(source).toContain("queryKey: workspaceQueryKeys.connect(initialStatus?.accountId)");
+    expect(source).toContain("initialData: initialStatus");
+    expect(source).toContain("/api/billing/connect/status${query}");
+    expect(source).toContain("staleTime: 30_000");
+    expect(source).not.toContain("useState<ConnectStatus | null>");
     expect(source).not.toContain("<Popover");
     expect(source).not.toContain("aria-label={copy.countrySearch}");
+  });
+
+  test("uses aggregated initial reads without unconditional home refetches", () => {
+    expect(source).toContain("initialDataUpdatedAt: initialError ? 0 : Date.now()");
+    expect(source).toContain("staleTime: 30_000");
+    expect(source).not.toContain('refetchOnMount: "always"');
+    expect(source).not.toContain("staleTime: 0");
+    expect(source).toContain("queryClient.invalidateQueries");
+  });
+
+  test("keeps usage on its aggregated read while the editor can refresh plans", () => {
+    expect(usagePageSource).toContain("getPortalUsageSummary");
+    expect(usagePageSource).toContain("initialSnapshot");
+    expect(planProviderSource).toContain("if (initialSnapshot) return;");
+    expect(planProviderSource).toContain("fetchPortalPlan(portalId)");
   });
 
   test("creates a wide editorial hierarchy consistent with the landing", () => {
     const workspaceTitleSectionStart = source.indexOf(
       '<section\n          aria-labelledby="portal-workspace-title"',
     );
-    expect(source).toContain("max-w-6xl");
+    expect(source).toContain("grid gap-4 sm:grid-cols-2 lg:grid-cols-2");
     expect(source).toContain("bg-background");
     expect(workspaceTitleSectionStart).toBe(-1);
     expect(source).not.toContain("copy.intro");
@@ -156,7 +182,7 @@ describe("PortalHome", () => {
     );
   });
 
-  test("does not render settings, delete, edit, or view actions in portal cards", () => {
+  test("keeps portal cards focused on navigation and project status", () => {
     const portalCard = source.slice(
       source.indexOf("function PortalCard"),
       source.indexOf("export function PortalHome"),
@@ -179,7 +205,9 @@ describe("PortalHome", () => {
     expect(portalCard).toContain("IconLockFilled");
     expect(portalCard).toContain("IconKeyFilled");
     expect(portalCard).toContain("copy.portal.plan");
-    expect(portalCard).toContain('planQuery.data.plan === "free"');
+    expect(portalCard).toContain('plan === "free"');
+    expect(source).toContain("portal.canDelete");
+    expect(source).toContain("copy.delete.paidProtected");
     expect(portalCard).toContain("portal.isPurchased");
     expect(portalCard).toContain("copy.portal.purchasedAt");
     expect(portalCard).toContain("IconCalendarFilled");

@@ -16,6 +16,7 @@ import {
 import { isStripeConnectCountry } from "@/lib/billing/connect-countries";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
+import { getConnectStatusSummary } from "@/lib/portal/workspace-read-models";
 
 export default async function StripeConnectPage({
   params,
@@ -28,6 +29,47 @@ export default async function StripeConnectPage({
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
   if (!data.user) redirect(`/${locale}/auth/sign-in`);
+  const persistedStatus = (await getConnectStatusSummary(supabase)) as Record<
+    string,
+    unknown
+  >;
+  const initialStatus = {
+    accountExists: persistedStatus.accountExists === true,
+    accountId:
+      typeof persistedStatus.accountId === "string"
+        ? persistedStatus.accountId
+        : undefined,
+    chargesEnabled: persistedStatus.chargesEnabled === true,
+    connected: persistedStatus.connected === true,
+    accountEmail:
+      typeof persistedStatus.accountEmail === "string"
+        ? persistedStatus.accountEmail
+        : null,
+    detailsSubmitted: persistedStatus.detailsSubmitted === true,
+    country:
+      typeof persistedStatus.country === "string"
+        ? persistedStatus.country
+        : null,
+    displayName:
+      typeof persistedStatus.displayName === "string"
+        ? persistedStatus.displayName
+        : null,
+    requirementsPending:
+      typeof persistedStatus.requirementsPending === "number"
+        ? persistedStatus.requirementsPending
+        : 0,
+    payoutsEnabled: persistedStatus.payoutsEnabled === true,
+    verificationState: persistedStatus.verificationState as
+      | "active"
+      | "needs_information"
+      | "not_started"
+      | "processing",
+    lastSyncedAt:
+      typeof persistedStatus.lastSyncedAt === "string"
+        ? persistedStatus.lastSyncedAt
+        : null,
+    needsSync: persistedStatus.needsSync === true,
+  };
 
   const vercelCountry = (await headers()).get("x-vercel-ip-country");
   const recommendedCountry = vercelCountry?.toUpperCase();
@@ -38,6 +80,7 @@ export default async function StripeConnectPage({
     activeDescription: t("connect.activeDescription"),
     accountId: t("connect.accountId"),
     accountEmail: t("connect.accountEmail"),
+    detailsSubmitted: t("connect.detailsSubmitted"),
     charges: t("connect.charges"),
     configure: t("connect.configure"),
     country: t("connect.country"),
@@ -60,6 +103,11 @@ export default async function StripeConnectPage({
     processing: t("connect.processing"),
     needsInformation: t("connect.needsInformation"),
     requirementsPending: t.raw("connect.requirementsPending") as string,
+    verification: t("connect.verification"),
+    verificationActive: t("connect.verificationActive"),
+    verificationNeedsInformation: t("connect.verificationNeedsInformation"),
+    verificationProcessing: t("connect.verificationProcessing"),
+    verificationNotStarted: t("connect.verificationNotStarted"),
     continue: t("connect.continue"),
     loading: t("connect.loading"),
     trigger: t("connect.trigger"),
@@ -88,6 +136,7 @@ export default async function StripeConnectPage({
               }
               shouldOpen={false}
               standalone
+              initialStatus={initialStatus}
             />
           </CardContent>
         </Card>
