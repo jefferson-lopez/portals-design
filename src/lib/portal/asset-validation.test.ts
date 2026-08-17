@@ -2,12 +2,19 @@ import { describe, expect, test } from "bun:test";
 import {
   areAssetMimeTypesCompatible,
   inferAssetMimeType,
+  isRenderableImageMimeType,
   normalizeAssetMimeType,
   validateAssetBytes,
   validateAssetDeclaration,
 } from "./asset-validation";
 
 describe("portal asset validation", () => {
+  test("keeps Photoshop work files out of the renderable image category", () => {
+    expect(isRenderableImageMimeType("image/jpeg")).toBe(true);
+    expect(isRenderableImageMimeType("image/vnd.adobe.photoshop")).toBe(false);
+    expect(isRenderableImageMimeType("image/svg+xml")).toBe(false);
+  });
+
   const indesignSignature = new Uint8Array([
     0x06, 0x06, 0xed, 0xf5, 0xd8, 0x1d, 0x46, 0xe5, 0xbd, 0x31, 0xef, 0xe7,
     0xfe, 0x74, 0xb7, 0x1d,
@@ -386,6 +393,24 @@ describe("portal asset validation", () => {
     expect(validateAssetBytes(lateNull, "text/markdown")).toBe(false);
   });
 
+  test("accepts UTF-16 text files", () => {
+    const utf16 = new Uint8Array([
+      0xff, 0xfe, 0x46, 0x00, 0x6f, 0x00, 0x6e, 0x00, 0x74, 0x00, 0x73, 0x00,
+      0x2e, 0x00, 0x74, 0x00, 0x78, 0x00, 0x74, 0x00,
+    ]);
+    expect(validateAssetBytes(utf16, "text/plain", "Fonts.txt")).toBe(true);
+  });
+
+  test("accepts UTF-16 text files without a BOM", () => {
+    const utf16WithoutBom = new Uint8Array([
+      0x46, 0x00, 0x6f, 0x00, 0x6e, 0x00, 0x74, 0x00, 0x73, 0x00, 0x2e, 0x00,
+      0x74, 0x00, 0x78, 0x00, 0x74, 0x00,
+    ]);
+    expect(validateAssetBytes(utf16WithoutBom, "text/plain", "Fonts.txt")).toBe(
+      true,
+    );
+  });
+
   test("accepts the legacy browser Markdown MIME without treating it as binary", () => {
     const mimeType = inferAssetMimeType("README.md", "text/x-markdown");
     expect(
@@ -397,6 +422,12 @@ describe("portal asset validation", () => {
     ).toBe(true);
     expect(
       validateAssetBytes(new TextEncoder().encode("# Safe"), mimeType),
+    ).toBe(true);
+  });
+
+  test("accepts an empty text file", () => {
+    expect(
+      validateAssetBytes(new Uint8Array(), "text/plain", "Fonts.txt"),
     ).toBe(true);
   });
 

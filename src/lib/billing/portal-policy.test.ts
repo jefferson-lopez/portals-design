@@ -146,6 +146,7 @@ describe("portal monetization policy", () => {
         documentWith([
           { type: "gallery", items: 10 },
           { type: "gallery", items: 0 },
+          { type: "gallery", items: 0 },
         ]),
         "free",
       ),

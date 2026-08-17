@@ -44,16 +44,12 @@ describe("portal error toasts", () => {
     });
 
     cleanup();
-    expect(toastDismiss).toHaveBeenCalledWith(
-      "portal-autosave-error:portal-1",
-    );
+    expect(toastDismiss).toHaveBeenCalledWith("portal-autosave-error:portal-1");
   });
 
   test("dismisses only the autosave toast for the requested portal", () => {
     dismissPortalAutosaveError("portal-2");
-    expect(toastDismiss).toHaveBeenCalledWith(
-      "portal-autosave-error:portal-2",
-    );
+    expect(toastDismiss).toHaveBeenCalledWith("portal-autosave-error:portal-2");
   });
 
   test("deduplicates publication errors independently", () => {
@@ -70,17 +66,18 @@ describe("publication stages", () => {
     const publish = mock(async () => 42);
 
     try {
-      await publishPortalAfterAutosave(
-        async () => {
-          throw autosaveError;
-        },
-        publish,
-      );
+      await publishPortalAfterAutosave(async () => {
+        throw autosaveError;
+      }, publish);
       throw new Error("Expected the publish flow to fail");
     } catch (error) {
       expect(error).toBeInstanceOf(PortalPublishFailure);
-      expect((error as PortalPublishFailure).stage).toBe("autosave");
-      expect((error as PortalPublishFailure).cause).toBe(autosaveError);
+      expect((error as InstanceType<typeof PortalPublishFailure>).stage).toBe(
+        "autosave",
+      );
+      expect((error as InstanceType<typeof PortalPublishFailure>).cause).toBe(
+        autosaveError,
+      );
     }
 
     expect(publish).not.toHaveBeenCalled();

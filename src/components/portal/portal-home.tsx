@@ -1,37 +1,38 @@
 "use client";
 
 import {
+  IconCalendarEventFilled,
+  IconCalendarFilled,
   IconCreditCard,
+  IconCreditCardFilled,
+  IconCrownFilled,
   IconExternalLink,
   IconFolderPlus,
+  IconKeyFilled,
   IconLoader2,
-  IconLock,
-  IconLogout,
-  IconPlus,
+  IconLockFilled,
+  IconSearch,
   IconSettings,
-  IconSpiral,
   IconTrash,
-  IconWorld,
+  IconWorldFilled,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { signOut } from "@/app/[locale]/_actions/auth";
 import {
-  createPortalFromHome,
   deletePortalFromHome,
   getHomePortals,
   type HomePortal,
   updatePortalSettings,
 } from "@/app/[locale]/_actions/portals";
+import { PortalWorkspaceToolbar } from "@/components/portal/portal-workspace-toolbar";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -67,22 +68,17 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Link, useRouter } from "@/i18n/navigation";
 import {
   getCountryFlag,
   STRIPE_CONNECT_COUNTRY_CODES,
 } from "@/lib/billing/connect-countries";
+import {
+  fetchPortalPlan,
+  storagePercent,
+} from "@/lib/billing/portal-plan-client";
 import { getHomeErrorEvent } from "@/lib/portal/home-error-event";
 import { usePortalHomeStore } from "@/lib/portal/home-store";
-import { cn } from "@/lib/utils";
 
 export type PortalHomeCopy = {
   authRequired: string;
@@ -100,6 +96,24 @@ export type PortalHomeCopy = {
     visibilityPublic: string;
     submit: string;
     title: string;
+    stepProject: string;
+    stepFiles: string;
+    stepReview: string;
+    descriptionLabel: string;
+    descriptionPlaceholder: string;
+    languageLabel: string;
+    toneLabel: string;
+    toneProfessional: string;
+    toneEditorial: string;
+    toneMinimal: string;
+    colorsLabel: string;
+    preferencesLabel: string;
+    filesLabel: string;
+    filesDescription: string;
+    fileDescriptionPlaceholder: string;
+    back: string;
+    next: string;
+    review: string;
   };
   empty: {
     description: string;
@@ -110,6 +124,8 @@ export type PortalHomeCopy = {
     createPortal: string;
     signOut: string;
   };
+  searchPlaceholder: string;
+  searchClearLabel: string;
   connect: {
     active: string;
     activeDescription: string;
@@ -130,21 +146,32 @@ export type PortalHomeCopy = {
     inactive: string;
     loading: string;
     profile: string;
+    activeShort: string;
+    status: string;
     payouts: string;
     dashboard: string;
     activeTitle: string;
+    processing: string;
+    needsInformation: string;
+    requirementsPending: string;
+    continue: string;
     trigger: string;
-  };
-  intro: {
-    portalCount: string;
-    title: string;
   };
   portal: {
     edit: string;
     lastEdited: string;
     view: string;
+    usage: string;
+    purchasedAt: string;
+    plan: {
+      free: string;
+      starter: string;
+      pro: string;
+      premium: string;
+    };
     visibility: {
       paid: string;
+      password: string;
       private: string;
       public: string;
       purchased: string;
@@ -175,29 +202,40 @@ export type PortalHomeCopy = {
 };
 
 type ConnectStatus = {
+  accountExists?: boolean;
   accountId?: string;
   accountEmail?: string | null;
   chargesEnabled?: boolean;
   connected: boolean;
   country?: string | null;
   payoutsEnabled?: boolean;
+  requirementsPending?: number;
+  verificationState?:
+    | "active"
+    | "needs_information"
+    | "not_started"
+    | "processing";
   displayName?: string | null;
 };
 
-function ConnectAccountDialog({
+export function ConnectAccountDialog({
   copy,
   locale,
   portalId,
   shouldOpen,
   recommendedCountry,
+  hideTrigger = false,
+  standalone = false,
 }: {
   copy: PortalHomeCopy["connect"];
+  hideTrigger?: boolean;
   locale: string;
   portalId: string | null;
   shouldOpen: boolean;
   recommendedCountry: string | null;
+  standalone?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(standalone);
   const [country, setCountry] = useState<string | null>(null);
   const [status, setStatus] = useState<ConnectStatus | null>(null);
   const [pending, setPending] = useState(false);
@@ -261,22 +299,9 @@ function ConnectAccountDialog({
   }
 
   const connected = status?.connected === true;
-  return (
-    <Dialog onOpenChange={setOpen} open={open}>
-      <DialogTrigger
-        render={
-          <Button
-            className="rounded-full"
-            size="lg"
-            type="button"
-            variant="outline"
-          />
-        }
-      >
-        <IconCreditCard data-icon="inline-start" />
-        {copy.trigger}
-      </DialogTrigger>
-      <DialogContent>
+  const content = (
+    <>
+      {standalone ? null : (
         <DialogHeader>
           <DialogTitle>
             {connected ? copy.activeTitle : copy.inactiveTitle}
@@ -285,127 +310,199 @@ function ConnectAccountDialog({
             {connected ? copy.activeDescription : copy.inactiveDescription}
           </DialogDescription>
         </DialogHeader>
-        {status === null ? (
-          <FieldGroup>
-            <FieldDescription>{copy.loading}</FieldDescription>
-          </FieldGroup>
-        ) : connected ? (
-          <FieldGroup>
-            <Field>
-              <FieldLabel>{copy.profile}</FieldLabel>
-              <FieldDescription>
-                <span className="flex flex-col gap-1">
-                  <span>{status.displayName ?? copy.active}</span>
-                  {status.accountEmail ? (
-                    <span>
-                      {copy.accountEmail}: {status.accountEmail}
-                    </span>
-                  ) : null}
-                  {status.country ? (
-                    <span>
-                      {copy.country}:{" "}
-                      {countryNames.of(status.country) ?? status.country}
-                    </span>
-                  ) : null}
-                  {status.accountId ? (
-                    <span>
-                      {copy.accountId}: {status.accountId}
-                    </span>
-                  ) : null}
-                  <span>
-                    {copy.charges}:{" "}
-                    {status.chargesEnabled ? copy.active : copy.inactive}
-                  </span>
-                  <span>
-                    {copy.payouts}:{" "}
-                    {status.payoutsEnabled ? copy.active : copy.inactive}
-                  </span>
+      )}
+      {status === null ? (
+        <FieldGroup>
+          <FieldDescription>{copy.loading}</FieldDescription>
+        </FieldGroup>
+      ) : connected ? (
+        <FieldGroup>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-muted-foreground">{copy.status}</span>
+              <Badge className="bg-green-500/10 text-green-700 dark:text-green-300">
+                {copy.activeShort}
+              </Badge>
+            </div>
+            {status.accountEmail ? (
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">
+                  {copy.accountEmail}
                 </span>
-              </FieldDescription>
-            </Field>
-            <DialogFooter>
-              <Button
-                className="rounded-full"
-                disabled={pending}
-                onClick={openDashboard}
-                type="button"
-                variant="outline"
-              >
-                <IconExternalLink data-icon="inline-start" />
-                {copy.dashboard}
-              </Button>
-              <Button
-                className="rounded-full"
-                disabled={pending}
-                onClick={() => openStripe("update")}
-                type="button"
-              >
-                {copy.edit}
-              </Button>
-            </DialogFooter>
-          </FieldGroup>
-        ) : (
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="connect-country">{copy.country}</FieldLabel>
-              <FieldDescription>{copy.countryHelp}</FieldDescription>
-              <Combobox
-                items={countryOptions}
-                itemToStringValue={(item) => item.label}
-                onValueChange={(item) => setCountry(item?.code ?? null)}
-                value={
-                  country
-                    ? countryOptions.find((item) => item.code === country)
-                    : null
-                }
-              >
-                <ComboboxInput
-                  aria-label={copy.country}
-                  id="connect-country"
-                  placeholder={copy.country}
-                />
-                <ComboboxContent>
-                  <ComboboxEmpty>{copy.countryNoResults}</ComboboxEmpty>
-                  <ComboboxList>
-                    {(item) => (
-                      <ComboboxItem key={item.code} value={item}>
-                        <span
-                          aria-hidden="true"
-                          className="text-lg leading-none"
-                        >
-                          {getCountryFlag(item.code)}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate">
-                          {item.label}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {item.code}
-                        </span>
-                        {recommendedCountry === item.code ? (
-                          <Badge variant="secondary">
-                            {copy.countryRecommended}
-                          </Badge>
-                        ) : null}
-                      </ComboboxItem>
-                    )}
-                  </ComboboxList>
-                </ComboboxContent>
-              </Combobox>
-            </Field>
-            <FieldDescription>{copy.emailRecommendation}</FieldDescription>
-            <DialogFooter>
-              <Button
-                className="rounded-full"
-                disabled={pending || !country}
-                onClick={() => openStripe("onboarding")}
-                type="button"
-              >
-                {copy.configure}
-              </Button>
-            </DialogFooter>
-          </FieldGroup>
-        )}
-      </DialogContent>
+                <span className="font-medium text-right">
+                  {maskEmail(status.accountEmail)}
+                </span>
+              </div>
+            ) : null}
+            {status.country ? (
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">{copy.country}</span>
+                <span className="font-medium text-right">
+                  {countryNames.of(status.country) ?? status.country}
+                </span>
+              </div>
+            ) : null}
+            {status.accountId ? (
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">{copy.accountId}</span>
+                <span className="font-medium break-all text-right">
+                  {status.accountId}
+                </span>
+              </div>
+            ) : null}
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-muted-foreground">{copy.charges}</span>
+              {status.chargesEnabled ? (
+                <Badge className="bg-green-500/10 text-green-700 dark:text-green-300">
+                  {copy.activeShort}
+                </Badge>
+              ) : (
+                <span className="font-medium text-right">{copy.inactive}</span>
+              )}
+            </div>
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-muted-foreground">{copy.payouts}</span>
+              {status.payoutsEnabled ? (
+                <Badge className="bg-green-500/10 text-green-700 dark:text-green-300">
+                  {copy.activeShort}
+                </Badge>
+              ) : (
+                <span className="font-medium text-right">{copy.inactive}</span>
+              )}
+            </div>
+          </div>
+          <DialogFooter
+            className={standalone ? "items-start sm:justify-start" : undefined}
+          >
+            <Button
+              className="rounded-full"
+              disabled={pending}
+              onClick={() => openStripe("update")}
+              type="button"
+            >
+              {copy.edit}
+            </Button>
+            <Button
+              className="rounded-full"
+              disabled={pending}
+              onClick={openDashboard}
+              type="button"
+              variant="link"
+            >
+              <IconExternalLink data-icon="inline-start" />
+              {copy.dashboard}
+            </Button>
+          </DialogFooter>
+        </FieldGroup>
+      ) : status.accountExists ? (
+        <FieldGroup>
+          <FieldDescription>
+            {status.verificationState === "needs_information"
+              ? copy.needsInformation
+              : copy.processing}
+          </FieldDescription>
+          {status.requirementsPending ? (
+            <FieldDescription>
+              {copy.requirementsPending.replace(
+                "{count}",
+                String(status.requirementsPending),
+              )}
+            </FieldDescription>
+          ) : null}
+          <DialogFooter
+            className={standalone ? "items-start sm:justify-start" : undefined}
+          >
+            <Button
+              className="rounded-full"
+              disabled={pending}
+              onClick={() => openStripe("update")}
+              type="button"
+            >
+              {copy.continue}
+            </Button>
+          </DialogFooter>
+        </FieldGroup>
+      ) : (
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="connect-country">{copy.country}</FieldLabel>
+            <FieldDescription>{copy.countryHelp}</FieldDescription>
+            <Combobox
+              items={countryOptions}
+              itemToStringValue={(item) => item.label}
+              onValueChange={(item) => setCountry(item?.code ?? null)}
+              value={
+                country
+                  ? countryOptions.find((item) => item.code === country)
+                  : null
+              }
+            >
+              <ComboboxInput
+                aria-label={copy.country}
+                id="connect-country"
+                placeholder={copy.country}
+              />
+              <ComboboxContent>
+                <ComboboxEmpty>{copy.countryNoResults}</ComboboxEmpty>
+                <ComboboxList>
+                  {(item) => (
+                    <ComboboxItem key={item.code} value={item}>
+                      <span aria-hidden="true" className="text-lg leading-none">
+                        {getCountryFlag(item.code)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {item.label}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {item.code}
+                      </span>
+                      {recommendedCountry === item.code ? (
+                        <Badge variant="secondary">
+                          {copy.countryRecommended}
+                        </Badge>
+                      ) : null}
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
+          </Field>
+          <FieldDescription>{copy.emailRecommendation}</FieldDescription>
+          <DialogFooter className={standalone ? "items-end" : undefined}>
+            <Button
+              className="rounded-full"
+              disabled={pending || !country}
+              onClick={() => openStripe("onboarding")}
+              type="button"
+            >
+              {copy.configure}
+            </Button>
+          </DialogFooter>
+        </FieldGroup>
+      )}
+    </>
+  );
+
+  if (standalone) return <div className="flex flex-col gap-6">{content}</div>;
+
+  return (
+    <Dialog onOpenChange={setOpen} open={open}>
+      {hideTrigger ? null : (
+        <DialogTrigger
+          render={
+            <Button
+              className="rounded-full"
+              size="lg"
+              type="button"
+              variant="outline"
+            />
+          }
+        >
+          <IconCreditCard data-icon="inline-start" />
+          {copy.trigger}
+        </DialogTrigger>
+      )}
+      <DialogContent>{content}</DialogContent>
     </Dialog>
   );
 }
@@ -418,163 +515,15 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-function withPortalName(template: string, portalName: string) {
-  return template.replace("{name}", portalName);
+function maskEmail(email: string) {
+  const [localPart, domain] = email.split("@");
+  if (!localPart || !domain) return email;
+  const visible = localPart.slice(0, 2);
+  return `${visible}${"*".repeat(Math.max(3, localPart.length - visible.length))}@${domain}`;
 }
 
-function CreatePortalDialog({
-  copy,
-  locale,
-}: {
-  copy: Pick<
-    PortalHomeCopy,
-    "authRequired" | "create" | "errorGeneric" | "header"
-  >;
-  locale: string;
-}) {
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const open = usePortalHomeStore((state) => state.createDialogOpen);
-  const setOpen = usePortalHomeStore((state) => state.setCreateDialogOpen);
-  const mutation = useMutation({
-    mutationFn: ({
-      name,
-      visibility,
-    }: {
-      name: string;
-      visibility: "public" | "private";
-    }) => createPortalFromHome({ locale, name, visibility }),
-    onSuccess: async (portal) => {
-      if (portal.error === "authenticationRequired") {
-        toast.error(copy.authRequired);
-        const formData = new FormData();
-        formData.set("locale", locale);
-        await signOut(formData);
-        return;
-      }
-
-      if (portal.error) {
-        toast.error(copy.errorGeneric);
-        return;
-      }
-
-      await queryClient.invalidateQueries({
-        queryKey: portalsQueryKey(locale),
-      });
-      setOpen(false);
-      router.push(`/create/${portal.id}`);
-    },
-  });
-
-  return (
-    <Dialog onOpenChange={setOpen} open={open}>
-      <DialogTrigger
-        render={
-          <Button
-            className="rounded-full"
-            size="lg"
-            type="button"
-            variant="outline"
-          />
-        }
-      >
-        <IconPlus data-icon="inline-start" />
-        {copy.header.createPortal}
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{copy.create.title}</DialogTitle>
-          <DialogDescription>{copy.create.description}</DialogDescription>
-        </DialogHeader>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            const formData = new FormData(event.currentTarget);
-            mutation.mutate({
-              name: String(formData.get("name") ?? "").trim(),
-              visibility: String(formData.get("visibility") ?? "private") as
-                | "public"
-                | "private",
-            });
-          }}
-        >
-          <FieldGroup>
-            <Field data-invalid={mutation.isError || undefined}>
-              <FieldLabel htmlFor="new-portal-name">
-                {copy.create.nameLabel}
-              </FieldLabel>
-              <Input
-                aria-invalid={mutation.isError || undefined}
-                autoFocus
-                autoComplete="off"
-                id="new-portal-name"
-                maxLength={120}
-                name="name"
-                placeholder={copy.create.namePlaceholder}
-                required
-              />
-              {mutation.isError ? (
-                <FieldError>{copy.errorGeneric}</FieldError>
-              ) : null}
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="new-portal-visibility">
-                {copy.create.visibilityLabel}
-              </FieldLabel>
-              <FieldDescription>
-                {copy.create.visibilityDescription}
-              </FieldDescription>
-              <Select
-                defaultValue="private"
-                items={[
-                  { label: copy.create.visibilityPrivate, value: "private" },
-                  { label: copy.create.visibilityPublic, value: "public" },
-                ]}
-                name="visibility"
-              >
-                <SelectTrigger
-                  aria-label={copy.create.visibilityLabel}
-                  id="new-portal-visibility"
-                  className="w-full"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="private">
-                      <IconLock aria-hidden="true" />
-                      {copy.create.visibilityPrivate}
-                    </SelectItem>
-                    <SelectItem value="public">
-                      <IconWorld aria-hidden="true" />
-                      {copy.create.visibilityPublic}
-                    </SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </Field>
-            <DialogFooter>
-              <Button
-                className="rounded-full"
-                disabled={mutation.isPending}
-                type="submit"
-              >
-                {mutation.isPending ? (
-                  <IconLoader2
-                    className="animate-spin"
-                    data-icon="inline-start"
-                  />
-                ) : (
-                  <IconPlus data-icon="inline-start" />
-                )}
-                {copy.create.submit}
-              </Button>
-            </DialogFooter>
-          </FieldGroup>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
+function withPortalName(template: string, portalName: string) {
+  return template.replace("{name}", portalName);
 }
 
 function PortalSettingsDialog({
@@ -820,94 +769,179 @@ function DeletePortalDialog({
   );
 }
 
+function UsageCircle({ percent }: { percent: number }) {
+  const circumference = 2 * Math.PI * 8;
+  const offset = circumference - (percent / 100) * circumference;
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-4 -rotate-90 text-chart-2"
+      viewBox="0 0 20 20"
+    >
+      <circle
+        className="text-chart-2/15"
+        cx="10"
+        cy="10"
+        fill="none"
+        r="8"
+        stroke="currentColor"
+        strokeWidth="3"
+      />
+      <circle
+        cx="10"
+        cy="10"
+        fill="none"
+        r="8"
+        stroke="currentColor"
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+        strokeWidth="3"
+      />
+    </svg>
+  );
+}
+
 function PortalCard({
   copy,
-  locale,
   portal,
 }: {
-  copy: Pick<
-    PortalHomeCopy,
-    "authRequired" | "delete" | "errorGeneric" | "portal" | "settings"
-  >;
-  locale: string;
+  copy: Pick<PortalHomeCopy, "portal">;
   portal: HomePortal;
 }) {
-  const isPublic = portal.visibility === "public";
-  const isPurchased = portal.isPurchased;
-  const formattedDate = new Date(portal.updated_at).toLocaleDateString(locale, {
-    day: "numeric",
-    month: "short",
-    timeZone: "UTC",
-    year: "numeric",
+  const router = useRouter();
+  const planQuery = useQuery({
+    queryFn: () => fetchPortalPlan(portal.id),
+    queryKey: ["portal-plan", portal.id],
+    enabled: !portal.isPurchased,
+    staleTime: 30_000,
   });
+  const purchasedDate = portal.purchasedAt
+    ? new Date(portal.purchasedAt).toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : null;
+  const updatedDate = new Date(portal.updated_at).toLocaleDateString(
+    undefined,
+    {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    },
+  );
+  const usagePercent = planQuery.data
+    ? Math.round(
+        storagePercent(
+          planQuery.data.storageUsedBytes,
+          planQuery.data.policy.storageBytes,
+        ),
+      )
+    : 0;
+  const visibility =
+    portal.visibility === "paid"
+      ? {
+          icon: <IconCreditCardFilled className="size-4" />,
+          label: "paid" as const,
+        }
+      : portal.visibility === "password"
+        ? {
+            icon: <IconKeyFilled className="size-4" />,
+            label: "password" as const,
+          }
+        : portal.visibility === "public"
+          ? {
+              icon: <IconWorldFilled className="size-4" />,
+              label: "public" as const,
+            }
+          : {
+              icon: <IconLockFilled className="size-4" />,
+              label: "private" as const,
+            };
+
+  const openCard = () =>
+    router.push(
+      portal.isPurchased
+        ? `/p/${encodeURIComponent(portal.slug)}`
+        : `/create/${portal.id}`,
+    );
 
   return (
     <Card
-      className="min-h-56 bg-card/75 transition-colors hover:bg-card"
+      className="h-fit cursor-pointer bg-card/75 transition-colors hover:bg-card"
+      onClick={openCard}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openCard();
+        }
+      }}
       size="sm"
+      tabIndex={0}
     >
       <CardHeader>
         <CardTitle className="pr-8 text-lg">{portal.name}</CardTitle>
-        <CardDescription className="truncate">/{portal.slug}</CardDescription>
-        <CardAction>
-          <div className="flex items-center gap-1">
-            {!isPurchased ? (
-              <PortalSettingsDialog
-                copy={copy}
-                locale={locale}
-                portal={portal}
-              />
-            ) : null}
-            {!isPurchased &&
-            !portal.hasPurchasedPlan &&
-            portal.visibility !== "paid" ? (
-              <DeletePortalDialog copy={copy} locale={locale} portal={portal} />
-            ) : null}
-          </div>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex flex-1 flex-col justify-end gap-3">
-        <Badge variant={isPublic ? "default" : "secondary"}>
-          {isPurchased
-            ? copy.portal.visibility.purchased
-            : portal.visibility === "paid"
-              ? copy.portal.visibility.paid
-              : isPublic
-                ? copy.portal.visibility.public
-                : copy.portal.visibility.private}
-        </Badge>
-        <p className="text-xs text-muted-foreground">
-          {copy.portal.lastEdited} · {formattedDate}
-        </p>
-        {portal.visibility === "paid" ? (
-          <p className="text-xs text-muted-foreground">
-            {copy.delete.paidProtected}
-          </p>
-        ) : null}
-      </CardContent>
-      <CardFooter className="grid grid-cols-2 gap-2 border-t">
-        {!isPurchased ? (
+        <CardDescription className="truncate">
           <Link
-            className={cn(buttonVariants(), "w-full rounded-full")}
-            href={`/create/${portal.id}`}
+            className="hover:underline"
+            href={`/p/${encodeURIComponent(portal.slug)}`}
+            onClick={(event) => event.stopPropagation()}
+            target="_blank"
           >
-            {copy.portal.edit}
+            /{portal.slug}
           </Link>
+        </CardDescription>
+        {portal.isPurchased ? (
+          <CardAction>
+            <Badge className="bg-amber-400/20 text-amber-700 dark:text-amber-300">
+              <IconCrownFilled className="size-4" />
+              {copy.portal.visibility.purchased}
+            </Badge>
+          </CardAction>
+        ) : planQuery.data ? (
+          <CardAction>
+            <Badge
+              className={
+                planQuery.data.plan === "free"
+                  ? undefined
+                  : "bg-green-500/10 text-green-700 dark:text-green-300"
+              }
+              variant={planQuery.data.plan === "free" ? "default" : "secondary"}
+            >
+              {copy.portal.plan[planQuery.data.plan]}
+            </Badge>
+          </CardAction>
         ) : null}
-        <a
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "w-full rounded-full",
-            isPurchased ? "col-span-2" : null,
-          )}
-          href={`/${locale}/p/${encodeURIComponent(portal.slug)}`}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
-          <IconExternalLink data-icon="inline-start" />
-          {copy.portal.view}
-        </a>
-      </CardFooter>
+      </CardHeader>
+      <CardContent className="flex flex-col items-start gap-2 pt-0 text-sm">
+        {portal.isPurchased ? (
+          <>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <IconCalendarFilled className="size-4" />
+              {copy.portal.purchasedAt} · {purchasedDate ?? "—"}
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <IconCalendarEventFilled className="size-4" />
+              {copy.portal.lastEdited} · {updatedDate}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 text-primary">
+              <UsageCircle percent={usagePercent} />
+              <span>
+                {copy.portal.usage} {usagePercent}%
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              {visibility.icon}
+              <span>{copy.portal.visibility[visibility.label]}</span>
+            </div>
+          </>
+        )}
+      </CardContent>
     </Card>
   );
 }
@@ -929,6 +963,7 @@ export function PortalHome({
   locale: string;
   recommendedCountry: string | null;
 }) {
+  const [search, setSearch] = useState("");
   const portalsQuery = useQuery({
     enabled: backendEnabled,
     initialData: {
@@ -940,6 +975,13 @@ export function PortalHome({
     queryKey: portalsQueryKey(locale),
     refetchOnMount: "always",
     staleTime: 0,
+  });
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const filteredPortals = portalsQuery.data.portals.filter((portal) => {
+    if (!normalizedSearch) return true;
+    return `${portal.name} ${portal.slug}`
+      .toLocaleLowerCase()
+      .includes(normalizedSearch);
   });
   const homeErrorEvent = getHomeErrorEvent({
     controlledError: Boolean(portalsQuery.data.error),
@@ -956,66 +998,26 @@ export function PortalHome({
 
   return (
     <main className="relative min-h-dvh overflow-hidden bg-background text-foreground">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -top-60 left-1/2 size-[34rem] -translate-x-1/2 rounded-full bg-brand/10 blur-3xl"
+      <PortalWorkspaceToolbar
+        mode="home"
+        onSearchChange={setSearch}
+        searchPlaceholder={copy.searchPlaceholder}
+        searchClearLabel={copy.searchClearLabel}
+        searchValue={search}
       />
+      {backendEnabled ? (
+        <ConnectAccountDialog
+          copy={copy.connect}
+          hideTrigger
+          locale={locale}
+          portalId={connectIntent.portalId}
+          recommendedCountry={recommendedCountry}
+          shouldOpen={connectIntent.open}
+        />
+      ) : null}
 
-      <header className="relative border-b border-border/60 bg-brand-surface backdrop-blur-xl">
-        <div className="mx-auto flex h-20 w-full max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
-          <Link
-            aria-label="Portals Design"
-            className="inline-flex items-center"
-            href="/"
-          >
-            <IconSpiral aria-hidden="true" className="size-8 stroke-[1.5]" />
-          </Link>
-          <div className="flex items-center gap-2">
-            {backendEnabled ? (
-              <ConnectAccountDialog
-                copy={copy.connect}
-                locale={locale}
-                portalId={connectIntent.portalId}
-                recommendedCountry={recommendedCountry}
-                shouldOpen={connectIntent.open}
-              />
-            ) : null}
-            {backendEnabled ? (
-              <CreatePortalDialog copy={copy} locale={locale} />
-            ) : null}
-            <form action={signOut}>
-              <input name="locale" type="hidden" value={locale} />
-              <Button
-                aria-label={copy.header.signOut}
-                className="rounded-full"
-                size="icon-lg"
-                type="submit"
-                variant="outline"
-              >
-                <IconLogout data-icon="inline-start" />
-              </Button>
-            </form>
-          </div>
-        </div>
-      </header>
-
-      <div className="relative mx-auto flex w-full max-w-6xl flex-col gap-10 px-5 py-12 sm:px-8 sm:py-16 lg:gap-14 lg:py-20">
-        <section
-          aria-labelledby="portal-workspace-title"
-          className="flex flex-col gap-6 pb-10 sm:flex-row sm:items-end sm:justify-between lg:pb-14"
-        >
-          <h1
-            className="max-w-3xl text-balance text-3xl font-medium leading-[0.96] tracking-[-0.045em] sm:text-4xl lg:text-5xl"
-            id="portal-workspace-title"
-          >
-            {copy.intro.title}
-          </h1>
-          <p className="shrink-0 text-sm font-medium text-muted-foreground">
-            {copy.intro.portalCount}
-          </p>
-        </section>
-
-        <section aria-label={copy.intro.portalCount}>
+      <div className="relative flex w-full flex-col gap-10 p-2">
+        <section>
           {!backendEnabled ? (
             <Empty className="min-h-80 border border-border/60 bg-card/50">
               <EmptyHeader>
@@ -1028,11 +1030,11 @@ export function PortalHome({
                 </EmptyDescription>
               </EmptyHeader>
             </Empty>
-          ) : portalsQuery.data.portals.length === 0 ? (
-            <Empty className="min-h-80 border border-border/60 bg-card/50">
+          ) : filteredPortals.length === 0 ? (
+            <Empty className="min-h-80 border-0 bg-transparent">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
-                  <IconFolderPlus />
+                  <IconSearch />
                 </EmptyMedia>
                 <EmptyTitle>{copy.empty.title}</EmptyTitle>
                 <EmptyDescription>{copy.empty.description}</EmptyDescription>
@@ -1040,13 +1042,8 @@ export function PortalHome({
             </Empty>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
-              {portalsQuery.data.portals.map((portal) => (
-                <PortalCard
-                  copy={copy}
-                  key={portal.id}
-                  locale={locale}
-                  portal={portal}
-                />
+              {filteredPortals.map((portal) => (
+                <PortalCard copy={copy} key={portal.id} portal={portal} />
               ))}
             </div>
           )}

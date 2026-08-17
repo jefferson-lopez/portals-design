@@ -4,7 +4,10 @@ const controlsSource = await Bun.file(
   new URL("./portal-workspace-controls.tsx", import.meta.url),
 ).text();
 const pageSource = await Bun.file(
-  new URL("../../app/[locale]/create/[portalId]/page.tsx", import.meta.url),
+  new URL(
+    "../../app/[locale]/(workspace)/create/[portalId]/page.tsx",
+    import.meta.url,
+  ),
 ).text();
 const english = await Bun.file(
   new URL("../../../messages/en.json", import.meta.url),

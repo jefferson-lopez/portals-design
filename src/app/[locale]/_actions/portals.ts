@@ -13,6 +13,7 @@ import {
   PAID_PORTAL_MIN_PRICE_CENTS,
 } from "@/lib/portal/paid-access";
 import {
+  createUniqueSlugCandidate,
   normalizeDesignerName,
   normalizeSlug,
   normalizeWebsiteUrl,
@@ -48,7 +49,11 @@ type CreationVisibility = "public" | "private";
 export type HomePortal = Pick<
   Portal,
   "id" | "name" | "slug" | "updated_at" | "visibility"
-> & { hasPurchasedPlan: boolean; isPurchased: boolean };
+> & {
+  hasPurchasedPlan: boolean;
+  isPurchased: boolean;
+  purchasedAt?: string;
+};
 
 export type HomePortalsResult = {
   error: "loadFailed" | null;
@@ -138,7 +143,7 @@ export async function getHomePortals(
 
     const { data: grants, error: grantsError } = await supabase
       .from("paid_portal_access_grants")
-      .select("portal_id")
+      .select("portal_id,granted_at")
       .eq("buyer_id", userData.user.id)
       .eq("status", "paid");
     if (grantsError)
@@ -163,6 +168,8 @@ export async function getHomePortals(
         ...portal,
         hasPurchasedPlan: false,
         isPurchased: true,
+        purchasedAt: grants?.find((grant) => grant.portal_id === portal.id)
+          ?.granted_at,
       }));
     }
 
@@ -377,12 +384,24 @@ async function insertPortal({
   if (!validateSlug(slug).valid) actionFailure(t("slugInvalid"));
   const supabase = await requireAuthenticatedUser(locale);
 
-  const { data, error } = await supabase.rpc("create_portal", {
-    portal_cover_url: coverUrl,
-    portal_name: name,
-    portal_slug: slug,
-    portal_visibility: visibility,
-  } as never);
+  const createPortalRecord = (candidateSlug: string) =>
+    supabase.rpc("create_portal", {
+      portal_cover_url: coverUrl,
+      portal_name: name,
+      portal_slug: candidateSlug,
+      portal_visibility: visibility,
+    } as never);
+
+  let { data, error } = await createPortalRecord(slug);
+
+  // Project names are allowed to repeat. The first version used the name as
+  // the slug directly, so a retry after a partial creation hit the owner's
+  // unique (owner_id, slug) constraint and surfaced only a generic toast.
+  if (error?.code === "23505") {
+    ({ data, error } = await createPortalRecord(
+      createUniqueSlugCandidate(slug, crypto.randomUUID()),
+    ));
+  }
 
   if (error || !data) {
     actionFailure(error?.message ?? t("createPortalFailed"));
@@ -418,6 +437,11 @@ export async function createPortalFromHome({
     }
 
     console.error("Failed to create portal from home", {
+      code:
+        error && typeof error === "object" && "code" in error
+          ? String(error.code)
+          : "unknown",
+      message: error instanceof Error ? error.message : String(error),
       name: error instanceof Error ? error.name : "UnknownError",
     });
     return { error: "createPortalFailed", id: null } as const;
@@ -495,10 +519,6 @@ export async function deletePortalFromHome({
       return { error: "portalNotFound" } as const;
     }
 
-    if (portal.visibility === "paid") {
-      return { error: "paidPortalProtected" } as const;
-    }
-
     const expectedPhrase = homeT("delete.phrasePlaceholder");
     if (
       confirmationSlug !== portal.slug ||
@@ -519,6 +539,23 @@ export async function deletePortalFromHome({
 
     if (entitlement) {
       return { error: "portalPurchaseProtected" } as const;
+    }
+
+    if (portal.visibility === "paid") {
+      const { data: purchase, error: purchaseError } = await supabase
+        .from("paid_portal_purchases")
+        .select("id")
+        .eq("portal_id", portalId)
+        .limit(1)
+        .maybeSingle();
+
+      if (purchaseError) {
+        throw new Error(purchaseError.message);
+      }
+
+      if (purchase) {
+        return { error: "portalPurchaseProtected" } as const;
+      }
     }
 
     const admin = createAdminClient();
@@ -559,11 +596,36 @@ export async function deletePortalFromHome({
   } catch (error) {
     unstable_rethrow(error);
 
+    if (
+      error instanceof Error &&
+      error.message === "Paid portals with purchases cannot be deleted"
+    ) {
+      return { error: "portalPurchaseProtected" } as const;
+    }
+
     console.error("Failed to delete portal", {
       error: error instanceof Error ? error.name : "UnknownError",
     });
     return { error: "deletePortalFailed" } as const;
   }
+}
+
+export async function deletePortalFromSettings({
+  locale,
+  portalId,
+  confirmationSlug,
+}: {
+  locale: string;
+  portalId: string;
+  confirmationSlug: string;
+}) {
+  const homeT = await getTranslations({ locale, namespace: "Home" });
+  return deletePortalFromHome({
+    confirmationPhrase: homeT("delete.phrasePlaceholder"),
+    confirmationSlug,
+    locale,
+    portalId,
+  });
 }
 
 export async function createPortal(formData: FormData) {

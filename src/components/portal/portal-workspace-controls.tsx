@@ -5,22 +5,23 @@ import { DragDropProvider } from "@dnd-kit/react";
 import { useSortable } from "@dnd-kit/react/sortable";
 import {
   IconAlertCircle,
+  IconBubbleTextFilled,
+  IconClipboardTypographyFilled,
   IconDeviceFloppy,
-  IconFiles,
+  IconFilesFilled,
   IconGripVertical,
   IconInfoCircle,
-  IconLayoutGrid,
+  IconLayoutGridFilled,
   IconLoader2,
   IconMoon,
   IconPackageExport,
-  IconPalette,
-  IconPhoto,
+  IconPaletteFilled,
+  IconPhotoFilled,
   IconPlus,
   IconSettings,
+  IconSparkles,
   IconStack2,
-  IconTextCaption,
   IconTrash,
-  IconTypography,
   IconX,
 } from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -109,6 +110,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { markImageFieldManual } from "@/lib/portal/ai";
+import type { AiContentTarget } from "@/lib/portal/ai-sdk";
+import { extractAssetMetadata } from "@/lib/portal/asset-metadata";
+import {
+  displayNameWithoutExtension,
+  normalizeAssetDownloadName,
+  sourceNameFromStoragePath,
+} from "@/lib/portal/asset-names";
 import {
   flushPortalAutosave,
   schedulePortalAutosave,
@@ -168,39 +177,39 @@ const EMPTY_PUBLICATION_ISSUES: PortalPublicationIssue[] = [];
 
 type SectionOption = {
   accentClassName: string;
-  icon: typeof IconTextCaption;
+  icon: typeof IconBubbleTextFilled;
   type: Exclude<PortalSectionType, "empty">;
 };
 
 const sectionTypes: SectionOption[] = [
   {
-    accentClassName: "bg-chart-1/15 text-chart-1",
-    icon: IconTextCaption,
+    accentClassName: "bg-sky-500/15 text-sky-500",
+    icon: IconBubbleTextFilled,
     type: "text",
   },
   {
-    accentClassName: "bg-chart-2/15 text-chart-2",
-    icon: IconPhoto,
+    accentClassName: "bg-indigo-500/15 text-indigo-500",
+    icon: IconPhotoFilled,
     type: "image",
   },
   {
-    accentClassName: "bg-chart-3/15 text-chart-3",
-    icon: IconLayoutGrid,
+    accentClassName: "bg-violet-500/15 text-violet-500",
+    icon: IconLayoutGridFilled,
     type: "gallery",
   },
   {
-    accentClassName: "bg-chart-4/15 text-chart-4",
-    icon: IconPalette,
+    accentClassName: "bg-emerald-500/15 text-emerald-500",
+    icon: IconPaletteFilled,
     type: "colors",
   },
   {
-    accentClassName: "bg-chart-5/15 text-chart-5",
-    icon: IconTypography,
+    accentClassName: "bg-amber-500/15 text-amber-500",
+    icon: IconClipboardTypographyFilled,
     type: "fonts",
   },
   {
-    accentClassName: "bg-primary/10 text-primary",
-    icon: IconFiles,
+    accentClassName: "bg-slate-500/15 text-slate-500",
+    icon: IconFilesFilled,
     type: "files",
   },
 ];
@@ -208,6 +217,149 @@ const sectionTypes: SectionOption[] = [
 const imageFits: ImageFit[] = ["cover", "contain", "fill", "auto"];
 const aspectRatios: ImageAspectRatio[] = ["auto", "1/1", "4/3", "16/9", "21/9"];
 const galleryModes = ["grid", "comparison"] as const;
+
+function ImproveWithAiButton({
+  portalId,
+  target,
+}: {
+  portalId: string;
+  target: AiContentTarget;
+}) {
+  const t = useTranslations("PortalEditor.ai");
+  const [improving, setImproving] = useState(false);
+  const document = usePortalEditorStore(
+    (state) => state.documentsByPortalId[portalId],
+  );
+  const updateDocument = usePortalEditorStore((state) => state.updateDocument);
+
+  function documentWithRenderedImageDimensions(
+    source: PortalDocument,
+  ): PortalDocument {
+    if (target.kind !== "section") return source;
+    const sectionElement = window.document.getElementById(target.id);
+    if (!sectionElement) return source;
+    const renderedImages = Array.from(sectionElement.querySelectorAll("img"));
+    let renderedIndex = 0;
+    return {
+      ...source,
+      sections: source.sections.map((section) => {
+        if (section.id !== target.id) return section;
+        const enrich = (image: PortalImageItem) => {
+          const rendered = renderedImages[renderedIndex++];
+          return rendered?.naturalWidth && rendered.naturalHeight
+            ? {
+                ...image,
+                height: rendered.naturalHeight,
+                width: rendered.naturalWidth,
+              }
+            : image;
+        };
+        return {
+          ...section,
+          content: {
+            ...section.content,
+            image: section.content.image
+              ? enrich(section.content.image)
+              : section.content.image,
+            images: section.content.images?.map(enrich),
+          },
+        };
+      }),
+    };
+  }
+
+  async function improve() {
+    if (!document || improving) return;
+    setImproving(true);
+    try {
+      const documentForAi = documentWithRenderedImageDimensions(document);
+      const response = await fetch("/api/ai/portal-content", {
+        body: JSON.stringify({
+          currentDocument: documentForAi,
+          portalId,
+          requestId: crypto.randomUUID(),
+          target,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+      const result = (await response.json().catch(() => null)) as {
+        document?: PortalDocument;
+        error?: string;
+      } | null;
+      if (!response.ok || !result?.document) {
+        throw new Error(result?.error ?? "ai_operation_failed");
+      }
+      updateDocument(portalId, () => result.document as PortalDocument);
+      toast.success(t("improveTextSuccess"));
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "";
+      toast.error(
+        reason === "insufficient_credits"
+          ? t("insufficientCredits")
+          : t("improveTextError"),
+      );
+    } finally {
+      setImproving(false);
+    }
+  }
+
+  return (
+    <Button
+      disabled={improving}
+      onClick={() => void improve()}
+      size="sm"
+      type="button"
+      variant="outline"
+    >
+      {improving ? <IconLoader2 className="animate-spin" /> : <IconSparkles />}
+      {improving ? t("improvingText") : t("improveText")}
+    </Button>
+  );
+}
+
+function ImproveSectionWithAiPopover({
+  portalId,
+  section,
+}: {
+  portalId: string;
+  section: PortalSection;
+}) {
+  const t = useTranslations("PortalEditor.ai");
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            aria-label={t("improveSection")}
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          >
+            <IconSparkles />
+          </Button>
+        }
+      />
+      <PopoverContent align="end" className="w-72" side="bottom">
+        <PopoverHeader>
+          <PopoverTitle>{t("improveSectionTitle")}</PopoverTitle>
+          <PopoverDescription>
+            {t("improveSectionDescription")}
+          </PopoverDescription>
+        </PopoverHeader>
+        <ImproveWithAiButton
+          portalId={portalId}
+          target={{
+            description: section.description,
+            id: section.id,
+            kind: "section",
+            title: section.title,
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 type ColorFormat =
   | "hex"
@@ -484,7 +636,7 @@ export function SectionTypeDialog({
             const Icon = item.icon;
             return (
               <Button
-                className="group h-auto min-w-0 justify-start gap-3 overflow-hidden px-4 py-4 text-left"
+                className="group h-auto min-w-0 justify-start gap-3 overflow-hidden rounded-lg border border-border bg-card px-4 py-4 text-left hover:bg-muted"
                 key={item.type}
                 onClick={() => {
                   selectionPendingRef.current = true;
@@ -523,12 +675,14 @@ function ImageSettingsPopover({
   image,
   onOpenChange,
   onSave,
+  portalId,
   open,
   trigger,
 }: {
   image: PortalImageItem;
   onOpenChange: (open: boolean) => void;
   onSave: (image: PortalImageItem) => void;
+  portalId: string;
   open: boolean;
   trigger: ReactElement;
 }) {
@@ -556,6 +710,57 @@ function ImageSettingsPopover({
           </PopoverDescription>
         </PopoverHeader>
         <FieldGroup>
+          <ImproveWithAiButton
+            portalId={portalId}
+            target={{
+              altText: image.alt_text,
+              id: image.id,
+              kind: "image",
+              name: image.display_name ?? image.image_url,
+            }}
+          />
+          <Field>
+            <FieldLabel>{t("image.name")}</FieldLabel>
+            <Input
+              defaultValue={image.display_name ?? ""}
+              onBlur={(event) =>
+                updateImage(
+                  markImageFieldManual(
+                    {
+                      ...image,
+                      display_name: event.currentTarget.value.trim(),
+                    },
+                    "display_name",
+                  ),
+                )
+              }
+              placeholder={t("image.namePlaceholder")}
+            />
+          </Field>
+          <Field>
+            <FieldLabel>{t("image.downloadName")}</FieldLabel>
+            <Input
+              defaultValue={displayNameWithoutExtension(
+                image.download_name ||
+                  sourceNameFromStoragePath(image.storage_path),
+              )}
+              onBlur={(event) =>
+                updateImage(
+                  markImageFieldManual(
+                    {
+                      ...image,
+                      download_name: normalizeAssetDownloadName(
+                        event.currentTarget.value,
+                        sourceNameFromStoragePath(image.storage_path),
+                      ),
+                    },
+                    "download_name",
+                  ),
+                )
+              }
+              placeholder={t("image.downloadNamePlaceholder")}
+            />
+          </Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field>
               <FieldLabel>{t("image.fit")}</FieldLabel>
@@ -563,7 +768,13 @@ function ImageSettingsPopover({
                 items={imageFitItems}
                 value={image.fit}
                 onValueChange={(value) =>
-                  value && updateImage({ ...image, fit: value as ImageFit })
+                  value &&
+                  updateImage(
+                    markImageFieldManual(
+                      { ...image, fit: value as ImageFit },
+                      "fit",
+                    ),
+                  )
                 }
               >
                 <SelectTrigger className="w-full">
@@ -587,10 +798,12 @@ function ImageSettingsPopover({
                 value={image.aspect_ratio}
                 onValueChange={(value) =>
                   value &&
-                  updateImage({
-                    ...image,
-                    aspect_ratio: value as ImageAspectRatio,
-                  })
+                  updateImage(
+                    markImageFieldManual(
+                      { ...image, aspect_ratio: value as ImageAspectRatio },
+                      "aspect_ratio",
+                    ),
+                  )
                 }
               >
                 <SelectTrigger className="w-full">
@@ -645,6 +858,7 @@ function ImageTile({
   isDragging = false,
   onRemove,
   onSave,
+  portalId,
   pending = false,
 }: {
   captionEditable?: boolean;
@@ -653,6 +867,7 @@ function ImageTile({
   isDragging?: boolean;
   onRemove: () => void;
   onSave: (image: PortalImageItem) => void;
+  portalId: string;
   pending?: boolean;
 }) {
   const t = useTranslations("PortalEditor.image");
@@ -711,6 +926,7 @@ function ImageTile({
               image={image}
               onOpenChange={setSettingsOpen}
               onSave={onSave}
+              portalId={portalId}
               open={settingsOpen}
               trigger={
                 <PortalActionTriggerButton
@@ -822,6 +1038,7 @@ function AddImageTile({
       }));
       void (async () => {
         try {
+          const metadata = await extractAssetMetadata(file);
           const asset = await uploadPortalAsset({
             category,
             file,
@@ -835,6 +1052,7 @@ function AddImageTile({
                 ...createImageItem(finalized.previewUrl, 0),
                 asset_id: finalized.assetId,
                 storage_path: finalized.path,
+                ...metadata,
               }),
             discard: (finalized) =>
               deleteManagedPortalAsset(finalized.assetId, fetch, portalId),
@@ -871,6 +1089,7 @@ function AddImageTile({
           onRemove={() => undefined}
           onSave={() => undefined}
           pending
+          portalId={portalId}
         />
       ))}
       {availableSlots === 0 ? null : (
@@ -1031,7 +1250,12 @@ function GalleryLayoutControls({
           onValueChange={(value) =>
             value &&
             onImagesChange(
-              images.map((image) => ({ ...image, fit: value as ImageFit })),
+              images.map((image) =>
+                markImageFieldManual(
+                  { ...image, fit: value as ImageFit },
+                  "fit",
+                ),
+              ),
             )
           }
         >
@@ -1057,10 +1281,12 @@ function GalleryLayoutControls({
           onValueChange={(value) =>
             value &&
             onImagesChange(
-              images.map((image) => ({
-                ...image,
-                aspect_ratio: value as ImageAspectRatio,
-              })),
+              images.map((image) =>
+                markImageFieldManual(
+                  { ...image, aspect_ratio: value as ImageAspectRatio },
+                  "aspect_ratio",
+                ),
+              ),
             )
           }
         >
@@ -1085,12 +1311,14 @@ function GalleryLayoutControls({
 function GallerySettingsPopover({
   onOpenChange,
   open,
+  portalId,
   section,
   trigger,
   updateSection,
 }: {
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  portalId: string;
   section: PortalSection;
   trigger: ReactElement;
   updateSection: (section: PortalSection) => void;
@@ -1114,6 +1342,15 @@ function GallerySettingsPopover({
           <PopoverTitle>{t("settings")}</PopoverTitle>
           <PopoverDescription>{t("settingsDescription")}</PopoverDescription>
         </PopoverHeader>
+        <ImproveWithAiButton
+          portalId={portalId}
+          target={{
+            description: section.description,
+            id: section.id,
+            kind: "section",
+            title: section.title,
+          }}
+        />
         <GalleryLayoutControls
           images={images}
           onImagesChange={saveImages}
@@ -1181,12 +1418,14 @@ function FilesLayoutControls({
 function FilesSettingsPopover({
   onOpenChange,
   open,
+  portalId,
   section,
   trigger,
   updateSection,
 }: {
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  portalId: string;
   section: PortalSection;
   trigger: ReactElement;
   updateSection: (section: PortalSection) => void;
@@ -1200,6 +1439,15 @@ function FilesSettingsPopover({
           <PopoverTitle>{t("settings")}</PopoverTitle>
           <PopoverDescription>{t("settingsDescription")}</PopoverDescription>
         </PopoverHeader>
+        <ImproveWithAiButton
+          portalId={portalId}
+          target={{
+            description: section.description,
+            id: section.id,
+            kind: "section",
+            title: section.title,
+          }}
+        />
         <FilesLayoutControls section={section} updateSection={updateSection} />
       </PopoverContent>
     </Popover>
@@ -1209,12 +1457,14 @@ function FilesSettingsPopover({
 function ColorsSettingsPopover({
   onOpenChange,
   open,
+  portalId,
   section,
   trigger,
   updateSection,
 }: {
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  portalId: string;
   section: PortalSection;
   trigger: ReactElement;
   updateSection: (section: PortalSection) => void;
@@ -1240,6 +1490,15 @@ function ColorsSettingsPopover({
             {t("colors.settingsDescription")}
           </PopoverDescription>
         </PopoverHeader>
+        <ImproveWithAiButton
+          portalId={portalId}
+          target={{
+            description: section.description,
+            id: section.id,
+            kind: "section",
+            title: section.title,
+          }}
+        />
         <FieldGroup>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field>
@@ -1388,6 +1647,7 @@ function ImageEditor({
       onSave={(nextImage) =>
         updateSection({ ...section, content: { image: nextImage } })
       }
+      portalId={portalId}
     />
   );
 }
@@ -1398,12 +1658,14 @@ function SortableGalleryItem({
   index,
   onRemove,
   onSave,
+  portalId,
 }: {
   captionEditable?: boolean;
   image: PortalImageItem;
   index: number;
   onRemove: () => void;
   onSave: (image: PortalImageItem) => void;
+  portalId: string;
 }) {
   const { handleRef, isDragging, ref } = useSortable({
     group: "gallery",
@@ -1420,6 +1682,7 @@ function SortableGalleryItem({
         isDragging={isDragging}
         onRemove={onRemove}
         onSave={onSave}
+        portalId={portalId}
       />
     </div>
   );
@@ -1514,6 +1777,7 @@ function GalleryEditor({
               image={image}
               index={index}
               key={image.id}
+              portalId={portalId}
               onRemove={() => {
                 saveImages(images.filter((item) => item.id !== image.id));
               }}
@@ -2663,10 +2927,14 @@ function SortableFileItem({
   file,
   index,
   onRemove,
+  onSave,
+  portalId,
 }: {
   file: PortalFileItem;
   index: number;
   onRemove: () => void;
+  onSave: (file: PortalFileItem) => void;
+  portalId: string;
 }) {
   const { handleRef, isDragging, ref } = useSortable({
     group: "files",
@@ -2682,7 +2950,7 @@ function SortableFileItem({
       <div ref={handleRef}>
         <PortalFilePreview
           className="cursor-grab active:cursor-grabbing"
-          fileName={file.file_name}
+          fileName={file.display_name || file.file_name}
           fileUrl={file.file_url}
           type={
             file.file_type ??
@@ -2692,6 +2960,11 @@ function SortableFileItem({
         />
       </div>
       <PortalItemActionsOverlay position="top-2-right">
+        <FilesItemSettingsPopover
+          file={file}
+          onSave={onSave}
+          portalId={portalId}
+        />
         <Button
           className="rounded-full"
           onClick={onRemove}
@@ -2703,6 +2976,88 @@ function SortableFileItem({
         </Button>
       </PortalItemActionsOverlay>
     </div>
+  );
+}
+
+function FilesItemSettingsPopover({
+  file,
+  onSave,
+  portalId,
+}: {
+  file: PortalFileItem;
+  onSave: (file: PortalFileItem) => void;
+  portalId: string;
+}) {
+  const t = useTranslations("PortalEditor.files");
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover onOpenChange={setOpen} open={open}>
+      <PopoverTrigger
+        render={
+          <PortalActionTriggerButton
+            icon="settings"
+            label={t("itemSettings")}
+            variant="secondary"
+          />
+        }
+      />
+      <PopoverContent align="end" className="w-80" side="bottom">
+        <PopoverHeader>
+          <PopoverTitle>{t("itemSettings")}</PopoverTitle>
+          <PopoverDescription>
+            {t("itemSettingsDescription")}
+          </PopoverDescription>
+        </PopoverHeader>
+        <ImproveWithAiButton
+          portalId={portalId}
+          target={{
+            description: file.description ?? "",
+            id: file.id,
+            kind: "file",
+            name: file.display_name ?? file.file_name,
+          }}
+        />
+        <Field>
+          <FieldLabel>{t("displayName")}</FieldLabel>
+          <Input
+            defaultValue={file.display_name ?? ""}
+            onBlur={(event) =>
+              onSave({
+                ...file,
+                display_name: event.currentTarget.value.trim(),
+                field_origins: {
+                  ...file.field_origins,
+                  display_name: "manual",
+                },
+              })
+            }
+            placeholder={t("displayNamePlaceholder")}
+          />
+        </Field>
+        <Field>
+          <FieldLabel>{t("downloadName")}</FieldLabel>
+          <Input
+            defaultValue={displayNameWithoutExtension(
+              file.download_name || file.file_name,
+            )}
+            onBlur={(event) =>
+              onSave({
+                ...file,
+                download_name: normalizeAssetDownloadName(
+                  event.currentTarget.value,
+                  file.file_name,
+                ),
+                field_origins: {
+                  ...file.field_origins,
+                  download_name: "manual",
+                },
+              })
+            }
+            placeholder={t("downloadNamePlaceholder")}
+          />
+        </Field>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -2874,9 +3229,17 @@ function FilesEditor({
               file={file}
               index={index}
               key={file.id}
+              portalId={portalId}
               onRemove={() => {
                 saveFiles(files.filter((item) => item.id !== file.id));
               }}
+              onSave={(nextFile) =>
+                saveFiles(
+                  files.map((item) =>
+                    item.id === nextFile.id ? nextFile : item,
+                  ),
+                )
+              }
             />
           ))}
           {optimistic.pending.map(({ id, value }) => (
@@ -3229,10 +3592,12 @@ function SidebarFooterActions({
 
 export function SectionActionToolbar({
   onRemove,
+  portalId,
   section,
   updateSection,
 }: {
   onRemove: () => void;
+  portalId: string;
   section: PortalSection;
   updateSection: (section: PortalSection) => void;
 }) {
@@ -3242,10 +3607,12 @@ export function SectionActionToolbar({
 
   return (
     <>
+      <ImproveSectionWithAiPopover portalId={portalId} section={section} />
       {section.type === "gallery" || section.type === "image_comparison" ? (
         <GallerySettingsPopover
           onOpenChange={setSettingsOpen}
           open={settingsOpen}
+          portalId={portalId}
           section={section}
           updateSection={updateSection}
           trigger={
@@ -3261,6 +3628,7 @@ export function SectionActionToolbar({
         <FilesSettingsPopover
           onOpenChange={setSettingsOpen}
           open={settingsOpen}
+          portalId={portalId}
           section={section}
           updateSection={updateSection}
           trigger={
@@ -3276,6 +3644,7 @@ export function SectionActionToolbar({
         <ColorsSettingsPopover
           onOpenChange={setColorsSettingsOpen}
           open={colorsSettingsOpen}
+          portalId={portalId}
           section={section}
           updateSection={updateSection}
           trigger={
@@ -3358,15 +3727,25 @@ function SectionOrderItem({
 export function SectionOrderPopover({
   document,
   portalId,
+  triggerless = false,
 }: {
   document: PortalDocument;
   portalId: string;
+  triggerless?: boolean;
 }) {
   const t = useTranslations("PortalEditor.sections");
+  const triggerId = "portal-section-order-trigger";
   const draft = usePortalDocumentDraft(portalId, document);
   const updateDraft = usePortalEditorStore((state) => state.updateDocument);
   const { guardDocumentChange } = usePortalPlan();
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!triggerless) return;
+    const openOrder = () => setOpen(true);
+    window.addEventListener("portal-workspace:order", openOrder);
+    return () =>
+      window.removeEventListener("portal-workspace:order", openOrder);
+  }, [triggerless]);
   const pendingSectionIdRef = useRef<string | null>(null);
   const sections = uniqueForRender(
     draft.sections.filter(
@@ -3410,27 +3789,41 @@ export function SectionOrderPopover({
         focusPortalSectionTitle(sectionId);
       }}
       open={open}
+      triggerId={triggerless ? triggerId : undefined}
     >
-      <Tooltip>
-        <TooltipTrigger render={<span />}>
-          <PopoverTrigger
-            render={
-              <Button
-                aria-label={t("order")}
-                className="rounded-full"
-                size="icon-lg"
-                type="button"
-                variant="ghost"
-              />
-            }
-          >
-            <IconStack2 />
-            <span className="sr-only">{t("order")}</span>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent>{t("order")}</TooltipContent>
-      </Tooltip>
-      <PopoverContent align="center" className="w-72" side="top">
+      {!triggerless ? (
+        <Tooltip>
+          <TooltipTrigger render={<span />}>
+            <PopoverTrigger
+              render={
+                <Button
+                  aria-label={t("order")}
+                  className="rounded-full"
+                  size="icon-lg"
+                  type="button"
+                  variant="ghost"
+                />
+              }
+            >
+              <IconStack2 />
+              <span className="sr-only">{t("order")}</span>
+            </PopoverTrigger>
+          </TooltipTrigger>
+          <TooltipContent>{t("order")}</TooltipContent>
+        </Tooltip>
+      ) : (
+        <PopoverTrigger
+          id={triggerId}
+          nativeButton={false}
+          render={
+            <span
+              aria-hidden="true"
+              className="fixed bottom-20 left-1/2 size-px"
+            />
+          }
+        />
+      )}
+      <PopoverContent align="center" className="w-72" side="top" sideOffset={8}>
         <PopoverHeader>
           <PopoverTitle>{t("orderTitle")}</PopoverTitle>
           <PopoverDescription>{t("orderDescription")}</PopoverDescription>
@@ -3736,15 +4129,24 @@ export function SettingsDialog({
   initialPaidPriceCents,
   locale,
   portal,
+  triggerless = false,
 }: {
   initialPaidPriceCents: number | null;
   locale: string;
   portal: Portal;
+  triggerless?: boolean;
 }) {
   const t = useTranslations("PortalEditor.settings");
   const { guardPassword } = usePortalPlan();
   const [activeTab, setActiveTab] = useState("general");
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!triggerless) return;
+    const openSettings = () => setOpen(true);
+    window.addEventListener("portal-workspace:settings", openSettings);
+    return () =>
+      window.removeEventListener("portal-workspace:settings", openSettings);
+  }, [triggerless]);
   const [visibility, setVisibility] = useState<PortalVisibility>(
     portal.visibility,
   );
@@ -3782,10 +4184,12 @@ export function SettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <SettingsDialogTrigger
-        icon={<IconSettings data-icon="inline-start" />}
-        label={t("generalTitle")}
-      />
+      {!triggerless ? (
+        <SettingsDialogTrigger
+          icon={<IconSettings data-icon="inline-start" />}
+          label={t("generalTitle")}
+        />
+      ) : null}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t("generalTitle")}</DialogTitle>

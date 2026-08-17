@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect } from "react";
+import { toast } from "sonner";
 import { publishPortalById } from "@/app/[locale]/_actions/portals";
 import {
   PORTAL_PLAN_RETRY_EVENT,
@@ -25,10 +26,12 @@ export function PublishPortalButton({
   initialHasUnpublishedChanges,
   locale,
   portalId,
+  triggerless = false,
 }: {
   initialHasUnpublishedChanges: boolean;
   locale: string;
   portalId: string;
+  triggerless?: boolean;
 }) {
   const t = useTranslations("PortalEditor.workspace");
   const router = useRouter();
@@ -101,6 +104,7 @@ export function PublishPortalButton({
       markPublishedIfRevision(portalId, publishedRevision);
       setLastPublishedPortalId(portalId);
       setPublishingPortalId(null);
+      toast.success(t("publishSuccess"));
       await queryClient.invalidateQueries({ queryKey: ["portal", portalId] });
       router.refresh();
     },
@@ -133,6 +137,14 @@ export function PublishPortalButton({
   ]);
 
   useEffect(() => {
+    if (!triggerless) return;
+    const publish = () => attemptPublication();
+    window.addEventListener("portal-workspace:publish", publish);
+    return () =>
+      window.removeEventListener("portal-workspace:publish", publish);
+  }, [attemptPublication, triggerless]);
+
+  useEffect(() => {
     const retry = (event: Event) => {
       const action = (event as CustomEvent<SafePendingPortalAction>).detail;
       if (action.kind === "publish") attemptPublication();
@@ -140,6 +152,8 @@ export function PublishPortalButton({
     window.addEventListener(PORTAL_PLAN_RETRY_EVENT, retry);
     return () => window.removeEventListener(PORTAL_PLAN_RETRY_EVENT, retry);
   }, [attemptPublication]);
+
+  if (triggerless) return null;
 
   return (
     <Button

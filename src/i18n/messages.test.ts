@@ -63,6 +63,17 @@ describe("translation catalogs", () => {
     expect(es).toHaveProperty("PortalEditor.image.ratioAuto", "Automática");
   });
 
+  test("give every not-found surface a localized way forward", () => {
+    for (const messages of [en, es]) {
+      expect(messages).toHaveProperty("PublicPortal.notFound.viewProjects");
+      expect(messages).toHaveProperty("PublicPortal.notFound.goHome");
+      expect(messages).toHaveProperty("NotFound.title");
+      expect(messages).toHaveProperty("NotFound.description");
+      expect(messages).toHaveProperty("NotFound.viewProjects");
+      expect(messages).toHaveProperty("NotFound.goHome");
+    }
+  });
+
   test("explains whether storage is shared or belongs to one portal", () => {
     expect(es).toHaveProperty(
       "PortalEditor.plan.storageLabels.free",

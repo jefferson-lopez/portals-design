@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  createUniqueSlugCandidate,
   normalizeDesignerName,
   normalizeWebsiteUrl,
   validateDesignerName,
@@ -7,6 +8,15 @@ import {
 } from "./settings";
 
 describe("portal settings", () => {
+  test("creates a valid unique slug when the project name is already used", () => {
+    expect(createUniqueSlugCandidate("Brand Guide", "abcdef12")).toBe(
+      "brand-guide-abcdef12",
+    );
+    expect(createUniqueSlugCandidate("a".repeat(80), "abcdef12")).toHaveLength(
+      80,
+    );
+  });
+
   test("accepts only canonical lowercase slugs", () => {
     expect(validateSlug("brand-guide")).toEqual({ valid: true });
     expect(validateSlug("Brand guide")).toEqual({

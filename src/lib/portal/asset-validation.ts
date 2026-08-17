@@ -66,6 +66,19 @@ export function normalizeAssetMimeType(value?: string | null) {
   return value?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
 }
 
+export function isRenderableImageMimeType(mimeType: string) {
+  return (
+    mimeType.startsWith("image/") &&
+    ![
+      "image/svg+xml",
+      "image/tiff",
+      "image/x-tiff",
+      "image/vnd.adobe.photoshop",
+      "image/x-photoshop",
+    ].includes(mimeType)
+  );
+}
+
 function extension(name: string) {
   return name.split(".").pop()?.toLowerCase() ?? "";
 }
@@ -111,6 +124,43 @@ export function validateAssetDeclaration(input: {
 
 function starts(bytes: Uint8Array, signature: number[]) {
   return signature.every((value, index) => bytes[index] === value);
+}
+
+function isUtf16Text(bytes: Uint8Array) {
+  const hasLittleEndianBom = starts(bytes, [0xff, 0xfe]);
+  const hasBigEndianBom = starts(bytes, [0xfe, 0xff]);
+  let littleEndian = hasLittleEndianBom;
+  let bigEndian = hasBigEndianBom;
+  if (!littleEndian && !bigEndian) {
+    const sample = bytes.slice(0, Math.min(bytes.length, 64 * 1024));
+    let evenNulls = 0;
+    let oddNulls = 0;
+    for (let index = 0; index < sample.length; index++) {
+      if (sample[index] !== 0) continue;
+      if (index % 2 === 0) evenNulls++;
+      else oddNulls++;
+    }
+    const pairs = Math.floor(sample.length / 2);
+    littleEndian = oddNulls >= Math.max(2, pairs * 0.2);
+    bigEndian = evenNulls >= Math.max(2, pairs * 0.2);
+  }
+  if (!littleEndian && !bigEndian) return false;
+  try {
+    const text = new TextDecoder(bigEndian ? "utf-16be" : "utf-16le", {
+      fatal: true,
+    }).decode(bytes);
+    return [...text].every((character) => {
+      const code = character.codePointAt(0) ?? 0;
+      return !(
+        (code >= 0 && code <= 8) ||
+        code === 11 ||
+        code === 12 ||
+        (code >= 14 && code <= 31)
+      );
+    });
+  } catch {
+    return false;
+  }
 }
 
 function isExecutable(bytes: Uint8Array) {
@@ -334,7 +384,14 @@ export function validateAssetBytes(
   mimeType: string,
   name?: string,
 ) {
-  if (!bytes.length || mimeType === "application/octet-stream") return false;
+  if (!bytes.length) {
+    return (
+      mimeType === "text/plain" ||
+      mimeType === "text/markdown" ||
+      mimeType === "text/x-markdown"
+    );
+  }
+  if (mimeType === "application/octet-stream") return false;
   if (isExecutable(bytes)) return false;
   const fileExtension = name ? extension(name) : "";
   if (opaqueAdobeWorkExtensions.has(fileExtension))
@@ -408,7 +465,7 @@ export function validateAssetBytes(
     mimeType === "text/markdown" ||
     mimeType === "text/x-markdown"
   ) {
-    return !bytes.includes(0);
+    return isUtf16Text(bytes) || !bytes.includes(0);
   }
   return false;
 }

@@ -97,6 +97,7 @@ function fileNameFromStoragePath(path: string | undefined) {
 }
 
 function imageDownloadLabel(image: PortalImageItem) {
+  if (image.download_name) return image.download_name;
   const sourceName = fileNameFromStoragePath(image.storage_path);
   if (sourceName) return sourceName;
   const ext = extensionFromUrl(image.image_url, "jpg");
@@ -223,7 +224,7 @@ export function buildExportManifest(
         entries.push({
           allowDownload: true,
           category: "colors",
-          destination: "colors/colors.txt",
+          destination: `colors/${sectionName}/colors.txt`,
           itemId: `colors-${section.id}`,
           name: "colors.txt",
           sectionId: section.id,
@@ -310,7 +311,11 @@ export function buildExportManifest(
           category: "fonts",
           fontFamily: font.font_name,
           id: font.id,
-          label: font.file_name || font.font_name,
+          label:
+            font.download_name ||
+            font.display_name ||
+            font.file_name ||
+            font.font_name,
           storagePath: font.storage_path,
           url: font.file_url,
         });
@@ -324,7 +329,7 @@ export function buildExportManifest(
           allowDownload: file.allow_download,
           category: "files",
           id: file.id,
-          label: file.file_name,
+          label: file.download_name || file.display_name || file.file_name,
           storagePath: file.storage_path,
           url: file.file_url,
         });

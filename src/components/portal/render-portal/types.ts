@@ -7,6 +7,7 @@ import type {
   PortalImageItem,
   PortalSection,
 } from "@/lib/portal/document";
+import type { PortalExportSource } from "@/lib/portal/export-manifest";
 
 export type PortalActionIcon =
   | "copy"
@@ -66,6 +67,7 @@ export type PortalPublicActionSlots = {
 };
 
 export type PortalPublicActionConfig = {
+  exportSource?: PortalExportSource;
   slug: string;
   slots: PortalPublicActionSlots;
 };

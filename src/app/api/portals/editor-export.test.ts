@@ -5,7 +5,10 @@ const route = await Bun.file(
   new URL("./[slug]/export/route.ts", import.meta.url),
 ).text();
 const editorPage = await Bun.file(
-  new URL("../../[locale]/create/[portalId]/page.tsx", import.meta.url),
+  new URL(
+    "../../[locale]/(workspace)/create/[portalId]/page.tsx",
+    import.meta.url,
+  ),
 ).text();
 
 test("editor export is authenticated and reads the current portal document", () => {

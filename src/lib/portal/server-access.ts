@@ -42,6 +42,7 @@ export type ResolvedPortalAccess = {
     | "allow_color_copy"
   > | null;
   publication: Pick<PortalPublication, "id" | "snapshot"> | null;
+  isOwner: boolean;
   /** Narrow contract for the future paid-preview payload. Not used for authorization. */
   paidPreview: {
     assetSummary: PaidPreviewAssetSummary[];
@@ -387,6 +388,7 @@ export async function resolvePortalAccess(
   if (!portal)
     return {
       decision: "not_found",
+      isOwner: false,
       paidPreview: null,
       portal: null,
       publication: null,
@@ -429,7 +431,13 @@ export async function resolvePortalAccess(
     hasActivePaidAccess: Boolean(hasActivePaidAccess),
   });
   if (decision !== "allowed")
-    return { decision, paidPreview, portal, publication: null };
+    return {
+      decision,
+      isOwner: userId === portal.owner_id,
+      paidPreview,
+      portal,
+      publication: null,
+    };
   let authorizedPublication = publication;
   if (
     portal.visibility === "paid" &&
@@ -445,6 +453,7 @@ export async function resolvePortalAccess(
   }
   return {
     decision,
+    isOwner: userId === portal.owner_id,
     paidPreview,
     portal,
     publication: authorizedPublication,

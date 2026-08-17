@@ -593,7 +593,11 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(bytes ? 1 : 0)} MB`;
 }
 
-export function PortalPlanStatus() {
+export function PortalPlanStatus({
+  triggerless = false,
+}: {
+  triggerless?: boolean;
+}) {
   const t = useTranslations("PortalEditor.plan");
   const { plan, refresh, requestUpgrade, snapshot, status } = usePortalPlan();
   const percent = storagePercent(
@@ -601,6 +605,13 @@ export function PortalPlanStatus() {
     snapshot.policy.storageBytes,
   );
   const [lastReadyPercent, setLastReadyPercent] = useState<number | null>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!triggerless) return;
+    const openPlan = () => setOpen(true);
+    window.addEventListener("portal-workspace:plan", openPlan);
+    return () => window.removeEventListener("portal-workspace:plan", openPlan);
+  }, [triggerless]);
   useEffect(() => {
     if (status === "ready") setLastReadyPercent(Math.round(percent));
   }, [percent, status]);
@@ -620,64 +631,67 @@ export function PortalPlanStatus() {
           });
 
   return (
-    <Popover>
-      <PopoverTrigger
-        render={
-          <Button
-            aria-label={label}
-            aria-disabled={status === "loading" || plan === "premium"}
-            className="rounded-full hover:bg-transparent dark:hover:bg-transparent"
-            onClick={() => {
-              if (status === "error") void refresh();
-            }}
-            size="icon-lg"
-            type="button"
-            variant="ghost"
-          />
-        }
-      >
-        <span className="relative size-7">
-          <svg
-            aria-label={storageLabel}
-            aria-valuemax={100}
-            aria-valuemin={0}
-            aria-valuenow={percent}
-            className="size-full -rotate-90"
-            role="progressbar"
-            viewBox="0 0 36 36"
-          >
-            <circle
-              className="fill-none stroke-muted"
-              cx="18"
-              cy="18"
-              pathLength="100"
-              r="15"
-              strokeWidth="4"
+    <Popover onOpenChange={setOpen} open={open}>
+      {!triggerless ? (
+        <PopoverTrigger
+          render={
+            <Button
+              aria-label={label}
+              aria-disabled={status === "loading" || plan === "premium"}
+              className="rounded-full hover:bg-transparent dark:hover:bg-transparent"
+              onClick={() => {
+                if (status === "error") void refresh();
+              }}
+              size="icon-lg"
+              type="button"
+              variant="ghost"
             />
-            <circle
-              className={cn(
-                "fill-none transition-[stroke-dashoffset,stroke] duration-300",
-                usageState === "empty" && "stroke-muted-foreground/40",
-                usageState === "normal" && "stroke-chart-2",
-                usageState === "warning" && "stroke-warning",
-                usageState === "exhausted" && "stroke-destructive",
-              )}
-              cx="18"
-              cy="18"
-              pathLength="100"
-              r="15"
-              strokeDasharray="100"
-              strokeDashoffset={100 - percent}
-              strokeLinecap="round"
-              strokeWidth="4"
-            />
-          </svg>
-          <span className="absolute inset-0 flex items-center justify-center font-medium text-[9px] tabular-nums">
-            {lastReadyPercent ?? (status === "ready" ? Math.round(percent) : 0)}
+          }
+        >
+          <span className="relative size-7">
+            <svg
+              aria-label={storageLabel}
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={percent}
+              className="size-full -rotate-90"
+              role="progressbar"
+              viewBox="0 0 36 36"
+            >
+              <circle
+                className="fill-none stroke-muted"
+                cx="18"
+                cy="18"
+                pathLength="100"
+                r="15"
+                strokeWidth="4"
+              />
+              <circle
+                className={cn(
+                  "fill-none transition-[stroke-dashoffset,stroke] duration-300",
+                  usageState === "empty" && "stroke-muted-foreground/40",
+                  usageState === "normal" && "stroke-chart-2",
+                  usageState === "warning" && "stroke-warning",
+                  usageState === "exhausted" && "stroke-destructive",
+                )}
+                cx="18"
+                cy="18"
+                pathLength="100"
+                r="15"
+                strokeDasharray="100"
+                strokeDashoffset={100 - percent}
+                strokeLinecap="round"
+                strokeWidth="4"
+              />
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center font-medium text-[9px] tabular-nums">
+              {lastReadyPercent ??
+                (status === "ready" ? Math.round(percent) : 0)}
+            </span>
           </span>
-        </span>
-        <span className="sr-only">{label}</span>
-      </PopoverTrigger>
+          <span className="sr-only">{label}</span>
+        </PopoverTrigger>
+      ) : null}
       <PopoverContent className="w-72" side="top">
         {status === "ready" ? (
           <div className="flex flex-col gap-3">

@@ -49,15 +49,17 @@ export function PortalImageVisual({
   dragHandleRef,
   image,
   isDragging = false,
+  showDefaultCaption = true,
 }: {
   actions?: PortalAction[];
   caption?: ReactNode;
   dragHandleRef?: (element: Element | null) => void;
   image: PortalImageItem;
   isDragging?: boolean;
+  showDefaultCaption?: boolean;
 }) {
   const t = useTranslations("PortalViewer.actions");
-  const alt = image.alt_text || t("imageFallback");
+  const alt = image.alt_text || image.display_name || t("imageFallback");
 
   if (!image.image_url.trim()) return null;
 
@@ -113,7 +115,12 @@ export function PortalImageVisual({
           </div>
         </DialogContent>
       </Dialog>
-      {caption ?? null}
+      {caption ??
+        (showDefaultCaption && image.display_name ? (
+          <figcaption className="text-muted-foreground text-sm">
+            {image.display_name}
+          </figcaption>
+        ) : null)}
     </figure>
   );
 }
@@ -149,14 +156,15 @@ function PortalGalleryVisual({
         <PortalImageVisual
           actions={actions?.image?.({ item: image, section })}
           caption={
-            isComparison && image.alt_text ? (
+            isComparison && (image.display_name || image.alt_text) ? (
               <figcaption className="text-muted-foreground text-sm">
-                {image.alt_text}
+                {image.display_name || image.alt_text}
               </figcaption>
             ) : null
           }
           image={image}
           key={image.id}
+          showDefaultCaption={isComparison}
         />
       ))}
     </div>
@@ -313,7 +321,7 @@ function PortalFilesVisual({
           >
             <div className="block">
               <PortalFilePreview
-                fileName={file.file_name}
+                fileName={file.display_name || file.file_name}
                 fileUrl={file.file_url}
                 type={
                   file.file_type ??

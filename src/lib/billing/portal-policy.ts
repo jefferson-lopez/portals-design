@@ -73,7 +73,7 @@ export const PORTAL_PLANS: Record<PortalPlan, PortalPlanPolicy> = {
       colors: { items: 10, sections: 1 },
       files: { items: 10, sections: 1 },
       fonts: { items: 3, sections: 1 },
-      gallery: { items: 10, sections: 1 },
+      gallery: { items: 10, sections: 2 },
       image: { sections: 1 },
       text: { sections: 2 },
     },

@@ -31,7 +31,10 @@ import {
   type PortalSectionType,
 } from "@/lib/portal/document";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
-import { portalExportHref } from "@/lib/portal/export-manifest";
+import {
+  portalExportHref,
+  type PortalExportSource,
+} from "@/lib/portal/export-manifest";
 import { deleteManagedPortalAsset } from "@/lib/portal/portal-assets-client";
 import {
   focusPortalSectionTitle,
@@ -102,8 +105,13 @@ function itemDownloadHref(slug: string, itemId: string) {
   return `/api/portals/${encodeURIComponent(slug)}/assets/${encodeURIComponent(itemId)}`;
 }
 
-function sectionExportHref(slug: string, sectionId: string) {
+function sectionExportHref(
+  slug: string,
+  sectionId: string,
+  exportSource?: PortalExportSource,
+) {
   const params = new URLSearchParams({ section: sectionId });
+  if (exportSource === "editor") params.set("source", exportSource);
   return `/api/portals/${encodeURIComponent(slug)}/export?${params.toString()}`;
 }
 
@@ -111,8 +119,10 @@ function fontFamilyExportHref(
   slug: string,
   sectionId: string,
   fontFamily: string,
+  exportSource?: PortalExportSource,
 ) {
   const params = new URLSearchParams({ fontFamily, section: sectionId });
+  if (exportSource === "editor") params.set("source", exportSource);
   return `/api/portals/${encodeURIComponent(slug)}/export?${params.toString()}`;
 }
 
@@ -125,6 +135,7 @@ function hasDownloadReference(value: {
 
 function buildPublicActions({
   copy,
+  exportSource,
   slots,
   slug,
 }: PortalPublicActionConfig & {
@@ -163,7 +174,7 @@ function buildPublicActions({
               href: itemDownloadHref(slug, item.id),
               icon: "download",
               id: `download-${item.id}`,
-              label: copy.downloadFile(item.file_name),
+              label: copy.downloadFile(item.display_name || item.file_name),
             },
           ]
         : [],
@@ -174,7 +185,12 @@ function buildPublicActions({
         ? [
             {
               download: true,
-              href: fontFamilyExportHref(slug, section.id, item.font_name),
+              href: fontFamilyExportHref(
+                slug,
+                section.id,
+                item.font_name,
+                exportSource,
+              ),
               icon: "download",
               id: `download-font-family-${section.id}-${item.font_name}`,
               label: copy.downloadFont(item.font_name),
@@ -186,7 +202,7 @@ function buildPublicActions({
         ? [
             {
               download: true,
-              href: portalExportHref(slug),
+              href: portalExportHref(slug, exportSource),
               icon: "export",
               id: "export-all",
               label: copy.exportAll,
@@ -205,7 +221,9 @@ function buildPublicActions({
               href: itemDownloadHref(slug, item.id),
               icon: "download",
               id: `download-${item.id}`,
-              label: copy.downloadImage(item.alt_text || copy.imageFallback),
+              label: copy.downloadImage(
+                item.display_name || item.alt_text || copy.imageFallback,
+              ),
             },
           ]
         : [],
@@ -216,7 +234,7 @@ function buildPublicActions({
         ? [
             {
               download: true,
-              href: sectionExportHref(slug, section.id),
+              href: sectionExportHref(slug, section.id, exportSource),
               icon: "download",
               id: `download-section-${section.id}`,
               label: copy.downloadSection(
@@ -716,6 +734,7 @@ export function RenderPortal({
                   editor ? (
                     <SectionActionToolbar
                       onRemove={() => removeEditableSection(section.id)}
+                      portalId={editor.portalId}
                       section={section}
                       updateSection={updateEditableSection}
                     />

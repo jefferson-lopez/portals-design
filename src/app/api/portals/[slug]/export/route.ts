@@ -111,6 +111,13 @@ async function createResponse(
     }
     portal = access.portal;
     publishedDocument = await getAuthorizedDocument(access);
+    if (!publishedDocument && access.portal.status === "draft") {
+      const editorExport = await resolveEditorExport(slug);
+      if (editorExport) {
+        portal = editorExport.portal;
+        publishedDocument = editorExport.document;
+      }
+    }
   }
   const rawDocument = selectPortalExportDocument({
     current: currentDocument,
@@ -134,24 +141,6 @@ async function createResponse(
     storageOrigin: getSupabaseEnv().url,
   });
   let manifest = selectManifestScope(complete, scope);
-  if (scope.kind === "portal") {
-    const colorEntries = manifest.entries.filter(
-      (entry) => entry.category === "colors",
-    );
-    if (colorEntries.length > 1) {
-      manifest = {
-        ...manifest,
-        entries: [
-          ...manifest.entries.filter((entry) => entry.category !== "colors"),
-          {
-            ...colorEntries[0],
-            destination: "colors/colors.txt",
-            text: colorEntries.map((entry) => entry.text ?? "").join(""),
-          },
-        ],
-      };
-    }
-  }
   if (!portal.allow_asset_downloads)
     manifest = {
       ...manifest,

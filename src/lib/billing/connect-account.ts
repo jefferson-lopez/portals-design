@@ -4,6 +4,7 @@ export type ConnectAccountStatus = {
   detailsSubmitted: boolean;
   chargesEnabled: boolean;
   payoutsEnabled: boolean;
+  verificationState: "active" | "needs_information" | "processing";
 };
 
 /**
@@ -15,10 +16,22 @@ export function getConnectAccountStatus(
   account: Stripe.V2.Core.Account,
 ): ConnectAccountStatus {
   const merchant = account.configuration?.merchant;
+  const requirements = account.requirements?.entries ?? [];
+  const detailsSubmitted = Boolean(account.identity?.entity_type);
+  const chargesEnabled =
+    merchant?.capabilities?.card_payments?.status === "active";
+  const payoutsEnabled =
+    merchant?.capabilities?.stripe_balance?.payouts?.status === "active";
+  const verificationState =
+    detailsSubmitted && chargesEnabled && payoutsEnabled
+      ? "active"
+      : requirements.some((entry) => entry.awaiting_action_from === "user")
+        ? "needs_information"
+        : "processing";
   return {
-    detailsSubmitted: Boolean(account.identity?.entity_type),
-    chargesEnabled: merchant?.capabilities?.card_payments?.status === "active",
-    payoutsEnabled:
-      merchant?.capabilities?.stripe_balance?.payouts?.status === "active",
+    chargesEnabled,
+    detailsSubmitted,
+    payoutsEnabled,
+    verificationState,
   };
 }

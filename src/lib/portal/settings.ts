@@ -19,6 +19,13 @@ export function normalizeSlug(value: string) {
     .slice(0, 80);
 }
 
+export function createUniqueSlugCandidate(value: string, suffix: string) {
+  const slug = normalizeSlug(value);
+  const normalizedSuffix = normalizeSlug(suffix).slice(0, 12);
+  const availableLength = Math.max(1, 80 - normalizedSuffix.length - 1);
+  return `${slug.slice(0, availableLength).replace(/-+$/, "")}-${normalizedSuffix}`;
+}
+
 export function validateSlug(value: string): ValidationResult {
   if (value.length < 1 || value.length > 80 || !SLUG_RE.test(value)) {
     return {

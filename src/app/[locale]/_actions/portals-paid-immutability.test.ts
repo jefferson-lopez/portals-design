@@ -10,8 +10,14 @@ test("rejects paid access changes on the server", () => {
   expect(source).toContain('t("paidPortalImmutable")');
 });
 
-test("rejects paid portal deletion before removing files", () => {
+test("protects paid portal deletion after a purchase and before removing files", () => {
   expect(source).toContain('.select("id,slug,visibility")');
   expect(source).toContain('portal.visibility === "paid"');
-  expect(source).toContain('return { error: "paidPortalProtected" } as const');
+  expect(source).toContain('.from("paid_portal_purchases")');
+  expect(source).toContain(
+    'return { error: "portalPurchaseProtected" } as const',
+  );
+  expect(source.indexOf('.from("paid_portal_purchases")')).toBeLessThan(
+    source.indexOf('.from("portal_assets")'),
+  );
 });

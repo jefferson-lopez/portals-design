@@ -1,7 +1,10 @@
 import { expect, test } from "bun:test";
 
 const page = await Bun.file(
-  new URL("../../app/[locale]/create/[portalId]/page.tsx", import.meta.url),
+  new URL(
+    "../../app/[locale]/(workspace)/create/[portalId]/page.tsx",
+    import.meta.url,
+  ),
 ).text();
 const controls = await Bun.file(
   new URL("./portal-workspace-controls.tsx", import.meta.url),
@@ -155,6 +158,14 @@ test("sidebar export uses the portal ZIP action instead of depending on Files", 
   expect(publicPage).toContain("portalExportHref(slug)");
   expect(publicPage).toContain("portal.allow_downloads");
   expect(renderer).toContain("portalExportHref(slug)");
+});
+
+test("draft owners export the current document while public exports stay published", () => {
+  expect(publicPage).toContain("const exportSource =");
+  expect(publicPage).toContain("access.isOwner");
+  expect(publicPage).toContain('portal.status === "draft"');
+  expect(publicPage).toContain('portalExportHref(slug, exportSource)');
+  expect(renderer).toContain("portalExportHref(slug, exportSource)");
 });
 
 test("storage status opens a usage popover with an upgrade action", () => {

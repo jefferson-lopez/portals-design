@@ -1,31 +1,23 @@
-import { IconArrowLeft, IconExternalLink } from "@tabler/icons-react";
 import { notFound, redirect } from "next/navigation";
-import { getTranslations, setRequestLocale } from "next-intl/server";
+import { setRequestLocale } from "next-intl/server";
+import { PortalAiDialog } from "@/components/portal/portal-ai-dialog";
 import {
   PortalPlanProvider,
   PortalPlanStatus,
 } from "@/components/portal/portal-plan-provider";
 import {
-  PortalDocumentSidebar,
   SectionOrderPopover,
   SettingsDialog,
-  UnpublishedChangesIndicator,
 } from "@/components/portal/portal-workspace-controls";
+import { PortalWorkspaceToolbar } from "@/components/portal/portal-workspace-toolbar";
 import { PublishPortalButton } from "@/components/portal/publish-portal-button";
 import { RenderPortal } from "@/components/portal/render-portal";
-import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Link } from "@/i18n/navigation";
+import { WorkspaceProjectRegistration } from "@/components/portal/workspace-sidebar";
 import {
   normalizePortalDocument,
   type PortalDocument,
   portalBlocksToDocument,
 } from "@/lib/portal/document";
-import { portalExportHref } from "@/lib/portal/export-manifest";
 import { prepareDocumentForRendering } from "@/lib/portal/server-assets";
 import type { Json, Portal, PortalBlock } from "@/lib/supabase/database.types";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
@@ -224,93 +216,47 @@ export default async function CreatePortalPage({
   const { focus } = await searchParams;
 
   setRequestLocale(locale);
-  const t = await getTranslations({
-    locale,
-    namespace: "PortalEditor.workspace",
-  });
-
   const { document, hasUnpublishedChanges, paidPriceCents, portal } =
     await getWorkspace(locale, portalId);
   return (
     <PortalPlanProvider locale={locale} portalId={portal.id}>
-      <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2">
-        <div className="flex items-center gap-2 rounded-full border border-border/80 bg-background/80 p-3 shadow-lg backdrop-blur">
-          <Link className="md:hidden" href="/home">
-            <Button
-              aria-label={t("back")}
-              className="rounded-full"
-              size="icon-lg"
-              variant="secondary"
-            >
-              <IconArrowLeft />
-              <span className="sr-only">{t("back")}</span>
-            </Button>
-          </Link>
-          <Link className="hidden md:inline-flex" href="/home">
-            <Button className="rounded-full" size="lg" variant="secondary">
-              <IconArrowLeft data-icon="inline-start" />
-              {t("back")}
-            </Button>
-          </Link>
-          <div aria-hidden="true" className="h-6 w-px bg-border" />
-          <SettingsDialog
-            initialPaidPriceCents={paidPriceCents}
-            locale={locale}
-            portal={portal}
-          />
-          {portal.status === "published" ? (
-            <Tooltip>
-              <TooltipTrigger render={<span />}>
-                <Link
-                  href={`/p/${portal.slug}`}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  <Button
-                    aria-label={t("openPublished")}
-                    className="rounded-full"
-                    size="icon-lg"
-                    variant="ghost"
-                  >
-                    <IconExternalLink data-icon="inline-start" />
-                    <span className="sr-only">{t("openPublished")}</span>
-                  </Button>
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent>{t("openPreview")}</TooltipContent>
-            </Tooltip>
-          ) : null}
-          <SectionOrderPopover document={document} portalId={portal.id} />
-          <PortalPlanStatus />
-          <div aria-hidden="true" className="h-6 w-px bg-border" />
-          <PublishPortalButton
-            initialHasUnpublishedChanges={hasUnpublishedChanges}
-            locale={locale}
-            portalId={portal.id}
-          />
-        </div>
-        <UnpublishedChangesIndicator
+      <WorkspaceProjectRegistration
+        project={{
+          id: portal.id,
+          name: portal.name,
+        }}
+      />
+      <PortalWorkspaceToolbar
+        initialHasUnpublishedChanges={hasUnpublishedChanges}
+        portalId={portal.id}
+        portalSlug={portal.slug}
+      />
+      <SectionOrderPopover
+        document={document}
+        portalId={portal.id}
+        triggerless
+      />
+      <div className="hidden">
+        <SettingsDialog
+          initialPaidPriceCents={paidPriceCents}
+          locale={locale}
+          portal={portal}
+          triggerless
+        />
+        <PortalPlanStatus triggerless />
+        <PortalAiDialog portalId={portal.id} triggerless />
+        <PublishPortalButton
           initialHasUnpublishedChanges={hasUnpublishedChanges}
+          locale={locale}
           portalId={portal.id}
+          triggerless
         />
       </div>
-
       <RenderPortal
+        className="min-h-0"
         document={document}
         editable
         editor={{ focus, locale, portalId: portal.id }}
-        sidebar={
-          <PortalDocumentSidebar
-            document={document}
-            exportHref={
-              portal.allow_downloads
-                ? portalExportHref(portal.slug, "editor")
-                : undefined
-            }
-            locale={locale}
-            portalId={portal.id}
-          />
-        }
       />
     </PortalPlanProvider>
   );

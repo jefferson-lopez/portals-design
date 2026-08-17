@@ -24,7 +24,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { confirmPaidPortalCheckout } from "@/lib/billing/confirm-paid-portal-checkout";
 import {
-  createDefaultPortalDocument,
   hasPublicSectionContent,
   normalizePortalDocument,
   type PortalDocument,
@@ -39,9 +38,7 @@ import {
   buildPortalMetadata,
   resolvePortalSharePresentation,
 } from "@/lib/public-metadata";
-import type { Json } from "@/lib/supabase/database.types";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
-import { createClient } from "@/lib/supabase/server";
 
 type Props = {
   params: Promise<{ locale: string; slug: string }>;
@@ -162,17 +159,6 @@ export default async function PublicPortalPage({
   if (snapshotDocument)
     document = normalizePortalDocument(snapshotDocument, fallback);
 
-  if (!document && access.portal.status === "draft") {
-    const supabase = await createClient();
-    const { data: row } = await supabase
-      .from("portal_documents")
-      .select("document")
-      .eq("portal_id", access.portal.id)
-      .maybeSingle();
-    if (row?.document && typeof row.document === "object")
-      document = normalizePortalDocument(row.document as Json, fallback);
-    if (!document) document = createDefaultPortalDocument(fallback);
-  }
   if (!document) notFound();
   const renderDocument = await prepareDocumentForRendering(document, {
     ownerId: access.portal.owner_id,
@@ -185,6 +171,7 @@ export default async function PublicPortalPage({
       hasPublicSectionContent(section),
   );
   const portal = access.portal;
+  const exportSource = "published" as const;
 
   return (
     <PortalEntryTransition
@@ -195,6 +182,7 @@ export default async function PublicPortalPage({
         document={renderDocument}
         actionConfig={{
           public: {
+            exportSource,
             slug,
             slots: {
               global: { exportAssets: portal.allow_downloads },
@@ -211,7 +199,9 @@ export default async function PublicPortalPage({
         sidebar={
           <PortalDocumentSidebarReadOnly
             exportHref={
-              portal.allow_downloads ? portalExportHref(slug) : undefined
+              portal.allow_downloads
+                ? portalExportHref(slug, exportSource)
+                : undefined
             }
             sectionIds={visibleSections.map((section) => section.id)}
             sections={visibleSections}

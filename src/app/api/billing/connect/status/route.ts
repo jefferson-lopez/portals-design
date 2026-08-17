@@ -31,13 +31,24 @@ export async function GET(request: Request) {
     .select("stripe_account_id")
     .eq("owner_id", userData.user.id)
     .maybeSingle()) as { data: { stripe_account_id: string } | null };
-  if (!account) return NextResponse.json({ connected: false });
+  if (!account) {
+    return NextResponse.json({
+      accountExists: false,
+      connected: false,
+      requirementsPending: 0,
+      verificationState: "not_started",
+    });
+  }
   const stripeAccount = await getStripe().v2.core.accounts.retrieve(
     account.stripe_account_id,
     { include: ["configuration.merchant", "identity", "requirements"] },
   );
-  const { detailsSubmitted, chargesEnabled, payoutsEnabled } =
-    getConnectAccountStatus(stripeAccount);
+  const {
+    detailsSubmitted,
+    chargesEnabled,
+    payoutsEnabled,
+    verificationState,
+  } = getConnectAccountStatus(stripeAccount);
   const onboardingStatus =
     detailsSubmitted && chargesEnabled && payoutsEnabled
       ? "complete"
@@ -57,10 +68,14 @@ export async function GET(request: Request) {
   return NextResponse.json({
     accountId: account.stripe_account_id,
     accountEmail: stripeAccount.contact_email ?? null,
+    accountExists: true,
     chargesEnabled,
     connected: onboardingStatus === "complete",
     country: stripeAccount.identity?.country ?? null,
+    detailsSubmitted,
     displayName: stripeAccount.display_name ?? null,
     payoutsEnabled,
+    requirementsPending: stripeAccount.requirements?.entries?.length ?? 0,
+    verificationState,
   });
 }

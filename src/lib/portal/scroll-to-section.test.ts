@@ -61,6 +61,7 @@ describe("publication target focus", () => {
       scrollIntoView: () => calls.push("scroll"),
     };
     const document = {
+      getElementById: () => null,
       querySelector: (selector: string) =>
         selector === "[data-portal-name]" ? field : null,
     };
@@ -89,6 +90,7 @@ describe("publication target focus", () => {
   test("requests the add-section dialog after focusing its trigger", () => {
     const events: Event[] = [];
     const document = {
+      getElementById: () => null,
       querySelector: (selector: string) =>
         selector === "[data-portal-add-section]"
           ? { focus: () => undefined }

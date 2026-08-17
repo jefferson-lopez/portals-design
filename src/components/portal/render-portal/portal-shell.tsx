@@ -12,10 +12,17 @@ export function PortalShell({
 }) {
   return (
     <main className={cn("min-h-dvh bg-background text-foreground", className)}>
-      <div className="mx-auto grid max-w-[900px] gap-8 px-6 py-8 lg:grid-cols-[240px_1fr]">
+      <div
+        className={cn(
+          "mx-auto grid w-full gap-8 px-6 py-8",
+          sidebar
+            ? "max-w-[900px] lg:grid-cols-[240px_1fr]"
+            : "max-w-[900px] lg:max-w-[calc(900px-240px-2rem)]",
+        )}
+      >
         {sidebar ? (
           <aside className="hidden lg:block">
-            <div className="fixed top-8 bottom-8 left-[max(1.5rem,calc((100vw-900px)/2+1.5rem))] w-60">
+            <div className="sticky top-8 h-[calc(100dvh-4rem)] w-60">
               {sidebar}
             </div>
           </aside>

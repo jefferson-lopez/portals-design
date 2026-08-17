@@ -780,6 +780,53 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      ai_credit_cost: {
+        Args: {
+          target_operation: Database["public"]["Enums"]["ai_credit_operation"];
+        };
+        Returns: number;
+      };
+      complete_ai_credits: {
+        Args: {
+          target_request_id: string;
+          target_status: Database["public"]["Enums"]["ai_credit_entry_status"];
+        };
+        Returns: boolean;
+      };
+      get_ai_credit_balance: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          available: number;
+          consumed: number;
+          monthly: number;
+          refunded: number;
+        }[];
+      };
+      reserve_ai_credits: {
+        Args: {
+          target_operation: Database["public"]["Enums"]["ai_credit_operation"];
+          target_request_id: string;
+        };
+        Returns: {
+          amount: number;
+          available: number;
+          ok: boolean;
+          reason: string | null;
+        }[];
+      };
+      apply_ai_portal_document: {
+        Args: {
+          proposed_document: Json;
+          target_operation: Database["public"]["Enums"]["ai_credit_operation"];
+          target_portal_id: string;
+          target_request_id: string;
+        };
+        Returns: {
+          document: Json;
+          ok: boolean;
+          operation_id: string;
+        }[];
+      };
       apply_paid_portal_payment_event: {
         Args: {
           event_amount_total: number;
@@ -1402,6 +1449,8 @@ export type Database = {
       };
     };
     Enums: {
+      ai_credit_entry_status: "reserved" | "committed" | "refunded";
+      ai_credit_operation: "generate" | "improve-project" | "refine-copy";
       portal_asset_state: "reserved" | "ready";
       portal_block_type:
         | "text"
@@ -1575,6 +1624,8 @@ export const Constants = {
         "complete",
         "restricted",
       ],
+      ai_credit_entry_status: ["reserved", "committed", "refunded"],
+      ai_credit_operation: ["generate", "improve-project", "refine-copy"],
       paid_portal_purchase_status: [
         "pending",
         "paid",

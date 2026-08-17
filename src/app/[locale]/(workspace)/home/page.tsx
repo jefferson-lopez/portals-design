@@ -3,7 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { PortalHome } from "@/components/portal/portal-home";
 import { isStripeConnectCountry } from "@/lib/billing/connect-countries";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
-import { getHomePortals } from "../_actions/portals";
+import { getHomePortals } from "../../_actions/portals";
 
 type Props = {
   params: Promise<{ locale: string }>;
@@ -49,6 +49,24 @@ export default async function HomePage({ params, searchParams }: Props) {
           visibilityPublic: t("create.visibilityPublic"),
           submit: t("create.submit"),
           title: t("create.title"),
+          stepProject: t("create.stepProject"),
+          stepFiles: t("create.stepFiles"),
+          stepReview: t("create.stepReview"),
+          descriptionLabel: t("create.descriptionLabel"),
+          descriptionPlaceholder: t("create.descriptionPlaceholder"),
+          languageLabel: t("create.languageLabel"),
+          toneLabel: t("create.toneLabel"),
+          toneProfessional: t("create.toneProfessional"),
+          toneEditorial: t("create.toneEditorial"),
+          toneMinimal: t("create.toneMinimal"),
+          colorsLabel: t("create.colorsLabel"),
+          preferencesLabel: t("create.preferencesLabel"),
+          filesLabel: t("create.filesLabel"),
+          filesDescription: t("create.filesDescription"),
+          fileDescriptionPlaceholder: t("create.fileDescriptionPlaceholder"),
+          back: t("create.back"),
+          next: t("create.next"),
+          review: t("create.review"),
         },
         connect: {
           active: t("connect.active"),
@@ -69,9 +87,15 @@ export default async function HomePage({ params, searchParams }: Props) {
           error: t("connect.error"),
           inactive: t("connect.inactive"),
           profile: t("connect.profile"),
+          activeShort: t("connect.activeShort"),
+          status: t("connect.status"),
           payouts: t("connect.payouts"),
           dashboard: t("connect.dashboard"),
           activeTitle: t("connect.activeTitle"),
+          processing: t("connect.processing"),
+          needsInformation: t("connect.needsInformation"),
+          requirementsPending: t.raw("connect.requirementsPending") as string,
+          continue: t("connect.continue"),
           loading: t("connect.loading"),
           trigger: t("connect.trigger"),
         },
@@ -98,18 +122,23 @@ export default async function HomePage({ params, searchParams }: Props) {
           createPortal: t("header.createPortal"),
           signOut: t("header.signOut"),
         },
-        intro: {
-          portalCount: t("intro.portalCount", {
-            count: initialResult.portals.length,
-          }),
-          title: t("intro.title"),
-        },
+        searchPlaceholder: t("searchPlaceholder"),
+        searchClearLabel: t("searchClearLabel"),
         portal: {
           edit: t("portal.edit"),
           lastEdited: t("portal.lastEdited"),
+          usage: t("portal.usage"),
           view: t("portal.view"),
+          purchasedAt: t("portal.purchasedAt"),
+          plan: {
+            free: t("portal.plan.free"),
+            starter: t("portal.plan.starter"),
+            pro: t("portal.plan.pro"),
+            premium: t("portal.plan.premium"),
+          },
           visibility: {
             paid: t("portal.visibility.paid"),
+            password: t("portal.visibility.password"),
             private: t("portal.visibility.private"),
             public: t("portal.visibility.public"),
             purchased: t("portal.visibility.purchased"),

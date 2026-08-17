@@ -1,3 +1,4 @@
+import type { FieldOrigin } from "@/lib/portal/ai";
 import type { Json, Portal, PortalBlock } from "@/lib/supabase/database.types";
 
 export type PortalSectionType =
@@ -28,12 +29,27 @@ export type PortalImageItem = {
   allow_download: boolean;
   alt_text: string;
   aspect_ratio: ImageAspectRatio;
+  display_name?: string;
+  download_name?: string;
   fit: ImageFit;
+  height?: number;
   id: string;
   image_url: string;
   position: number;
   storage_path?: string;
   visible: boolean;
+  width?: number;
+  field_origins?: Partial<
+    Record<
+      | "fit"
+      | "aspect_ratio"
+      | "alt_text"
+      | "display_name"
+      | "download_name"
+      | "visible",
+      FieldOrigin
+    >
+  >;
 };
 
 export type PortalColorItem = {
@@ -51,6 +67,11 @@ export type PortalFontItem = {
   asset_id?: string;
   display_weight?: string;
   file_name?: string;
+  display_name?: string;
+  download_name?: string;
+  field_origins?: Partial<
+    Record<"display_name" | "download_name", FieldOrigin>
+  >;
   storage_path?: string;
   file_url?: string;
   font_name: string;
@@ -89,6 +110,12 @@ export type PortalFileType =
 export type PortalFileItem = {
   asset_id?: string;
   allow_download: boolean;
+  description?: string;
+  display_name?: string;
+  download_name?: string;
+  field_origins?: Partial<
+    Record<"display_name" | "download_name", FieldOrigin>
+  >;
   file_name: string;
   file_size?: string;
   file_type?: PortalFileType;
@@ -119,6 +146,12 @@ export type PortalSection = {
   title: string;
   type: PortalSectionType;
   visible: boolean;
+  field_origins?: Partial<
+    Record<
+      "title" | "description" | "position" | "layout" | "visible",
+      FieldOrigin
+    >
+  >;
 };
 
 export type PortalDocument = {
@@ -147,6 +180,14 @@ function getBoolean(value: unknown, fallback = true) {
 }
 function getNumber(value: unknown, fallback = 0) {
   return typeof value === "number" ? value : fallback;
+}
+function normalizeFieldOrigins(value: unknown) {
+  const record = asRecord(value);
+  return Object.fromEntries(
+    Object.entries(record).filter(
+      ([, origin]) => origin === "ai" || origin === "manual",
+    ),
+  ) as Record<string, "ai" | "manual">;
 }
 function getId(prefix: string) {
   return `${prefix}_${crypto.randomUUID()}`;
@@ -286,6 +327,7 @@ export function normalizeSection(value: unknown, index = 0): PortalSection {
     title: getString(record.title),
     type,
     visible: getBoolean(record.visible, true),
+    field_origins: normalizeFieldOrigins(record.field_origins),
   };
 }
 
@@ -403,28 +445,48 @@ function normalizeImageItem(
     aspect_ratio: ["auto", "1/1", "4/3", "16/9", "21/9"].includes(aspectRatio)
       ? (aspectRatio as ImageAspectRatio)
       : "auto",
+    display_name: getString(record.display_name) || undefined,
+    download_name: getString(record.download_name) || undefined,
     fit: ["cover", "contain", "fill", "auto"].includes(fit)
       ? (fit as ImageFit)
       : "cover",
+    height:
+      typeof record.height === "number" && record.height > 0
+        ? record.height
+        : undefined,
     id: getString(record.id) || getId("img"),
     image_url: imageUrl,
     position: getNumber(record.position, index),
     storage_path: getString(record.storage_path) || getString(record.path),
     visible: getBoolean(record.visible, true),
+    width:
+      typeof record.width === "number" && record.width > 0
+        ? record.width
+        : undefined,
+    field_origins: normalizeFieldOrigins(record.field_origins),
   };
 }
 function normalizeColorItems(value: unknown): PortalColorItem[] {
   if (!Array.isArray(value)) return [];
+  const usedIds = new Set<string>();
   return value
     .map((item, index) => {
       const record = asRecord(item);
+      const requestedId = getString(record.id) || getId("color");
+      let id = requestedId;
+      let duplicateIndex = 1;
+      while (usedIds.has(id)) {
+        id = `${requestedId}_${duplicateIndex}`;
+        duplicateIndex += 1;
+      }
+      usedIds.add(id);
       return {
         cmyk: getString(record.cmyk),
         color_code:
           getString(record.color_code) || getString(record.hex) || "#111111",
         color_name:
           getString(record.color_name) || getString(record.name) || "Color",
-        id: getString(record.id) || getId("color"),
+        id,
         pantone: getString(record.pantone),
         position: getNumber(record.position, index),
         rgb: getString(record.rgb),
@@ -459,6 +521,8 @@ function normalizeFontItems(value: unknown): PortalFontItem[] {
         id: getString(record.id) || getId("font"),
         position: getNumber(record.position, index),
         display_weight: getString(record.display_weight),
+        display_name: getString(record.display_name) || undefined,
+        download_name: getString(record.download_name) || undefined,
         file_name: getString(record.file_name),
         provider: getString(record.provider),
         sample_description: getString(record.sample_description),
@@ -502,7 +566,15 @@ function normalizeFileItems(value: unknown): PortalFileItem[] {
       return {
         asset_id: getString(record.asset_id) || undefined,
         allow_download: getBoolean(record.allow_download, true),
+        description: getString(record.description),
+        display_name: getString(record.display_name) || undefined,
+        download_name: getString(record.download_name) || undefined,
         file_name: getString(record.file_name) || "Archivo",
+        field_origins: {
+          display_name: getString(record.display_name)
+            ? ("ai" as const)
+            : undefined,
+        },
         file_size: getString(record.file_size),
         file_type: normalizeFileType(record.file_type),
         file_url: getString(record.file_url),

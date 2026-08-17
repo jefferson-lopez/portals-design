@@ -16,3 +16,11 @@ export function getStripeWebhookSecret() {
   if (!secret) throw new Error("Missing STRIPE_WEBHOOK_SECRET");
   return secret;
 }
+
+export function getStripeConnectWebhookSecret() {
+  const secret =
+    process.env.STRIPE_CONNECT_WEBHOOK_SECRET ??
+    process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) throw new Error("Missing STRIPE_CONNECT_WEBHOOK_SECRET");
+  return secret;
+}

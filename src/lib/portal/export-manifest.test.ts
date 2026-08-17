@@ -109,7 +109,7 @@ describe("export manifest", () => {
       storageOrigin: "https://project.supabase.co",
     });
     expect(manifest.entries.map((entry) => entry.destination)).toEqual([
-      "colors/colors.txt",
+      "colors/Palette/colors.txt",
       "images/Hero-shots/image-1.png",
     ]);
     expect(buildColorsText(document.sections[0])).toBe(
@@ -283,8 +283,35 @@ describe("export manifest", () => {
     expect(
       selectManifestScope(manifest, { kind: "portal" }).entries,
     ).toContainEqual(
-      expect.objectContaining({ destination: "colors/colors.txt" }),
+      expect.objectContaining({ destination: "colors/Palette/colors.txt" }),
     );
+  });
+
+  test("keeps each color section in its own export folder", () => {
+    const secondColorsSection = {
+      ...document.sections[0],
+      id: "colors-secondary",
+      position: 2,
+      title: "Secondary palette",
+    };
+    const manifest = buildExportManifest(
+      { ...document, sections: [...document.sections, secondColorsSection] },
+      {
+        portalId: "p",
+        ownerId: "u",
+        slug: "acme",
+        storageOrigin: "https://project.supabase.co",
+      },
+    );
+
+    expect(
+      manifest.entries
+        .filter((entry) => entry.category === "colors")
+        .map((entry) => entry.destination),
+    ).toEqual([
+      "colors/Palette/colors.txt",
+      "colors/Secondary-palette/colors.txt",
+    ]);
   });
 
   test("sanitizes traversal and deduplicates names", () => {

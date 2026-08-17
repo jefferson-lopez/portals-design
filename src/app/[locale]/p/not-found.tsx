@@ -1,25 +1,14 @@
-import { IconFolderCode } from "@tabler/icons-react";
 import { getTranslations } from "next-intl/server";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { RouteNotFound } from "@/components/route-not-found";
+
 export default async function NotFound() {
   const t = await getTranslations("PublicPortal.notFound");
   return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
-      <Empty>
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <IconFolderCode />
-          </EmptyMedia>
-          <EmptyTitle>{t("title")}</EmptyTitle>
-          <EmptyDescription>{t("description")}</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    </main>
+    <RouteNotFound
+      description={t("description")}
+      goHomeLabel={t("goHome")}
+      title={t("title")}
+      viewProjectsLabel={t("viewProjects")}
+    />
   );
 }

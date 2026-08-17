@@ -3,8 +3,11 @@ import { describe, expect, test } from "bun:test";
 const source = await Bun.file(
   new URL("./portal-home.tsx", import.meta.url),
 ).text();
+const creationSource = await Bun.file(
+  new URL("./portal-creation-questionnaire.tsx", import.meta.url),
+).text();
 const pageSource = await Bun.file(
-  new URL("../../app/[locale]/home/page.tsx", import.meta.url),
+  new URL("../../app/[locale]/(workspace)/home/page.tsx", import.meta.url),
 ).text();
 const globalStyles = await Bun.file(
   new URL("../../app/globals.css", import.meta.url),
@@ -28,9 +31,6 @@ describe("PortalHome", () => {
 
     for (const messages of [english.Home, spanish.Home]) {
       expect(messages).toBeDefined();
-      expect(messages.intro.title).toBeString();
-      expect(messages.intro.eyebrow).toBeUndefined();
-      expect(messages.intro.description).toBeUndefined();
       expect(messages.create.title).toBeString();
       expect(messages.create.visibilityLabel).toBeString();
       expect(messages.create.visibilityPrivate).toBeString();
@@ -40,6 +40,8 @@ describe("PortalHome", () => {
       expect(messages.delete.confirm).toBeString();
       expect(messages.settings.title).toContain("{name}");
       expect(messages.portal.lastEdited).toBeString();
+      expect(messages.portal.usage).toBeString();
+      expect(messages.portal.visibility.password).toBeString();
       expect(messages.empty.title).toBeString();
       expect(messages.backendDisabled.title).toBeString();
     }
@@ -50,13 +52,21 @@ describe("PortalHome", () => {
     expect(spanish.Home.header.createPortal).toBe("Crear proyecto");
     expect(spanish.Home.portal.visibility.public).toBe("Público");
     expect(spanish.Home.portal.visibility.private).toBe("Privado");
-    expect(english.Home.intro.title).toBe("Projects");
-    expect(spanish.Home.intro.title).toBe("Proyectos");
-    expect(pageSource).not.toContain('t("intro.eyebrow")');
-    expect(pageSource).not.toContain('t("intro.description")');
+    expect(english.Home.intro).toBeUndefined();
+    expect(spanish.Home.intro).toBeUndefined();
     expect(pageSource).toContain('t.raw("delete.description")');
     expect(pageSource).toContain('t.raw("delete.title")');
     expect(pageSource).toContain('t.raw("delete.trigger")');
+  });
+
+  test("does not render the Stripe Connect trigger above the projects title", () => {
+    const homeDialog = source.slice(
+      source.indexOf("{backendEnabled ? ("),
+      source.indexOf('<div className="relative mx-auto'),
+    );
+
+    expect(homeDialog).toContain("<ConnectAccountDialog");
+    expect(homeDialog).toContain("hideTrigger");
   });
 
   test("uses the official Base UI Combobox for explicit country selection", () => {
@@ -78,49 +88,22 @@ describe("PortalHome", () => {
   });
 
   test("creates a wide editorial hierarchy consistent with the landing", () => {
-    const workspaceHeader = source.slice(
-      source.indexOf("<header"),
-      source.indexOf("</header>"),
-    );
     const workspaceTitleSectionStart = source.indexOf(
       '<section\n          aria-labelledby="portal-workspace-title"',
     );
-    const workspaceTitleSection = source.slice(
-      workspaceTitleSectionStart,
-      source.indexOf("</section>", workspaceTitleSectionStart),
-    );
-
     expect(source).toContain("max-w-6xl");
     expect(source).toContain("bg-background");
-    expect(source).toContain("bg-brand/10");
-    expect(workspaceHeader).toContain("bg-brand-surface");
-    expect(workspaceHeader).not.toContain("bg-brand/10");
-    expect(workspaceHeader).toContain("border-b border-border/60");
-    expect(workspaceHeader).not.toContain("bg-brand/5");
-    expect(workspaceTitleSectionStart).toBeGreaterThan(-1);
-    expect(workspaceTitleSection).toContain(
-      "text-3xl font-medium leading-[0.96] tracking-[-0.045em] sm:text-4xl lg:text-5xl",
-    );
-    expect(workspaceTitleSection).not.toContain("border-b");
-    expect(workspaceTitleSection).not.toContain("border-border/60");
-    expect(source).toContain("backdrop-blur");
-    expect(source).toContain("copy.intro.title");
-    expect(source).toContain("copy.intro.portalCount");
-    expect(source).toContain('autoComplete="off"');
-    expect(source).toContain('defaultValue="private"');
-    expect(source).toContain('name="visibility"');
-    expect(source).toContain("items={[");
-    expect(source).toContain('<SelectItem value="private">');
-    expect(source).toContain('<SelectItem value="public">');
-    expect(source).toContain('<IconLock aria-hidden="true" />');
-    expect(source).toContain('<IconWorld aria-hidden="true" />');
-    expect(source).toContain("deletePortalFromHome");
-    expect(source).toContain('portal.visibility !== "paid"');
-    expect(source).toContain("copy.delete.paidProtected");
-    expect(source).toContain('variant="destructive"');
-    expect(source).toContain('<IconTrash data-icon="inline-start" />');
-    expect(source).not.toContain("copy.intro.eyebrow");
-    expect(source).not.toContain("copy.intro.description");
+    expect(workspaceTitleSectionStart).toBe(-1);
+    expect(source).not.toContain("copy.intro");
+    expect(source).not.toContain("bg-brand/10");
+    expect(source).toContain("href={");
+    expect(source).toContain("/create/");
+    expect(creationSource).toContain("<Questionnaire");
+    expect(creationSource).toContain("<QuestionnaireInput");
+    expect(creationSource).toContain('<SelectItem value="private">');
+    expect(creationSource).toContain('<SelectItem value="public">');
+    expect(creationSource).toContain("<IconLock />");
+    expect(creationSource).toContain("<IconWorld />");
     expect(source).not.toContain('className="dark"');
     expect(source).not.toContain("bg-black");
     expect(source).not.toContain("bg-[#");
@@ -147,19 +130,24 @@ describe("PortalHome", () => {
     expect(source).not.toContain('className="dark"');
   });
 
-  test("uses complete cards, empty states, and valid link actions", () => {
+  test("uses cards that navigate to edit while the slug opens the public portal", () => {
     for (const slot of [
       "CardHeader",
       "CardTitle",
       "CardDescription",
-      "CardContent",
-      "CardFooter",
       "Empty",
     ]) {
       expect(source).toContain(`<${slot}`);
     }
 
-    expect(source).toContain("buttonVariants(");
+    expect(source).toContain("router.push(");
+    expect(source).toContain("/create/${" + "portal.id}");
+    expect(source).toContain(
+      "href={`/p/${" + "encodeURIComponent(portal.slug)}`}",
+    );
+    expect(source).toContain("event.stopPropagation()");
+    expect(source).toContain('className="hover:underline"');
+    expect(source).not.toContain("buttonVariants(");
     expect(source).not.toMatch(
       /<Link[\s\S]*?<Button[\s\S]*?<\/Button>[\s\S]*?<\/Link>/,
     );
@@ -168,47 +156,56 @@ describe("PortalHome", () => {
     );
   });
 
-  test("does not render settings or edit actions for purchased portals", () => {
+  test("does not render settings, delete, edit, or view actions in portal cards", () => {
     const portalCard = source.slice(
       source.indexOf("function PortalCard"),
       source.indexOf("export function PortalHome"),
     );
-    expect(portalCard).toContain("!isPurchased");
-    expect(portalCard).toContain('isPurchased ? "col-span-2" : null');
+    expect(portalCard).not.toContain("deletePortalFromHome");
+    expect(portalCard).not.toContain("copy.delete.paidProtected");
+    expect(portalCard).not.toContain('<IconTrash data-icon="inline-start" />');
+    expect(portalCard).not.toContain("PortalSettingsDialog");
+    expect(portalCard).not.toContain("DeletePortalDialog");
+    expect(portalCard).not.toContain("copy.portal.edit");
+    expect(portalCard).not.toContain("copy.portal.view");
+    expect(portalCard).toContain("cursor-pointer");
+    expect(portalCard).toContain('className="h-fit');
+    expect(portalCard).toContain("flex flex-col items-start");
+    expect(portalCard).toContain("storagePercent");
+    expect(source).toContain("function UsageCircle");
+    expect(source).toContain("text-chart-2");
+    expect(portalCard).toContain("IconCreditCardFilled");
+    expect(portalCard).toContain("IconWorldFilled");
+    expect(portalCard).toContain("IconLockFilled");
+    expect(portalCard).toContain("IconKeyFilled");
+    expect(portalCard).toContain("copy.portal.plan");
+    expect(portalCard).toContain('planQuery.data.plan === "free"');
+    expect(portalCard).toContain("portal.isPurchased");
+    expect(portalCard).toContain("copy.portal.purchasedAt");
+    expect(portalCard).toContain("IconCalendarFilled");
+    expect(portalCard).toContain("IconCalendarEventFilled");
+    expect(portalCard).toContain("copy.portal.lastEdited");
+    expect(portalCard).toContain("IconCrownFilled");
+    expect(portalCard).toContain("bg-amber-400/20");
+    expect(portalCard).toContain("bg-green-500/10");
+    expect(portalCard).toContain("text-primary");
+    expect(portalCard).toContain("text-muted-foreground");
   });
 
   test("keeps every workspace action pill-shaped or circular", () => {
-    const createDialog = source.slice(
-      source.indexOf("function CreatePortalDialog"),
-      source.indexOf("function PortalSettingsDialog"),
-    );
     const settingsDialog = source.slice(
       source.indexOf("function PortalSettingsDialog"),
       source.indexOf("function DeletePortalDialog"),
     );
-    const createTrigger = createDialog.slice(
-      createDialog.indexOf("<DialogTrigger"),
-      createDialog.indexOf("<DialogContent"),
-    );
     const portalCard = source.slice(
       source.indexOf("function PortalCard"),
       source.indexOf("export function PortalHome"),
     );
-    const portalHome = source.slice(
-      source.indexOf("export function PortalHome"),
-    );
-    const portalHeader = portalHome.slice(
-      portalHome.indexOf("<header"),
-      portalHome.indexOf("</header>"),
-    );
-
-    expect(createDialog.match(/rounded-full/g)).toHaveLength(2);
-    expect(createTrigger).toContain('variant="outline"');
-    expect(createTrigger).toContain('size="lg"');
+    expect(source).not.toContain("function CreatePortalDialog");
+    expect(source).toContain("href={");
+    expect(source).toContain("/create/");
     expect(settingsDialog.match(/rounded-full/g)).toHaveLength(2);
-    expect(portalCard.match(/rounded-full/g)).toHaveLength(2);
-    expect(portalHeader.match(/rounded-full/g)).toHaveLength(1);
-    expect(portalHeader).toContain('size="icon-lg"');
+    expect(portalCard.match(/rounded-full/g)).toBeNull();
     expect(settingsDialog).toContain('size="icon-sm"');
   });
 });
