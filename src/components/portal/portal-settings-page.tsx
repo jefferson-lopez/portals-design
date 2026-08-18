@@ -1,6 +1,7 @@
 "use client";
 
 import { IconLoader2, IconTrash } from "@tabler/icons-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import {
   type FormEvent,
@@ -49,7 +50,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRouter } from "@/i18n/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import type { Portal, PortalVisibility } from "@/lib/supabase/database.types";
 
 function formSnapshot(form: HTMLFormElement) {
@@ -100,7 +100,9 @@ function SettingsForm({
     startTransition(async () => {
       try {
         await action(formData);
-        await queryClient.invalidateQueries({ queryKey: ["workspace", "home"] });
+        await queryClient.invalidateQueries({
+          queryKey: ["workspace", "home"],
+        });
         initialSnapshot.current = formSnapshot(form);
         initialDirtyValue.current = dirtyValue;
         setDirty(false);
@@ -155,6 +157,9 @@ export function PortalSettingsPage({
   const [slug, setSlug] = useState(portal.slug);
   const [designerName, setDesignerName] = useState(portal.designer_name ?? "");
   const [website, setWebsite] = useState(portal.designer_website_url ?? "");
+  const [contentLanguage, setContentLanguage] = useState<"en" | "es">(
+    portal.content_language === "es" ? "es" : "en",
+  );
   const [password, setPassword] = useState("");
   const [paidPrice, setPaidPrice] = useState(
     initialPaidPriceCents === null
@@ -210,7 +215,10 @@ export function PortalSettingsPage({
           <CardDescription>{t("generalDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
-          <SettingsForm action={updatePortalSettings}>
+          <SettingsForm
+            action={updatePortalSettings}
+            dirtyValue={contentLanguage}
+          >
             <input name="locale" type="hidden" value={locale} />
             <input name="portal_id" type="hidden" value={portal.id} />
             <FieldGroup>
@@ -243,6 +251,31 @@ export function PortalSettingsPage({
                   placeholder={t("websitePlaceholder")}
                   value={website}
                 />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="portal-settings-ai-language">
+                  {t("aiLanguage")}
+                </FieldLabel>
+                <Select
+                  name="content_language"
+                  onValueChange={(value) =>
+                    setContentLanguage(value as "en" | "es")
+                  }
+                  value={contentLanguage}
+                >
+                  <SelectTrigger id="portal-settings-ai-language">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="es">{t("spanish")}</SelectItem>
+                      <SelectItem value="en">{t("english")}</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <FieldDescription>
+                  {t("aiLanguageDescription")}
+                </FieldDescription>
               </Field>
             </FieldGroup>
           </SettingsForm>

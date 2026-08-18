@@ -35,6 +35,7 @@ describe("AI credit ledger", () => {
       "r",
     );
     expect(result).toEqual({ ok: false, reason: "insufficient_credits" });
+    expect(AI_OPERATION_COSTS["improve-project"]).toBe(2);
     expect(AI_OPERATION_COSTS["refine-copy"]).toBe(1);
   });
 });

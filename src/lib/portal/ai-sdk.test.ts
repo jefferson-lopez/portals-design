@@ -2,9 +2,9 @@ import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  chunkVisualAssets,
   ensureAiStructuredEnhancementCompleteness,
   generateAiStructuredEnhancement,
-  chunkVisualAssets,
 } from "@/lib/portal/ai-sdk";
 
 const source = readFileSync(
@@ -74,6 +74,12 @@ describe("AI SDK proposal adapter", () => {
     );
 
     expect(batches).toHaveLength(2);
+  });
+
+  it("bounds oversized visual payloads before sending them to the provider", () => {
+    expect(source).toContain("AI_VISUAL_MAX_BYTES");
+    expect(source).toContain("prepareAiVisualAsset");
+    expect(source).toContain('mediaType: "image/webp"');
   });
 
   it("repairs missing project copy and required sections from the asset set", () => {

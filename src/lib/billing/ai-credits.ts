@@ -2,7 +2,7 @@ import type { AiPortalOperation } from "@/lib/portal/ai";
 
 export const AI_OPERATION_COSTS: Record<AiPortalOperation, number> = {
   generate: 3,
-  "improve-project": 3,
+  "improve-project": 2,
   "refine-copy": 1,
 };
 

@@ -19,13 +19,13 @@ import {
   portalBlocksToDocument,
 } from "@/lib/portal/document";
 import { prepareDocumentForRendering } from "@/lib/portal/server-assets";
-import type { Json, Portal, PortalBlock } from "@/lib/supabase/database.types";
-import { hasSupabaseEnv } from "@/lib/supabase/env";
-import { createClient } from "@/lib/supabase/server";
 import {
   getConnectStatusSummary,
   normalizeConnectStatusSummary,
 } from "@/lib/portal/workspace-read-models";
+import type { Json, Portal, PortalBlock } from "@/lib/supabase/database.types";
+import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { createClient } from "@/lib/supabase/server";
 
 type Props = {
   params: Promise<{ locale: string; portalId: string }>;
@@ -141,7 +141,7 @@ async function getWorkspace(
     redirect(`/${locale}/auth/sign-in`);
   }
 
-  const { data: portal } = await supabase
+  const { data: portal, error: portalError } = await supabase
     .from("portals")
     .select(
       "id,owner_id,name,slug,short_description,cover_url,icon_url,visibility,seo_title,seo_description,social_image_url,custom_domain,allow_downloads,allow_asset_downloads,allow_color_copy,allow_pdf_downloads,theme,designer_name,designer_logo_url,designer_photo_url,designer_website_url,designer_social_links,status,published_publication_id,published_at,created_at,updated_at",
@@ -150,9 +150,18 @@ async function getWorkspace(
     .single();
 
   if (!portal) {
+    console.error("Failed to load portal workspace", {
+      code: portalError?.code,
+      message: portalError?.message,
+      portalId,
+    });
     notFound();
   }
-  const safePortal: Portal = { ...portal, password_hash: null };
+  const safePortal: Portal = {
+    ...portal,
+    content_language: "en",
+    password_hash: null,
+  };
 
   const [
     { data: blocks },

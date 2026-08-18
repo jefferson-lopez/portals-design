@@ -110,12 +110,27 @@ export async function getHomePortals(
     return {
       error: null,
       portals: rows.map((portal) => ({
-        id: String(portal.id), name: String(portal.name), slug: String(portal.slug),
-        updated_at: String(portal.updatedAt), visibility: portal.visibility as Portal["visibility"],
-        hasPurchasedPlan: portal.hasPurchasedPlan === true, isPurchased: portal.isPurchased === true,
-        purchasedAt: typeof portal.purchasedAt === "string" ? portal.purchasedAt : undefined,
-        plan: portal.plan === "starter" || portal.plan === "pro" || portal.plan === "premium" ? portal.plan : "free",
-        storageUsedBytes: typeof portal.storageUsedBytes === "number" ? portal.storageUsedBytes : 0,
+        id: String(portal.id),
+        name: String(portal.name),
+        slug: String(portal.slug),
+        updated_at: String(portal.updatedAt),
+        visibility: portal.visibility as Portal["visibility"],
+        hasPurchasedPlan: portal.hasPurchasedPlan === true,
+        isPurchased: portal.isPurchased === true,
+        purchasedAt:
+          typeof portal.purchasedAt === "string"
+            ? portal.purchasedAt
+            : undefined,
+        plan:
+          portal.plan === "starter" ||
+          portal.plan === "pro" ||
+          portal.plan === "premium"
+            ? portal.plan
+            : "free",
+        storageUsedBytes:
+          typeof portal.storageUsedBytes === "number"
+            ? portal.storageUsedBytes
+            : 0,
         canDelete: portal.canDelete !== false,
       })),
     };
@@ -343,10 +358,12 @@ async function insertPortal({
 
 export async function createPortalFromHome({
   locale,
+  contentLanguage = locale,
   name,
   visibility = "private",
 }: {
   locale: string;
+  contentLanguage?: string;
   name: string;
   visibility?: CreationVisibility;
 }) {
@@ -356,6 +373,17 @@ export async function createPortalFromHome({
       name: name.trim(),
       visibility,
     });
+    const supabase = await requireAuthenticatedUser(locale);
+    const { error: languageError } = await supabase.rpc(
+      "update_portal_settings",
+      {
+        portal_content_language: contentLanguage === "es" ? "es" : "en",
+        portal_name: portal.name,
+        portal_slug: portal.slug,
+        target_portal_id: portal.id,
+      },
+    );
+    if (languageError) throw new Error(languageError.message);
 
     revalidatePath(`/${locale}/home`);
 
@@ -577,7 +605,7 @@ export async function updatePortalSettings(formData: FormData) {
   const { data: portal, error: portalError } = await supabase
     .from("portals")
     .select(
-      "id,owner_id,name,slug,visibility,short_description,designer_name,designer_website_url,allow_asset_downloads,allow_color_copy,allow_downloads,allow_pdf_downloads,cover_url,custom_domain,designer_logo_url,designer_photo_url,icon_url,theme,social_image_url",
+      "id,owner_id,name,slug,visibility,short_description,content_language,designer_name,designer_website_url,allow_asset_downloads,allow_color_copy,allow_downloads,allow_pdf_downloads,cover_url,custom_domain,designer_logo_url,designer_photo_url,icon_url,theme,social_image_url",
     )
     .eq("id", portalId)
     .single();
@@ -613,12 +641,19 @@ export async function updatePortalSettings(formData: FormData) {
   ) {
     actionFailure(t("websiteHttps"));
   }
+  const nextContentLanguage = formData.has("content_language")
+    ? getString(formData, "content_language")
+    : null;
+  if (nextContentLanguage && !["en", "es"].includes(nextContentLanguage)) {
+    actionFailure(t("contentLanguageInvalid"));
+  }
 
   const { error } = await supabase.rpc("update_portal_settings", {
     portal_allow_asset_downloads: portal.allow_asset_downloads,
     portal_allow_color_copy: portal.allow_color_copy,
     portal_allow_downloads: portal.allow_downloads,
     portal_allow_pdf_downloads: portal.allow_pdf_downloads,
+    portal_content_language: nextContentLanguage ?? portal.content_language,
     portal_cover_url: portal.cover_url,
     portal_custom_domain: portal.custom_domain,
     portal_designer_logo_url: portal.designer_logo_url,

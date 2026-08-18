@@ -17,6 +17,7 @@ import {
   createPortalFromHome,
   updatePortalSettings,
 } from "@/app/[locale]/_actions/portals";
+import { Badge } from "@/components/ui/badge";
 import {
   Field,
   FieldDescription,
@@ -74,6 +75,9 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<"private" | "public">("private");
+  const [contentLanguage, setContentLanguage] = useState<"en" | "es">(
+    locale === "es" ? "es" : "en",
+  );
   const [files, setFiles] = useState<File[]>([]);
   const [processingStage, setProcessingStage] = useState<
     "creating" | "uploading" | "analyzing" | "validating" | "applying"
@@ -84,8 +88,16 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
     title: locale === "es" ? "Crear proyecto" : "Create project",
     description:
       locale === "es"
-        ? "Define la base del portal y revisa todo antes de crearlo."
-        : "Define the portal foundation and review everything before creating it.",
+        ? "Crea tu portal con IA desde tus archivos. La IA los analizará y preparará secciones, textos y recomendaciones por 3 créditos."
+        : "Create your portal with AI from your files. AI will analyze them and prepare sections, copy, and recommendations for 3 credits.",
+    aiPrice:
+      locale === "es"
+        ? "Crear con IA: 3 créditos"
+        : "Create with AI: 3 credits",
+    aiPriceDescription:
+      locale === "es"
+        ? "Los archivos son opcionales. Si los agregas, la IA los analizará y generará el portal completo. Si no usas IA, crear el proyecto no consume créditos."
+        : "Files are optional. When you add them, AI analyzes them and generates the complete portal. Creating a project without AI does not use credits.",
     project: locale === "es" ? "Proyecto" : "Project",
     files: locale === "es" ? "Archivos" : "Files",
     review: locale === "es" ? "Revisión" : "Review",
@@ -101,13 +113,23 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
         ? "Describe el proyecto y el resultado que quieres presentar."
         : "Describe the project and the outcome you want to present.",
     visibility: locale === "es" ? "Acceso" : "Access",
+    language: locale === "es" ? "Idioma del portal" : "Portal language",
+    languageDescription:
+      locale === "es"
+        ? "Todo el contenido generado por IA seguirá este idioma."
+        : "All AI-generated content will follow this language.",
+    spanish: locale === "es" ? "Español" : "Spanish",
+    english: locale === "es" ? "Inglés" : "English",
     private: locale === "es" ? "Privado" : "Private",
     public: locale === "es" ? "Público" : "Public",
     upload:
       locale === "es"
         ? "Sube imágenes, fuentes y documentos."
         : "Upload images, fonts, and documents.",
-    create: locale === "es" ? "Crear proyecto" : "Create project",
+    create:
+      locale === "es"
+        ? "Crear proyecto · 3 créditos con IA"
+        : "Create project · 3 credits with AI",
     creating: locale === "es" ? "Creando el proyecto" : "Creating the project",
     creatingDetail:
       locale === "es"
@@ -164,6 +186,10 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
       locale === "es"
         ? "Revisa los datos antes de crear el proyecto."
         : "Review the details before creating the project.",
+    reviewAiPrice:
+      locale === "es"
+        ? "Con archivos: la generación con IA cuesta 3 créditos"
+        : "With files: AI generation costs 3 credits",
     error:
       locale === "es"
         ? "No se pudo crear el proyecto."
@@ -183,6 +209,7 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
       setProcessingStage("creating");
       setUploadedCount(0);
       const portal = await createPortalFromHome({
+        contentLanguage,
         locale,
         name: name.trim(),
         visibility,
@@ -455,6 +482,37 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
               <QuestionnaireDescription>
                 {copy.description}
               </QuestionnaireDescription>
+              <div className="flex flex-col gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
+                <div className="flex items-center gap-2 font-medium">
+                  <IconBrain />
+                  {copy.aiPrice}
+                </div>
+                <p className="text-muted-foreground">
+                  {copy.aiPriceDescription}
+                </p>
+              </div>
+              <Field>
+                <FieldLabel htmlFor="creation-language">
+                  {copy.language}
+                </FieldLabel>
+                <Select
+                  value={contentLanguage}
+                  onValueChange={(value) =>
+                    value && setContentLanguage(value as "en" | "es")
+                  }
+                >
+                  <SelectTrigger id="creation-language">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="es">{copy.spanish}</SelectItem>
+                      <SelectItem value="en">{copy.english}</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <FieldDescription>{copy.languageDescription}</FieldDescription>
+              </Field>
               <Field>
                 <FieldLabel>{copy.name}</FieldLabel>
                 <QuestionnaireInput
@@ -506,6 +564,9 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
             <QuestionnaireItem name="files">
               <QuestionnaireTitle>{copy.files}</QuestionnaireTitle>
               <QuestionnaireDescription>{copy.upload}</QuestionnaireDescription>
+              <Badge className="w-fit" variant="secondary">
+                {copy.aiPrice}
+              </Badge>
               <QuestionnaireInput
                 aria-label={copy.files}
                 className="sr-only"
@@ -553,6 +614,11 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
                 <p className="text-muted-foreground">
                   {files.length} {copy.files.toLowerCase()}
                 </p>
+                {files.length > 0 ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {copy.reviewAiPrice}
+                  </p>
+                ) : null}
               </div>
             </QuestionnaireItem>
             <QuestionnaireActions className="mt-4">

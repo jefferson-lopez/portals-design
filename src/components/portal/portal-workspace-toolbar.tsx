@@ -2,6 +2,7 @@
 
 import {
   IconArrowLeft,
+  IconCoinFilled,
   IconExternalLink,
   IconLoader2,
   IconPlus,
@@ -11,7 +12,8 @@ import {
   IconUpload,
   IconX,
 } from "@tabler/icons-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   InputGroup,
@@ -20,11 +22,20 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Link } from "@/i18n/navigation";
+import { useAiCredits } from "@/lib/billing/ai-credits-client";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
 import { PORTAL_OPEN_ADD_SECTION_DIALOG_EVENT } from "@/lib/portal/scroll-to-section";
 import { SidebarTrigger } from "../ui/sidebar";
@@ -65,6 +76,12 @@ export function PortalWorkspaceToolbar({
   searchClearLabel?: string;
 }) {
   const t = useTranslations("PortalEditor");
+  const locale = useLocale();
+  const { data: creditBalance } = useAiCredits();
+  const formattedCredits =
+    creditBalance === undefined
+      ? "…"
+      : new Intl.NumberFormat(locale).format(creditBalance.available);
   const hasUnpublishedChanges = usePortalEditorStore((state) =>
     portalId ? state.hasUnpublishedChangesByPortalId[portalId] : undefined,
   );
@@ -107,6 +124,41 @@ export function PortalWorkspaceToolbar({
         </Button>
 
         <div className="flex items-center justify-end gap-2">
+          <Popover>
+            <PopoverTrigger
+              render={
+                <Badge
+                  aria-label={t("workspace.credits.badge", {
+                    count: formattedCredits,
+                  })}
+                  className="hidden cursor-pointer lg:inline-flex"
+                  render={<button type="button" />}
+                  variant="secondary"
+                />
+              }
+            >
+              <IconCoinFilled className="size-4 text-primary" />
+              <span>{formattedCredits}</span>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80">
+              <PopoverHeader>
+                <PopoverTitle>{t("workspace.credits.title")}</PopoverTitle>
+                <PopoverDescription>
+                  {t("workspace.credits.description")}
+                </PopoverDescription>
+              </PopoverHeader>
+              <Button
+                onClick={() =>
+                  window.dispatchEvent(new Event("billing:credits-upgrade"))
+                }
+                size="sm"
+                type="button"
+                variant="default"
+              >
+                {t("workspace.credits.upgrade")}
+              </Button>
+            </PopoverContent>
+          </Popover>
           {contentOnly ? (
             <Button
               aria-label={t("workspace.goToProject")}

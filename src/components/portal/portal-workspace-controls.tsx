@@ -3,6 +3,7 @@
 import { move } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/react";
 import { useSortable } from "@dnd-kit/react/sortable";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   IconAlertCircle,
   IconBubbleTextFilled,
@@ -139,6 +140,7 @@ import {
 } from "@/lib/portal/document";
 import { flushThenExport } from "@/lib/portal/editor-export";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
+import { aiCreditsQueryKey } from "@/lib/billing/ai-credits-client";
 import {
   reconcileOptimisticUpload,
   remainingOptimisticUploadSlots,
@@ -231,6 +233,7 @@ function ImproveWithAiButton({
     (state) => state.documentsByPortalId[portalId],
   );
   const updateDocument = usePortalEditorStore((state) => state.updateDocument);
+  const queryClient = useQueryClient();
 
   function documentWithRenderedImageDimensions(
     source: PortalDocument,
@@ -291,6 +294,7 @@ function ImproveWithAiButton({
         throw new Error(result?.error ?? "ai_operation_failed");
       }
       updateDocument(portalId, () => result.document as PortalDocument);
+      await queryClient.invalidateQueries({ queryKey: aiCreditsQueryKey });
       toast.success(t("improveTextSuccess"));
     } catch (error) {
       const reason = error instanceof Error ? error.message : "";
@@ -893,10 +897,7 @@ function ImageTile({
   return (
     <figure
       aria-busy={pending}
-      className={cn(
-        "flex flex-col gap-2",
-        pending && "animate-pulse",
-      )}
+      className={cn("flex flex-col gap-2", pending && "animate-pulse")}
     >
       <div
         className={cn(
@@ -3249,11 +3250,7 @@ function FilesEditor({
             />
           ))}
           {optimistic.pending.map(({ id, value }) => (
-            <div
-              aria-busy="true"
-              className="relative animate-pulse"
-              key={id}
-            >
+            <div aria-busy="true" className="relative animate-pulse" key={id}>
               <PortalFilePreview
                 fileName={value.file_name}
                 fileUrl={value.file_url}

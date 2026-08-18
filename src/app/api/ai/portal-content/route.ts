@@ -246,7 +246,7 @@ export async function POST(request: Request) {
 
   const { data: portal } = await supabase
     .from("portals")
-    .select("name,short_description,cover_url,icon_url,theme")
+    .select("name,short_description,cover_url,icon_url,theme,content_language")
     .eq("id", body.portalId)
     .single();
   if (!portal)
@@ -277,8 +277,12 @@ export async function POST(request: Request) {
             current.sections.find(
               (section) => section.id === target.id,
             ) as NonNullable<PortalDocument["sections"][number]>,
+            portal.content_language === "es" ? "es" : "en",
           )
-        : await generateAiContentImprovement(target);
+        : await generateAiContentImprovement(
+            target,
+            portal.content_language === "es" ? "es" : "en",
+          );
   } catch (error) {
     if (error instanceof Error && error.message === "ai_provider_failed") {
       return NextResponse.json(

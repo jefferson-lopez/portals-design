@@ -6,6 +6,7 @@ import {
   IconLoader2,
   IconSparkles,
 } from "@tabler/icons-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -39,6 +40,10 @@ import {
   uploadManagedPortalAssetServerOwned,
 } from "@/lib/portal/portal-assets-client";
 import { createClient } from "@/lib/supabase/client";
+import {
+  aiCreditsQueryKey,
+  useAiCredits,
+} from "@/lib/billing/ai-credits-client";
 
 export function PortalAiDialog({
   portalId,
@@ -52,8 +57,6 @@ export function PortalAiDialog({
   const [files, setFiles] = useState<File[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzed, setAnalyzed] = useState(false);
-  const [creditBalance, setCreditBalance] = useState<number | null>(null);
-  const [creditError, setCreditError] = useState(false);
   const [proposal, setProposal] = useState<AiPortalProposal | null>(null);
   const [proposalError, setProposalError] = useState(false);
   const [applyError, setApplyError] = useState(false);
@@ -73,6 +76,9 @@ export function PortalAiDialog({
     (state) => state.documentsByPortalId[portalId],
   );
   const updateDocument = usePortalEditorStore((state) => state.updateDocument);
+  const queryClient = useQueryClient();
+  const { data: creditData, isError: creditError } = useAiCredits();
+  const creditBalance = creditData?.available ?? null;
 
   useEffect(() => {
     if (!triggerless) return;
@@ -92,31 +98,6 @@ export function PortalAiDialog({
     return () =>
       window.removeEventListener("portal-workspace:upload", openUpload);
   }, [triggerless]);
-
-  useEffect(() => {
-    if (!open) return;
-    let active = true;
-    void fetch("/api/ai/credits")
-      .then(async (response) => {
-        if (!response.ok) throw new Error("credits_unavailable");
-        return (await response.json()) as { available?: number };
-      })
-      .then((result) => {
-        if (!active) return;
-        setCreditBalance(
-          typeof result.available === "number" ? result.available : null,
-        );
-        setCreditError(false);
-      })
-      .catch(() => {
-        if (!active) return;
-        setCreditBalance(null);
-        setCreditError(true);
-      });
-    return () => {
-      active = false;
-    };
-  }, [open]);
 
   async function analyze() {
     setAnalyzing(true);
@@ -213,6 +194,7 @@ export function PortalAiDialog({
           () =>
             applyResult.document as NonNullable<typeof applyResult.document>,
         );
+        await queryClient.invalidateQueries({ queryKey: aiCreditsQueryKey });
         toast.success(t("newFilesApplied"));
         setOpen(false);
         return;
@@ -300,6 +282,7 @@ export function PortalAiDialog({
         portalId,
         () => result.document ?? proposal.proposedDocument,
       );
+      await queryClient.invalidateQueries({ queryKey: aiCreditsQueryKey });
       setOpen(false);
     } catch {
       setApplyError(true);

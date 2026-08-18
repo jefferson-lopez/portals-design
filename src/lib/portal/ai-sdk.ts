@@ -1,5 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, Output } from "ai";
+import sharp from "sharp";
 import { z } from "zod";
 import type { AiAssetInput } from "@/lib/portal/ai-proposal";
 import { isRenderableImageMimeType } from "@/lib/portal/asset-validation";
@@ -257,8 +258,36 @@ export function chunkVisualAssets(
   return batches;
 }
 
+// Keep the original asset in Storage, but never send a 100+ MiB upload to the
+// model provider. The provider only needs a bounded visual proxy for analysis.
+export const AI_VISUAL_MAX_BYTES = 8 * 1024 * 1024;
+const AI_VISUAL_MAX_DIMENSION = 2048;
+
+export async function prepareAiVisualAsset(
+  bytes: Uint8Array,
+  mediaType: string,
+): Promise<{ data: Uint8Array; mediaType: string }> {
+  if (bytes.byteLength <= AI_VISUAL_MAX_BYTES) {
+    return { data: bytes, mediaType };
+  }
+
+  const preview = await sharp(bytes)
+    .rotate()
+    .resize({
+      fit: "inside",
+      height: AI_VISUAL_MAX_DIMENSION,
+      withoutEnlargement: true,
+      width: AI_VISUAL_MAX_DIMENSION,
+    })
+    .webp({ quality: 82 })
+    .toBuffer();
+
+  return { data: new Uint8Array(preview), mediaType: "image/webp" };
+}
+
 export async function generateAiSectionImprovement(
   section: PortalSection,
+  contentLanguage: "en" | "es" = "en",
 ): Promise<AiSectionImprovement | null> {
   if (!process.env.AI_GATEWAY_API_KEY) return null;
 
@@ -281,7 +310,7 @@ export async function generateAiSectionImprovement(
               text: [
                 "Improve the complete requested portal section, not just its heading.",
                 "Return every existing item using its exact id. Never remove items, change URLs, or invent assets.",
-                "Write specific copy in the same language as the section.",
+                `Write every generated field in ${contentLanguage === "es" ? "Spanish" : "English"}, regardless of the source section language.`,
                 "Keep the section title to no more than three words and do not use colons.",
                 "The section description is visitor-facing: write one or two concise sentences explaining what the section contains.",
                 "Do not write a design brief, instructions, production requirements, export dimensions, layout directions, or imperatives.",
@@ -347,6 +376,7 @@ export async function generateAiSectionImprovement(
 
 export async function generateAiContentImprovement(
   target: AiContentTarget,
+  contentLanguage: "en" | "es" = "en",
 ): Promise<z.infer<typeof contentImprovementSchema> | null> {
   if (!process.env.AI_GATEWAY_API_KEY) return null;
 
@@ -368,7 +398,7 @@ export async function generateAiContentImprovement(
               type: "text",
               text: [
                 "Improve only the requested portal content.",
-                "Return specific, natural copy in the same language as the input.",
+                `Return specific, natural copy in ${contentLanguage === "es" ? "Spanish" : "English"}.`,
                 "Do not invent facts. Do not use placeholders or a colon.",
                 "Keep section titles short, with no more than three words.",
                 `Target: ${JSON.stringify(target)}`,
@@ -397,11 +427,13 @@ export async function generateAiStructuredEnhancement({
   existingDocument,
   operation = "generate",
   projectDescription,
+  contentLanguage = "en",
 }: {
   assets: AiAssetInput[];
   existingDocument?: PortalDocument;
   operation?: "generate" | "improve-project" | "refine-copy";
   projectDescription: string;
+  contentLanguage?: "en" | "es";
 }): Promise<AiStructuredEnhancement | null> {
   if (!process.env.AI_GATEWAY_API_KEY) return null;
 
@@ -438,11 +470,11 @@ export async function generateAiStructuredEnhancement({
                 `ai_visual_asset_fetch_failed:${response.status}`,
               );
             }
-            return {
-              type: "file" as const,
-              data: new Uint8Array(await response.arrayBuffer()),
-              mediaType: asset.mimeType,
-            };
+            const prepared = await prepareAiVisualAsset(
+              new Uint8Array(await response.arrayBuffer()),
+              asset.mimeType,
+            );
+            return { type: "file" as const, ...prepared };
           }),
       );
       const inventory = batchIndex === 0 ? assets : batch;
@@ -483,7 +515,7 @@ export async function generateAiStructuredEnhancement({
       "Keep Adobe source files (.ai, .eps, .psd) as downloadable reference assets. Do not reinterpret them as images unless a rendered preview is explicitly supplied.",
       "This is a strict completeness task: never return an empty project name or description.",
       "Return only IDs present in the asset list. Never invent asset URLs.",
-      "Write natural, specific copy in the same language as the project description.",
+      `Write every generated name, title, description, and label in ${contentLanguage === "es" ? "Spanish" : "English"}. This portal language setting overrides the language of the project description.`,
       "Generate a better project name and a concise project description, not placeholders.",
       "The project name must be clear and short. Section titles must be no more than three words.",
       "Do not use a colon in titles or descriptions. Never repeat the same description across sections.",

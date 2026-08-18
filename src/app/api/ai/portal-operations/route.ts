@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
   const { data: portal } = await supabase
     .from("portals")
-    .select("name,short_description,cover_url,icon_url,theme")
+    .select("name,short_description,cover_url,icon_url,theme,content_language")
     .eq("id", body.portalId)
     .single();
   const { data: saved } = await supabase

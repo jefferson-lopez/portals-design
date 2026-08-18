@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 
   const { data: portal, error: portalError } = await supabase
     .from("portals")
-    .select("name,short_description,cover_url,icon_url,theme")
+    .select("name,short_description,cover_url,icon_url,theme,content_language")
     .eq("id", body.portalId)
     .single();
   if (portalError || !portal) {
@@ -85,6 +85,7 @@ export async function POST(request: Request) {
       existingDocument: document,
       operation: body.operation,
       projectDescription: body.projectDescription.trim().slice(0, 2000),
+      contentLanguage: portal.content_language === "es" ? "es" : "en",
     });
   } catch (error) {
     const reason = error instanceof Error ? error.message : "unknown_error";

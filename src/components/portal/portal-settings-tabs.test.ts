@@ -3,6 +3,9 @@ import { describe, expect, test } from "bun:test";
 const controlsSource = await Bun.file(
   new URL("./portal-workspace-controls.tsx", import.meta.url),
 ).text();
+const settingsPageSource = await Bun.file(
+  new URL("./portal-settings-page.tsx", import.meta.url),
+).text();
 const pageSource = await Bun.file(
   new URL(
     "../../app/[locale]/(workspace)/create/[portalId]/page.tsx",
@@ -70,5 +73,17 @@ describe("portal settings dialog", () => {
     expect(spanish.PortalEditor.settings.paidConfirmationDescription).toContain(
       "permanente",
     );
+  });
+
+  test("explains that the content language controls AI-generated copy", () => {
+    expect(english.PortalEditor.settings.aiLanguageDescription).toContain("AI");
+    expect(english.PortalEditor.settings.aiLanguageDescription).toContain(
+      "does not change",
+    );
+    expect(spanish.PortalEditor.settings.aiLanguageDescription).toContain("IA");
+    expect(spanish.PortalEditor.settings.aiLanguageDescription).toContain(
+      "no cambia",
+    );
+    expect(settingsPageSource).toContain('name="content_language"');
   });
 });

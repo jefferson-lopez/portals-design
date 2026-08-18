@@ -654,6 +654,7 @@ export type Database = {
           allow_downloads: boolean;
           allow_pdf_downloads: boolean;
           cover_url: string | null;
+          content_language: string;
           created_at: string;
           custom_domain: string | null;
           designer_logo_url: string | null;
@@ -684,6 +685,7 @@ export type Database = {
           allow_downloads?: boolean;
           allow_pdf_downloads?: boolean;
           cover_url?: string | null;
+          content_language?: string;
           created_at?: string;
           custom_domain?: string | null;
           designer_logo_url?: string | null;
@@ -714,6 +716,7 @@ export type Database = {
           allow_downloads?: boolean;
           allow_pdf_downloads?: boolean;
           cover_url?: string | null;
+          content_language?: string;
           created_at?: string;
           custom_domain?: string | null;
           designer_logo_url?: string | null;
@@ -1365,6 +1368,7 @@ export type Database = {
           portal_allow_color_copy?: boolean;
           portal_allow_downloads?: boolean;
           portal_allow_pdf_downloads?: boolean;
+          portal_content_language?: string;
           portal_cover_url?: string;
           portal_custom_domain?: string;
           portal_designer_logo_url?: string;
