@@ -1,10 +1,8 @@
+import { startAiPortalProposal } from "@workflows/ai-portal-proposal";
 import { NextResponse } from "next/server";
 import type { AiPortalOperation } from "@/lib/portal/ai";
-import {
-  type AiAssetInput,
-  createAiPortalProposal,
-} from "@/lib/portal/ai-proposal";
-import { generateAiStructuredEnhancement } from "@/lib/portal/ai-sdk";
+import type { AiAssetInput } from "@/lib/portal/ai-proposal";
+import { createAiWorkflowJob } from "@/lib/portal/ai-workflow";
 import { normalizePortalDocument } from "@/lib/portal/document";
 import { createClient } from "@/lib/supabase/server";
 
@@ -34,7 +32,6 @@ export async function POST(request: Request) {
       { status: 401 },
     );
   }
-
   const body = (await request.json().catch(() => null)) as {
     assets?: unknown;
     excludedAssetIds?: unknown;
@@ -43,6 +40,8 @@ export async function POST(request: Request) {
     operation?: AiPortalOperation;
     portalId?: string;
     projectDescription?: string;
+    requestId?: string;
+    autoApply?: boolean;
   } | null;
   if (
     !body?.portalId ||
@@ -64,7 +63,6 @@ export async function POST(request: Request) {
   if (portalError || !portal) {
     return NextResponse.json({ error: "portal_not_found" }, { status: 404 });
   }
-
   const { data: plan, error: planError } = await supabase.rpc("portal_plan", {
     target_portal_id: body.portalId,
   });
@@ -74,74 +72,56 @@ export async function POST(request: Request) {
   ) {
     return NextResponse.json({ error: "plan_unavailable" }, { status: 503 });
   }
-
-  const document = body.existingDocument
+  const projectDescription = body.projectDescription.trim().slice(0, 2000);
+  const existingDocument = body.existingDocument
     ? normalizePortalDocument(body.existingDocument, portal)
     : undefined;
-  let enhancement: Awaited<ReturnType<typeof generateAiStructuredEnhancement>>;
+  const requestId = body.requestId?.trim() || crypto.randomUUID();
   try {
-    enhancement = await generateAiStructuredEnhancement({
-      assets: body.assets,
-      existingDocument: document,
-      operation: body.operation,
-      projectDescription: body.projectDescription.trim().slice(0, 2000),
-      contentLanguage: portal.content_language === "es" ? "es" : "en",
+    const job = await createAiWorkflowJob(supabase, {
+      owner_id: userData.user.id,
+      portal_id: body.portalId,
+      kind: "portal-proposal",
+      request_id: requestId,
+      payload: {
+        assets: body.assets,
+        autoApply: body.autoApply === true,
+        excludedAssetIds: Array.isArray(body.excludedAssetIds)
+          ? body.excludedAssetIds.filter(
+              (id): id is string => typeof id === "string",
+            )
+          : [],
+        existingDocument,
+        forceIncludeAssetIds: Array.isArray(body.forceIncludeAssetIds)
+          ? body.forceIncludeAssetIds.filter(
+              (id): id is string => typeof id === "string",
+            )
+          : [],
+        operation: body.operation,
+        plan,
+        projectDescription,
+      } as never,
     });
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : "unknown_error";
-    if (reason === "ai_provider_failed") {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken)
       return NextResponse.json(
-        { error: "ai_provider_failed" },
-        { status: 503 },
+        { error: "authentication_required" },
+        { status: 401 },
       );
+    if (job.status === "queued") {
+      const run = await startAiPortalProposal({ accessToken, jobId: job.id });
+      await supabase
+        .from("ai_workflow_jobs")
+        .update({ workflow_run_id: run.runId })
+        .eq("id", job.id);
     }
-    throw error;
-  }
-  if (!enhancement) {
     return NextResponse.json(
-      { error: "ai_content_unavailable" },
-      { status: 503 },
+      { jobId: job.id, ok: true, queued: true },
+      { status: 202 },
     );
-  }
-  if (
-    !enhancement.projectCopy.name.trim() ||
-    !enhancement.projectCopy.description.trim()
-  ) {
-    return NextResponse.json(
-      { error: "ai_content_incomplete" },
-      { status: 503 },
-    );
-  }
-  let proposal: ReturnType<typeof createAiPortalProposal>;
-  try {
-    proposal = createAiPortalProposal({
-      assets: body.assets,
-      excludedAssetIds: Array.isArray(body.excludedAssetIds)
-        ? body.excludedAssetIds.filter(
-            (id): id is string => typeof id === "string",
-          )
-        : undefined,
-      existingDocument: document,
-      operation: body.operation,
-      enhancement,
-      plan: plan as "free" | "starter" | "pro" | "premium",
-      portal,
-      projectDescription: body.projectDescription.trim().slice(0, 2000),
-      forceIncludeAssetIds: Array.isArray(body.forceIncludeAssetIds)
-        ? body.forceIncludeAssetIds.filter(
-            (id): id is string => typeof id === "string",
-          )
-        : undefined,
-    });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown_error";
-    if (message.startsWith("ai_section_copy_missing:")) {
-      return NextResponse.json(
-        { error: "ai_content_incomplete" },
-        { status: 503 },
-      );
-    }
-    throw error;
+    console.error("Failed to queue AI portal proposal", error);
+    return NextResponse.json({ error: "ai_proposal_failed" }, { status: 503 });
   }
-  return NextResponse.json({ kind: "proposal_preview", proposal });
 }

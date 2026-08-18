@@ -1,5 +1,4 @@
-import { startAiPortalContent } from "@workflows/ai-portal-content";
-import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   constrainImageAspectRatio,
   unifyImagePresentation,
@@ -11,10 +10,7 @@ import {
   generateAiContentImprovement,
   generateAiSectionImprovement,
 } from "@/lib/portal/ai-sdk";
-import {
-  createAiWorkflowJob,
-  markAiWorkflowJob,
-} from "@/lib/portal/ai-workflow";
+import { markAiWorkflowJob } from "@/lib/portal/ai-workflow";
 import {
   capitalizeFirstLetter,
   normalizeAssetDownloadName,
@@ -24,7 +20,7 @@ import {
   normalizePortalDocument,
   type PortalDocument,
 } from "@/lib/portal/document";
-import { createAccessTokenClient, createClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/database.types";
 
 function isTarget(value: unknown): value is AiContentTarget {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -225,80 +221,20 @@ function applySectionImprovement(
   };
 }
 
-export async function POST(request: Request) {
-  const authorization = request.headers.get("authorization");
-  const supabase = authorization?.startsWith("Bearer ")
-    ? createAccessTokenClient(authorization.slice("Bearer ".length))
-    : await createClient();
-  const { data: user } = await supabase.auth.getUser();
-  if (!user.user) {
-    return NextResponse.json(
-      { error: "authentication_required" },
-      { status: 401 },
-    );
-  }
-  const body = (await request.json().catch(() => null)) as {
-    currentDocument?: unknown;
-    portalId?: string;
-    requestId?: string;
-    target?: unknown;
-  } | null;
-  if (
-    !body?.portalId ||
-    !body.requestId ||
-    !isTarget(body.target) ||
-    !body.currentDocument
-  ) {
-    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
-  }
-
-  const workflowJobId = request.headers.get("x-ai-workflow-job-id");
-  const job = workflowJobId
-    ? (
-        await supabase
-          .from("ai_workflow_jobs")
-          .select(
-            "id,portal_id,kind,status,request_id,payload,result,error_code,created_at,updated_at",
-          )
-          .eq("id", workflowJobId)
-          .single()
-      ).data
-    : await createAiWorkflowJob(supabase, {
-        owner_id: user.user.id,
-        portal_id: body.portalId,
-        kind: "portal-content",
-        request_id: body.requestId,
-        payload: {
-          currentDocument: body.currentDocument,
-          portalId: body.portalId,
-          requestId: body.requestId,
-          target: body.target,
-        } as never,
-      });
-  if (!job)
-    return NextResponse.json({ error: "job_not_found" }, { status: 404 });
-  if (!workflowJobId) {
-    const accessToken = (await supabase.auth.getSession()).data.session
-      ?.access_token;
-    if (!accessToken) {
-      return NextResponse.json(
-        { error: "authentication_required" },
-        { status: 401 },
-      );
-    }
-    const run = await startAiPortalContent({
-      accessToken,
-      jobId: job.id,
-    });
-    await supabase
-      .from("ai_workflow_jobs")
-      .update({ workflow_run_id: run.runId })
-      .eq("id", job.id);
-    return NextResponse.json(
-      { jobId: job.id, ok: true, queued: true },
-      { status: 202 },
-    );
-  }
+export async function processAiContentJob(
+  supabase: SupabaseClient<Database>,
+  job: {
+    id: string;
+    portal_id: string;
+    request_id: string;
+    payload: Database["public"]["Tables"]["ai_workflow_jobs"]["Row"]["payload"];
+  },
+) {
+  const payload = job.payload as Record<string, unknown>;
+  const currentDocument = payload.currentDocument;
+  const target = payload.target;
+  if (!currentDocument || !isTarget(target))
+    throw new Error("invalid_job_payload");
   await markAiWorkflowJob(supabase, job.id, {
     status: "processing",
     started_at: new Date().toISOString(),
@@ -307,13 +243,11 @@ export async function POST(request: Request) {
   const { data: portal } = await supabase
     .from("portals")
     .select("name,short_description,cover_url,icon_url,theme,content_language")
-    .eq("id", body.portalId)
+    .eq("id", job.portal_id)
     .single();
-  if (!portal)
-    return NextResponse.json({ error: "portal_not_found" }, { status: 404 });
+  if (!portal) throw new Error("portal_not_found");
 
-  const current = normalizePortalDocument(body.currentDocument, portal);
-  const target = body.target;
+  const current = normalizePortalDocument(currentDocument, portal);
   const exists =
     target.kind === "section"
       ? current.sections.some((section) => section.id === target.id)
@@ -326,8 +260,7 @@ export async function POST(request: Request) {
         : current.sections.some((section) =>
             section.content.files?.some((file) => file.id === target.id),
           );
-  if (!exists)
-    return NextResponse.json({ error: "target_not_found" }, { status: 404 });
+  if (!exists) throw new Error("target_not_found");
 
   let improvement: AiContentImprovement | AiSectionImprovement | null;
   try {
@@ -345,18 +278,11 @@ export async function POST(request: Request) {
           );
   } catch (error) {
     if (error instanceof Error && error.message === "ai_provider_failed") {
-      return NextResponse.json(
-        { error: "ai_provider_failed" },
-        { status: 503 },
-      );
+      throw new Error("ai_provider_failed");
     }
     throw error;
   }
-  if (!improvement)
-    return NextResponse.json(
-      { error: "ai_content_unavailable" },
-      { status: 503 },
-    );
+  if (!improvement) throw new Error("ai_content_unavailable");
 
   const proposed =
     target.kind === "section"
@@ -369,8 +295,8 @@ export async function POST(request: Request) {
   const { data, error } = await supabase.rpc("apply_ai_portal_document", {
     proposed_document: proposed,
     target_operation: "refine-copy",
-    target_portal_id: body.portalId,
-    target_request_id: body.requestId,
+    target_portal_id: job.portal_id,
+    target_request_id: job.request_id,
   });
   if (error) {
     const reason = error.message.toLowerCase().includes("insufficient_credits")
@@ -381,16 +307,12 @@ export async function POST(request: Request) {
       error_code: reason,
       completed_at: new Date().toISOString(),
     });
-    return NextResponse.json({ error: reason }, { status: 422 });
+    throw new Error(reason);
   }
   await markAiWorkflowJob(supabase, job.id, {
     status: "completed",
     result: { document: data?.[0]?.document ?? proposed } as never,
     completed_at: new Date().toISOString(),
   });
-  return NextResponse.json({
-    document: data?.[0]?.document ?? proposed,
-    ok: true,
-    jobId: job.id,
-  });
+  return data?.[0]?.document ?? proposed;
 }

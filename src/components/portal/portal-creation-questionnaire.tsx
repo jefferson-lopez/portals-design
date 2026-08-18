@@ -1,30 +1,43 @@
 "use client";
 
 import {
+  IconAlertCircle,
   IconBrain,
   IconCheck,
+  IconFile,
   IconFileSearch,
   IconLayoutDashboard,
   IconLoader2,
   IconLock,
   IconPlus,
+  IconUpload,
   IconWorld,
+  IconX,
 } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
+import Image from "next/image";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   createPortalFromHome,
   updatePortalSettings,
 } from "@/app/[locale]/_actions/portals";
-import { Badge } from "@/components/ui/badge";
+import {
+  Attachment,
+  AttachmentAction,
+  AttachmentActions,
+  AttachmentContent,
+  AttachmentDescription,
+  AttachmentMedia,
+  AttachmentTitle,
+} from "@/components/ui/attachment";
 import {
   Field,
   FieldDescription,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import {
   Questionnaire,
   QuestionnaireActions,
@@ -47,8 +60,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useFileUpload } from "@/hooks/use-file-upload";
 import { useRouter } from "@/i18n/navigation";
 import type { AiAssetInput, AiPortalProposal } from "@/lib/portal/ai-proposal";
+import { useAiWorkflowStore } from "@/lib/portal/ai-workflow-store";
 import { extractAssetMetadata } from "@/lib/portal/asset-metadata";
 import {
   inferAssetMimeType,
@@ -71,6 +86,7 @@ function fileCategory(file: File) {
 }
 
 export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
+  const t = useTranslations("Home.create");
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -79,126 +95,33 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
     locale === "es" ? "es" : "en",
   );
   const [files, setFiles] = useState<File[]>([]);
+  const [
+    { files: selectedFiles, isDragging, errors: fileErrors },
+    {
+      handleDragEnter,
+      handleDragLeave,
+      handleDragOver,
+      handleDrop,
+      removeFile,
+      getInputProps,
+    },
+  ] = useFileUpload({
+    accept: "image/*,.pdf,.txt,.md,.ai,.eps,.psd,.indd,.ttf,.otf,.woff,.woff2",
+    maxSize: 500 * 1024 * 1024,
+  });
   const [processingStage, setProcessingStage] = useState<
-    "creating" | "uploading" | "analyzing" | "validating" | "applying"
+    | "creating"
+    | "uploading"
+    | "analyzing-assets"
+    | "generating-copy"
+    | "applying"
   >("creating");
   const [uploadedCount, setUploadedCount] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const copy = {
-    title: locale === "es" ? "Crear proyecto" : "Create project",
-    description:
-      locale === "es"
-        ? "Crea tu portal con IA desde tus archivos. La IA los analizará y preparará secciones, textos y recomendaciones por 3 créditos."
-        : "Create your portal with AI from your files. AI will analyze them and prepare sections, copy, and recommendations for 3 credits.",
-    aiPrice:
-      locale === "es"
-        ? "Crear con IA: 3 créditos"
-        : "Create with AI: 3 credits",
-    aiPriceDescription:
-      locale === "es"
-        ? "Los archivos son opcionales. Si los agregas, la IA los analizará y generará el portal completo. Si no usas IA, crear el proyecto no consume créditos."
-        : "Files are optional. When you add them, AI analyzes them and generates the complete portal. Creating a project without AI does not use credits.",
-    project: locale === "es" ? "Proyecto" : "Project",
-    files: locale === "es" ? "Archivos" : "Files",
-    review: locale === "es" ? "Revisión" : "Review",
-    name: locale === "es" ? "Nombre del proyecto" : "Project name",
-    namePlaceholder:
-      locale === "es"
-        ? "Ej. Identidad visual de Acme"
-        : "E.g. Acme visual identity",
-    projectDescription:
-      locale === "es" ? "Descripción del proyecto" : "Project description",
-    descriptionPlaceholder:
-      locale === "es"
-        ? "Describe el proyecto y el resultado que quieres presentar."
-        : "Describe the project and the outcome you want to present.",
-    visibility: locale === "es" ? "Acceso" : "Access",
-    language: locale === "es" ? "Idioma del portal" : "Portal language",
-    languageDescription:
-      locale === "es"
-        ? "Todo el contenido generado por IA seguirá este idioma."
-        : "All AI-generated content will follow this language.",
-    spanish: locale === "es" ? "Español" : "Spanish",
-    english: locale === "es" ? "Inglés" : "English",
-    private: locale === "es" ? "Privado" : "Private",
-    public: locale === "es" ? "Público" : "Public",
-    upload:
-      locale === "es"
-        ? "Sube imágenes, fuentes y documentos."
-        : "Upload images, fonts, and documents.",
-    create:
-      locale === "es"
-        ? "Crear proyecto · 3 créditos con IA"
-        : "Create project · 3 credits with AI",
-    creating: locale === "es" ? "Creando el proyecto" : "Creating the project",
-    creatingDetail:
-      locale === "es"
-        ? "Preparamos el espacio de trabajo y guardamos la información inicial."
-        : "Preparing the workspace and saving the initial project details.",
-    uploading: locale === "es" ? "Subiendo archivos" : "Uploading files",
-    uploadingDetail:
-      locale === "es"
-        ? "Guardamos cada archivo de forma segura antes de analizarlo."
-        : "Saving each file securely before analysis.",
-    analyzing:
-      locale === "es"
-        ? "Analizando contenido y contexto"
-        : "Analyzing content and context",
-    analyzingDetail:
-      locale === "es"
-        ? "1. Revisamos el inventario. 2. Analizamos las imágenes por lotes. 3. Reunimos colores, descripciones y recomendaciones. 4. Preparamos la propuesta del portal."
-        : "1. Reviewing the inventory. 2. Analyzing images in batches. 3. Combining colors, descriptions, and recommendations. 4. Preparing the portal proposal.",
-    validating:
-      locale === "es" ? "Validando la propuesta" : "Validating the proposal",
-    validatingDetail:
-      locale === "es"
-        ? "Comprobamos los límites del plan y los créditos antes de aplicarla."
-        : "Checking plan limits and credits before applying it.",
-    applying:
-      locale === "es" ? "Aplicando la propuesta" : "Applying the proposal",
-    applyingDetail:
-      locale === "es"
-        ? "Convertimos el análisis en las secciones, textos y assets del portal."
-        : "Turning the analysis into the portal sections, copy, and assets.",
-    aiSkipped:
-      locale === "es"
-        ? "El proyecto se creó, pero no se pudo aplicar la propuesta de IA. Puedes editarlo manualmente."
-        : "The project was created, but the AI proposal could not be applied. You can edit it manually.",
-    aiInsufficientCredits:
-      locale === "es"
-        ? "El proyecto se creó, pero no tienes suficientes créditos de IA para aplicar la propuesta."
-        : "The project was created, but you do not have enough AI credits to apply the proposal.",
-    aiPlanLimit:
-      locale === "es"
-        ? "El proyecto se creó, pero la propuesta supera los límites de tu plan."
-        : "The project was created, but the proposal exceeds your plan limits.",
-    aiProviderFailed:
-      locale === "es"
-        ? "El proyecto se creó, pero el servicio de IA no respondió. Verifica la configuración de IA e inténtalo de nuevo."
-        : "The project was created, but the AI service did not respond. Check the AI configuration and try again.",
-    pleaseWait:
-      locale === "es"
-        ? "Este proceso puede tardar unos minutos. Te mostraremos qué está haciendo la IA en cada etapa."
-        : "This may take a few minutes. We will show what the AI is doing at each stage.",
-    back: locale === "es" ? "Atrás" : "Back",
-    next: locale === "es" ? "Continuar" : "Continue",
-    reviewText:
-      locale === "es"
-        ? "Revisa los datos antes de crear el proyecto."
-        : "Review the details before creating the project.",
-    reviewAiPrice:
-      locale === "es"
-        ? "Con archivos: la generación con IA cuesta 3 créditos"
-        : "With files: AI generation costs 3 credits",
-    error:
-      locale === "es"
-        ? "No se pudo crear el proyecto."
-        : "Could not create the project.",
-    required:
-      locale === "es"
-        ? "Escribe un nombre para continuar."
-        : "Enter a name to continue.",
-  };
+  const upsertJob = useAiWorkflowStore((state) => state.upsertJob);
+  useEffect(() => {
+    setFiles(selectedFiles.map(({ file }) => file));
+  }, [selectedFiles]);
   const items = [
     { name: "project", required: true },
     { name: "files", required: false },
@@ -264,14 +187,17 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
             throw new Error(`${file.name}: ${reason}`);
           }
         }
-        setProcessingStage("analyzing");
+        setProcessingStage("analyzing-assets");
         const projectDescription = description.trim() || name.trim();
+        const proposalRequestId = crypto.randomUUID();
         const proposalResponse = await fetch("/api/ai/portal-proposals", {
           body: JSON.stringify({
             assets: uploadedAssets,
             operation: "generate",
+            autoApply: true,
             portalId: portal.id,
             projectDescription,
+            requestId: proposalRequestId,
           }),
           headers: { "content-type": "application/json" },
           method: "POST",
@@ -279,9 +205,26 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
         const proposalResult = (await proposalResponse
           .json()
           .catch(() => null)) as {
+          jobId?: string;
           proposal?: AiPortalProposal;
           error?: string;
         } | null;
+        if (proposalResponse.status === 202 && proposalResult?.jobId) {
+          upsertJob({
+            autoApply: true,
+            errorCode: null,
+            id: proposalResult.jobId,
+            kind: "portal-proposal",
+            portalId: portal.id,
+            requestId: proposalRequestId,
+            status: "loading",
+            updatedAt: new Date().toISOString(),
+          });
+          // The workflow is durable. Move the user to the project immediately
+          // and let the workspace reconciler show live progress there.
+          router.push(`/create/${portal.id}`);
+          return { aiSkipReason: null, portalId: portal.id };
+        }
         if (!proposalResponse.ok || !proposalResult?.proposal) {
           throw new Error(proposalResult?.error ?? "proposal_failed");
         }
@@ -292,38 +235,9 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
         ) {
           throw new Error("proposal_exceeds_plan");
         }
-        const creditsResponse = await fetch("/api/ai/credits");
-        const credits = (await creditsResponse.json().catch(() => null)) as {
-          available?: number;
-        } | null;
-        if (
-          !creditsResponse.ok ||
-          (typeof credits?.available === "number" &&
-            credits.available < proposalResult.proposal.creditCost)
-        ) {
-          throw new Error("insufficient_credits");
-        }
-        setProcessingStage("validating");
-        const requestId = crypto.randomUUID();
-        setProcessingStage("applying");
-        const applyResponse = await fetch("/api/ai/portal-operations", {
-          body: JSON.stringify({
-            operation: "generate",
-            portalId: portal.id,
-            proposedDocument: proposalResult.proposal.proposedDocument,
-            requestId,
-          }),
-          headers: { "content-type": "application/json" },
-          method: "POST",
-        });
-        if (!applyResponse.ok) {
-          const applyResult = (await applyResponse
-            .json()
-            .catch(() => null)) as {
-            reason?: string;
-          } | null;
-          throw new Error(applyResult?.reason ?? "apply_proposal_failed");
-        }
+        // The proposal workflow owns the apply phase when autoApply is true.
+        // Do not submit a second operation here: that could apply the same
+        // document twice and charge credits twice.
       } catch (error) {
         aiSkipped = true;
         aiSkipReason = error instanceof Error ? error.message : "unknown_error";
@@ -337,19 +251,19 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
         portalId: portal.id,
       };
     },
-    onError: () => toast.error(copy.error),
+    onError: () => toast.error(t("error")),
     onSuccess: ({ aiSkipReason, portalId }) => {
       if (aiSkipReason === "insufficient_credits") {
-        toast.warning(copy.aiInsufficientCredits);
+        toast.warning(t("aiInsufficientCredits"));
       } else if (
         aiSkipReason === "proposal_exceeds_plan" ||
         aiSkipReason === "plan_limit"
       ) {
-        toast.warning(copy.aiPlanLimit);
+        toast.warning(t("aiPlanLimit"));
       } else if (aiSkipReason === "ai_provider_failed") {
-        toast.warning(copy.aiProviderFailed);
+        toast.warning(t("aiProviderFailed"));
       } else if (aiSkipReason) {
-        toast.warning(copy.aiSkipped);
+        toast.warning(t("aiSkipped"));
       }
       router.push(`/create/${portalId}`);
     },
@@ -371,34 +285,34 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
   if (mutation.isPending) {
     const stages = [
       {
-        detail: copy.creatingDetail,
+        detail: t("creatingDetail"),
         icon: IconPlus,
         key: "creating",
-        label: copy.creating,
+        label: t("creating"),
       },
       {
-        detail: copy.uploadingDetail,
+        detail: t("uploadingDetail"),
         icon: IconFileSearch,
         key: "uploading",
-        label: copy.uploading,
+        label: t("uploading"),
       },
       {
-        detail: copy.analyzingDetail,
+        detail: t("analyzingAssetsDetail"),
         icon: IconBrain,
-        key: "analyzing",
-        label: copy.analyzing,
+        key: "analyzing-assets",
+        label: t("analyzingAssets"),
       },
       {
-        detail: copy.validatingDetail,
+        detail: t("generatingCopyDetail"),
         icon: IconLayoutDashboard,
-        key: "validating",
-        label: copy.validating,
+        key: "generating-copy",
+        label: t("generatingCopy"),
       },
       {
-        detail: copy.applyingDetail,
+        detail: t("applyingDetail"),
         icon: IconCheck,
         key: "applying",
-        label: copy.applying,
+        label: t("applying"),
       },
     ];
     const currentIndex = stages.findIndex(
@@ -411,14 +325,13 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
           className="flex w-full max-w-lg flex-col gap-8 rounded-xl border bg-card p-6 shadow-sm sm:p-8"
         >
           <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium text-primary">{copy.title}</p>
+            <p className="text-sm font-medium text-primary">{t("title")}</p>
             <h1 className="text-2xl font-semibold tracking-tight">
-              {stages[currentIndex]?.label ?? copy.creating}
+              {stages[currentIndex]?.label ?? t("creating")}
             </h1>
-            <p className="text-sm text-muted-foreground">{copy.pleaseWait}</p>
+            <p className="text-sm text-muted-foreground">{t("pleaseWait")}</p>
             <p className="text-xs text-muted-foreground">
-              {locale === "es" ? "Tiempo transcurrido" : "Elapsed time"}:{" "}
-              {elapsedSeconds}s
+              {t("elapsedTime")}: {elapsedSeconds}s
             </p>
           </div>
           <div className="flex flex-col gap-4">
@@ -478,22 +391,13 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
           <QuestionnaireProgress />
           <FieldGroup>
             <QuestionnaireItem name="project" required>
-              <QuestionnaireTitle>{copy.project}</QuestionnaireTitle>
+              <QuestionnaireTitle>{t("project")}</QuestionnaireTitle>
               <QuestionnaireDescription>
-                {copy.description}
+                {t("description")}
               </QuestionnaireDescription>
-              <div className="flex flex-col gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
-                <div className="flex items-center gap-2 font-medium">
-                  <IconBrain />
-                  {copy.aiPrice}
-                </div>
-                <p className="text-muted-foreground">
-                  {copy.aiPriceDescription}
-                </p>
-              </div>
               <Field>
                 <FieldLabel htmlFor="creation-language">
-                  {copy.language}
+                  {t("language")}
                 </FieldLabel>
                 <Select
                   value={contentLanguage}
@@ -506,38 +410,38 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value="es">{copy.spanish}</SelectItem>
-                      <SelectItem value="en">{copy.english}</SelectItem>
+                      <SelectItem value="es">{t("spanish")}</SelectItem>
+                      <SelectItem value="en">{t("english")}</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
-                <FieldDescription>{copy.languageDescription}</FieldDescription>
+                <FieldDescription>{t("languageDescription")}</FieldDescription>
               </Field>
               <Field>
-                <FieldLabel>{copy.name}</FieldLabel>
+                <FieldLabel>{t("name")}</FieldLabel>
                 <QuestionnaireInput
-                  aria-label={copy.name}
+                  aria-label={t("name")}
                   onChange={(event) => setName(event.target.value)}
-                  placeholder={copy.namePlaceholder}
+                  placeholder={t("namePlaceholder")}
                   value={name}
                 />
-                <QuestionnaireError>{copy.required}</QuestionnaireError>
+                <QuestionnaireError>{t("required")}</QuestionnaireError>
               </Field>
               <Field>
                 <FieldLabel htmlFor="creation-description">
-                  {copy.projectDescription}
+                  {t("projectDescription")}
                 </FieldLabel>
                 <Textarea
                   id="creation-description"
                   onChange={(event) => setDescription(event.target.value)}
-                  placeholder={copy.descriptionPlaceholder}
+                  placeholder={t("descriptionPlaceholder")}
                   rows={4}
                   value={description}
                 />
               </Field>
               <Field>
                 <FieldLabel htmlFor="creation-visibility">
-                  {copy.visibility}
+                  {t("visibility")}
                 </FieldLabel>
                 <Select
                   value={visibility}
@@ -551,10 +455,10 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
                   <SelectContent>
                     <SelectGroup>
                       <SelectItem value="private">
-                        <IconLock /> {copy.private}
+                        <IconLock /> {t("private")}
                       </SelectItem>
                       <SelectItem value="public">
-                        <IconWorld /> {copy.public}
+                        <IconWorld /> {t("public")}
                       </SelectItem>
                     </SelectGroup>
                   </SelectContent>
@@ -562,13 +466,12 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
               </Field>
             </QuestionnaireItem>
             <QuestionnaireItem name="files">
-              <QuestionnaireTitle>{copy.files}</QuestionnaireTitle>
-              <QuestionnaireDescription>{copy.upload}</QuestionnaireDescription>
-              <Badge className="w-fit" variant="secondary">
-                {copy.aiPrice}
-              </Badge>
+              <QuestionnaireTitle>{t("filesTitle")}</QuestionnaireTitle>
+              <QuestionnaireDescription>
+                {t("filesDescription")}
+              </QuestionnaireDescription>
               <QuestionnaireInput
-                aria-label={copy.files}
+                aria-label={t("files")}
                 className="sr-only"
                 readOnly
                 tabIndex={-1}
@@ -579,51 +482,147 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
                 }
               />
               <Field>
-                <FieldLabel htmlFor="creation-files">{copy.files}</FieldLabel>
-                <Input
-                  accept="image/*,.pdf,.txt,.md,.ai,.eps,.psd,.indd,.ttf,.otf,.woff,.woff2"
-                  id="creation-files"
-                  multiple
-                  onChange={(event) =>
-                    setFiles(Array.from(event.target.files ?? []))
-                  }
-                  type="file"
-                />
-                <FieldDescription>
-                  {files.length}{" "}
-                  {locale === "es"
-                    ? "archivos seleccionados"
-                    : "files selected"}
-                </FieldDescription>
+                <FieldLabel className="sr-only" htmlFor="creation-files">
+                  {t("files")}
+                </FieldLabel>
+                <div className="flex flex-col gap-3">
+                  <label
+                    className="relative flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed p-6 pt-14 text-center transition-colors hover:bg-accent/50 data-[dragging=true]:bg-accent/50"
+                    data-dragging={isDragging || undefined}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                    htmlFor="creation-files"
+                  >
+                    <div className="absolute inset-x-4 top-4 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                      <span>{t("filesAdded", { count: files.length })}</span>
+                      <span className="font-medium text-foreground">
+                        {t("aiPrice")}
+                      </span>
+                    </div>
+                    <input
+                      {...getInputProps()}
+                      aria-label={t("files")}
+                      id="creation-files"
+                      className="sr-only"
+                      multiple
+                    />
+                    <span className="mb-3 flex size-11 items-center justify-center rounded-full border bg-background">
+                      <IconUpload className="size-5 text-muted-foreground" />
+                    </span>
+                    <p className="font-medium">{t("uploadPrompt")}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {t("uploadDetails")}
+                    </p>
+                  </label>
+                  {selectedFiles.length > 0 ? (
+                    <div className="scroll-fade-y max-h-72 overflow-y-auto">
+                      <ul
+                        aria-label={t("files")}
+                        className="flex flex-col gap-2"
+                      >
+                        {selectedFiles.map(({ file, id, preview }) => (
+                          <li key={id}>
+                            <Attachment className="w-full">
+                              <AttachmentMedia
+                                variant={preview ? "image" : "icon"}
+                              >
+                                {preview ? (
+                                  <Image
+                                    alt=""
+                                    height={40}
+                                    src={preview}
+                                    unoptimized
+                                    width={40}
+                                  />
+                                ) : (
+                                  <IconFile />
+                                )}
+                              </AttachmentMedia>
+                              <AttachmentContent>
+                                <AttachmentTitle>{file.name}</AttachmentTitle>
+                                <AttachmentDescription>
+                                  {file.type || t("file")} ·{" "}
+                                  {Math.max(1, Math.round(file.size / 1024))} KB
+                                </AttachmentDescription>
+                              </AttachmentContent>
+                              <AttachmentActions>
+                                <AttachmentAction
+                                  aria-label={`${t("remove")} ${file.name}`}
+                                  onClick={() => removeFile(id)}
+                                >
+                                  <IconX />
+                                </AttachmentAction>
+                              </AttachmentActions>
+                            </Attachment>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {fileErrors.length > 0 ? (
+                    <div
+                      className="flex items-start gap-2 text-xs text-destructive"
+                      role="alert"
+                    >
+                      <IconAlertCircle className="mt-0.5 size-4 shrink-0" />
+                      <span>{fileErrors[0]}</span>
+                    </div>
+                  ) : null}
+                </div>
               </Field>
             </QuestionnaireItem>
             <QuestionnaireItem name="review">
-              <QuestionnaireTitle>{copy.review}</QuestionnaireTitle>
+              <QuestionnaireTitle>{t("review")}</QuestionnaireTitle>
               <QuestionnaireDescription>
-                {copy.reviewText}
+                {t("reviewText")}
               </QuestionnaireDescription>
               <QuestionnaireInput
-                aria-label={copy.review}
+                aria-label={t("review")}
                 className="sr-only"
                 readOnly
                 tabIndex={-1}
                 value="confirmed"
               />
-              <div className="rounded-lg border bg-muted/30 p-4 text-sm">
-                <p className="font-medium">{name || "—"}</p>
-                <p className="text-muted-foreground">
-                  {files.length} {copy.files.toLowerCase()}
-                </p>
-                {files.length > 0 ? (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {copy.reviewAiPrice}
-                  </p>
-                ) : null}
+              <div className="flex flex-col gap-2">
+                {[
+                  { key: t("name"), value: name || "—" },
+                  {
+                    key: t("projectDescription"),
+                    value: description || "—",
+                  },
+                  {
+                    key: t("language"),
+                    value:
+                      contentLanguage === "es" ? t("spanish") : t("english"),
+                  },
+                  {
+                    key: t("visibility"),
+                    value:
+                      visibility === "private" ? t("private") : t("public"),
+                  },
+                  {
+                    key: t("filesForAi"),
+                    value: files.length
+                      ? t("filesCount", { count: files.length })
+                      : t("filesReviewEmpty"),
+                  },
+                ].map((item) => (
+                  <Attachment className="w-full" key={item.key}>
+                    <AttachmentContent>
+                      <AttachmentTitle>{item.key}</AttachmentTitle>
+                      <AttachmentDescription>
+                        {item.value}
+                      </AttachmentDescription>
+                    </AttachmentContent>
+                  </Attachment>
+                ))}
               </div>
             </QuestionnaireItem>
             <QuestionnaireActions className="mt-4">
-              <QuestionnairePrevious>{copy.back}</QuestionnairePrevious>
-              <QuestionnaireNext>{copy.next}</QuestionnaireNext>
+              <QuestionnairePrevious>{t("back")}</QuestionnairePrevious>
+              <QuestionnaireNext>{t("next")}</QuestionnaireNext>
               <QuestionnaireSubmit disabled={mutation.isPending}>
                 {mutation.isPending ? (
                   <IconLoader2
@@ -633,7 +632,7 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
                 ) : (
                   <IconPlus data-icon="inline-start" />
                 )}
-                {copy.create}
+                {t("create")}
               </QuestionnaireSubmit>
             </QuestionnaireActions>
           </FieldGroup>

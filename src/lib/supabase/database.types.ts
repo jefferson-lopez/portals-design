@@ -34,6 +34,67 @@ export type Database = {
   };
   public: {
     Tables: {
+      ai_workflow_jobs: {
+        Row: {
+          id: string;
+          owner_id: string;
+          portal_id: string;
+          kind: "portal-operation" | "portal-content" | "portal-proposal";
+          status: "queued" | "processing" | "completed" | "error" | "cancelled";
+          request_id: string;
+          payload: Json;
+          result: Json | null;
+          error_code: string | null;
+          created_at: string;
+          started_at: string | null;
+          completed_at: string | null;
+          updated_at: string;
+          workflow_run_id: string | null;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          portal_id: string;
+          kind: "portal-operation" | "portal-content" | "portal-proposal";
+          status?:
+            | "queued"
+            | "processing"
+            | "completed"
+            | "error"
+            | "cancelled";
+          request_id: string;
+          payload: Json;
+          result?: Json | null;
+          error_code?: string | null;
+          created_at?: string;
+          started_at?: string | null;
+          completed_at?: string | null;
+          updated_at?: string;
+          workflow_run_id?: string | null;
+        };
+        Update: {
+          id?: string;
+          owner_id?: string;
+          portal_id?: string;
+          kind?: "portal-operation" | "portal-content" | "portal-proposal";
+          status?:
+            | "queued"
+            | "processing"
+            | "completed"
+            | "error"
+            | "cancelled";
+          request_id?: string;
+          payload?: Json;
+          result?: Json | null;
+          error_code?: string | null;
+          created_at?: string;
+          started_at?: string | null;
+          completed_at?: string | null;
+          updated_at?: string;
+          workflow_run_id?: string | null;
+        };
+        Relationships: [];
+      };
       creator_stripe_accounts: {
         Row: {
           account_email: string | null;

@@ -12,5 +12,5 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/((?!api|trpc|_next|_vercel|.*\\..*).*)",
+  matcher: "/((?!api|trpc|_next|_vercel|.well-known/workflow/|.*\\..*).*)",
 };

@@ -425,12 +425,14 @@ export async function generateAiContentImprovement(
 export async function generateAiStructuredEnhancement({
   assets,
   existingDocument,
+  onProgress,
   operation = "generate",
   projectDescription,
   contentLanguage = "en",
 }: {
   assets: AiAssetInput[];
   existingDocument?: PortalDocument;
+  onProgress?: (stage: "analyzing-assets" | "generating-copy") => Promise<void>;
   operation?: "generate" | "improve-project" | "refine-copy";
   projectDescription: string;
   contentLanguage?: "en" | "es";
@@ -455,6 +457,7 @@ export async function generateAiStructuredEnhancement({
     const contentAnalyses: z.infer<typeof contentAnalysisSchema>[] = [];
     const visualBatches = chunkVisualAssets(assets);
     const analysisBatches = visualBatches.length ? visualBatches : [assets];
+    await onProgress?.("analyzing-assets");
     for (const [batchIndex, batch] of analysisBatches.entries()) {
       const visualAssets = await Promise.all(
         batch
@@ -509,6 +512,7 @@ export async function generateAiStructuredEnhancement({
       if (output) contentAnalyses.push(output);
     }
 
+    await onProgress?.("generating-copy");
     const promptText = [
       "Create the portal from the completed asset analysis below.",
       "This is the composition phase. Do not analyze raw files again and do not invent new asset facts. Use the supplied content analysis as the source of truth.",

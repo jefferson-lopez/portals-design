@@ -27,12 +27,19 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Progress } from "@/components/ui/progress";
+import { useRouter } from "@/i18n/navigation";
+import {
+  aiCreditsQueryKey,
+  useAiCredits,
+} from "@/lib/billing/ai-credits-client";
 import type { AiAssetInput, AiPortalProposal } from "@/lib/portal/ai-proposal";
+import { useAiWorkflowStore } from "@/lib/portal/ai-workflow-store";
 import { extractAssetMetadata } from "@/lib/portal/asset-metadata";
 import {
   inferAssetMimeType,
   isRenderableImageMimeType,
 } from "@/lib/portal/asset-validation";
+import type { PortalDocument } from "@/lib/portal/document";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
 import {
   shouldUseServerOwnedUpload,
@@ -40,10 +47,6 @@ import {
   uploadManagedPortalAssetServerOwned,
 } from "@/lib/portal/portal-assets-client";
 import { createClient } from "@/lib/supabase/client";
-import {
-  aiCreditsQueryKey,
-  useAiCredits,
-} from "@/lib/billing/ai-credits-client";
 
 export function PortalAiDialog({
   portalId,
@@ -75,10 +78,11 @@ export function PortalAiDialog({
   const currentDocument = usePortalEditorStore(
     (state) => state.documentsByPortalId[portalId],
   );
-  const updateDocument = usePortalEditorStore((state) => state.updateDocument);
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { data: creditData, isError: creditError } = useAiCredits();
   const creditBalance = creditData?.available ?? null;
+  const upsertJob = useAiWorkflowStore((state) => state.upsertJob);
 
   useEffect(() => {
     if (!triggerless) return;
@@ -151,9 +155,11 @@ export function PortalAiDialog({
         }),
       );
       setAnalyzedAssets(assets);
+      const proposalRequestId = crypto.randomUUID();
       const response = await fetch("/api/ai/portal-proposals", {
         body: JSON.stringify({
           assets,
+          autoApply: applyImmediately,
           operation,
           portalId,
           projectDescription:
@@ -161,39 +167,66 @@ export function PortalAiDialog({
             currentDocument?.portal.description ||
             "Portal project",
           existingDocument: currentDocument,
+          requestId: proposalRequestId,
         }),
         headers: { "content-type": "application/json" },
         method: "POST",
       });
       if (!response.ok) throw new Error("proposal_error");
-      const result = (await response.json()) as { proposal?: AiPortalProposal };
+      const result = (await response.json()) as {
+        document?: PortalDocument;
+        jobId?: string;
+        proposal?: AiPortalProposal;
+      };
+      if (response.status === 202 && result.jobId) {
+        upsertJob({
+          autoApply: applyImmediately,
+          errorCode: null,
+          id: result.jobId,
+          kind: "portal-proposal",
+          operation,
+          portalId,
+          requestId: proposalRequestId,
+          status: "loading",
+          updatedAt: new Date().toISOString(),
+        });
+        if (applyImmediately) {
+          // The durable workflow continues in the background. Keep the
+          // editor available instead of trapping the user in a loading modal.
+          setOpen(false);
+          return;
+        }
+        for (;;) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1000));
+          const jobResponse = await fetch(
+            `/api/ai/jobs?jobId=${encodeURIComponent(result.jobId)}`,
+            { cache: "no-store" },
+          );
+          const body = (await jobResponse.json().catch(() => null)) as {
+            jobs?: Array<{
+              error_code: string | null;
+              result: {
+                document?: PortalDocument;
+                proposal?: AiPortalProposal;
+              } | null;
+              status: string;
+            }>;
+          } | null;
+          const job = body?.jobs?.[0];
+          if (job?.status === "error")
+            throw new Error(job.error_code ?? "proposal_error");
+          if (job?.status === "completed" && job.result?.proposal) {
+            result.proposal = job.result.proposal;
+            result.document = job.result.document;
+            break;
+          }
+        }
+      }
       if (!result.proposal) throw new Error("proposal_error");
       if (applyImmediately && currentDocument) {
-        const applyResponse = await fetch("/api/ai/portal-operations", {
-          body: JSON.stringify({
-            operation,
-            portalId,
-            proposedDocument: result.proposal.proposedDocument,
-            requestId: crypto.randomUUID(),
-          }),
-          headers: { "content-type": "application/json" },
-          method: "POST",
-        });
-        const applyResult = (await applyResponse.json().catch(() => null)) as {
-          document?: typeof result.proposal.proposedDocument;
-          error?: string;
-          reason?: string;
-        } | null;
-        if (!applyResponse.ok || !applyResult?.document) {
-          throw new Error(
-            applyResult?.reason ?? applyResult?.error ?? "apply_failed",
-          );
-        }
-        updateDocument(
-          portalId,
-          () =>
-            applyResult.document as NonNullable<typeof applyResult.document>,
-        );
+        // autoApply is handled by the durable proposal workflow. Submitting
+        // another operation here could apply the same proposal twice.
+        if (result.document) router.refresh();
         await queryClient.invalidateQueries({ queryKey: aiCreditsQueryKey });
         toast.success(t("newFilesApplied"));
         setOpen(false);
@@ -242,12 +275,50 @@ export function PortalAiDialog({
           portalId,
           projectDescription:
             currentDocument?.portal.description || "Portal project",
+          requestId: crypto.randomUUID(),
         }),
         headers: { "content-type": "application/json" },
         method: "POST",
       });
       if (!response.ok) throw new Error("proposal_error");
-      const result = (await response.json()) as { proposal?: AiPortalProposal };
+      const result = (await response.json()) as {
+        jobId?: string;
+        proposal?: AiPortalProposal;
+      };
+      if (response.status === 202 && result.jobId) {
+        upsertJob({
+          autoApply: false,
+          errorCode: null,
+          id: result.jobId,
+          kind: "portal-proposal",
+          operation,
+          portalId,
+          requestId: result.jobId,
+          status: "loading",
+          updatedAt: new Date().toISOString(),
+        });
+        for (;;) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1000));
+          const jobResponse = await fetch(
+            `/api/ai/jobs?jobId=${encodeURIComponent(result.jobId)}`,
+            { cache: "no-store" },
+          );
+          const body = (await jobResponse.json().catch(() => null)) as {
+            jobs?: Array<{
+              error_code: string | null;
+              result: { proposal?: AiPortalProposal } | null;
+              status: string;
+            }>;
+          } | null;
+          const job = body?.jobs?.[0];
+          if (job?.status === "error")
+            throw new Error(job.error_code ?? "proposal_error");
+          if (job?.status === "completed" && job.result?.proposal) {
+            result.proposal = job.result.proposal;
+            break;
+          }
+        }
+      }
       if (!result.proposal) throw new Error("proposal_error");
       setProposal(result.proposal);
     } catch {
@@ -275,13 +346,9 @@ export function PortalAiDialog({
         method: "POST",
       });
       if (!response.ok) throw new Error("apply_failed");
-      const result = (await response.json()) as {
-        document?: typeof proposal.proposedDocument;
-      };
-      updateDocument(
-        portalId,
-        () => result.document ?? proposal.proposedDocument,
-      );
+      if (response.status !== 202) {
+        router.refresh();
+      }
       await queryClient.invalidateQueries({ queryKey: aiCreditsQueryKey });
       setOpen(false);
     } catch {

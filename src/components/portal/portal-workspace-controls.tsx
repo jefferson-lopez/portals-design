@@ -3,7 +3,6 @@
 import { move } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/react";
 import { useSortable } from "@dnd-kit/react/sortable";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   IconAlertCircle,
   IconBubbleTextFilled,
@@ -25,6 +24,7 @@ import {
   IconTrash,
   IconX,
 } from "@tabler/icons-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
@@ -111,6 +111,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { aiCreditsQueryKey } from "@/lib/billing/ai-credits-client";
 import { markImageFieldManual } from "@/lib/portal/ai";
 import type { AiContentTarget } from "@/lib/portal/ai-sdk";
 import { extractAssetMetadata } from "@/lib/portal/asset-metadata";
@@ -140,7 +141,6 @@ import {
 } from "@/lib/portal/document";
 import { flushThenExport } from "@/lib/portal/editor-export";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
-import { aiCreditsQueryKey } from "@/lib/billing/ai-credits-client";
 import {
   reconcileOptimisticUpload,
   remainingOptimisticUploadSlots,
@@ -290,10 +290,12 @@ function ImproveWithAiButton({
         document?: PortalDocument;
         error?: string;
       } | null;
-      if (!response.ok || !result?.document) {
+      if (!response.ok || (!result?.document && response.status !== 202)) {
         throw new Error(result?.error ?? "ai_operation_failed");
       }
-      updateDocument(portalId, () => result.document as PortalDocument);
+      if (result?.document) {
+        updateDocument(portalId, () => result.document as PortalDocument);
+      }
       await queryClient.invalidateQueries({ queryKey: aiCreditsQueryKey });
       toast.success(t("improveTextSuccess"));
     } catch (error) {

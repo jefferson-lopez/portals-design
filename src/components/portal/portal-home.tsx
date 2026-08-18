@@ -585,8 +585,8 @@ function errorMessage(error: unknown, fallback: string) {
 function maskEmail(email: string) {
   const [localPart, domain] = email.split("@");
   if (!localPart || !domain) return email;
-  const visible = localPart.slice(0, 2);
-  return `${visible}${"*".repeat(Math.max(3, localPart.length - visible.length))}@${domain}`;
+  if (localPart.length <= 9) return email;
+  return `${localPart.slice(0, 6)}...${localPart.slice(-3)}@${domain}`;
 }
 
 function withPortalName(template: string, portalName: string) {

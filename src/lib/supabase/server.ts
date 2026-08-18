@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { Database } from "./database.types";
 import { getSupabaseEnv } from "./env";
@@ -22,5 +23,13 @@ export async function createClient() {
         }
       },
     },
+  });
+}
+
+export function createAccessTokenClient(accessToken: string) {
+  const { publishableKey, url } = getSupabaseEnv();
+  return createSupabaseClient<Database>(url, publishableKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
   });
 }

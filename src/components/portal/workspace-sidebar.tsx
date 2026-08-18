@@ -5,7 +5,7 @@ import {
   IconAdjustmentsFilled,
   IconBrandStripeFilled,
   IconHomeFilled,
-  IconLogout,
+  IconLoader2,
   IconPlusFilled,
   IconSettingsFilled,
   IconSpiral,
@@ -19,7 +19,10 @@ import {
   useRef,
   useState,
 } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { signOut } from "@/app/[locale]/_actions/auth";
+import type { WorkspaceSidebarUser } from "@/components/portal/workspace-sidebar-user";
+import { WorkspaceSidebarUser as WorkspaceSidebarUserMenu } from "@/components/portal/workspace-sidebar-user";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -44,6 +47,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Link, usePathname } from "@/i18n/navigation";
+import { useAiWorkflowStore } from "@/lib/portal/ai-workflow-store";
 
 type ProjectMeta = { id: string; name: string };
 type WorkspaceSidebarContextValue = {
@@ -128,7 +132,13 @@ function MenuLink({
   );
 }
 
-export function WorkspaceSidebar({ locale }: { locale: string }) {
+export function WorkspaceSidebar({
+  locale,
+  user,
+}: {
+  locale: string;
+  user: WorkspaceSidebarUser | null;
+}) {
   const pathname = usePathname();
   const t = useTranslations("PortalEditor");
   const projectMatch = pathname.match(/^\/create\/([^/]+)/);
@@ -138,6 +148,25 @@ export function WorkspaceSidebar({ locale }: { locale: string }) {
     pathname === "/home" ? t("workspace.all") : t("workspace.portal");
   const signOutFormRef = useRef<HTMLFormElement>(null);
   const [signOutOpen, setSignOutOpen] = useState(false);
+  const activeAiJobs = useAiWorkflowStore(
+    useShallow((state) =>
+      Object.values(state.jobsById).filter(
+        (job) =>
+          job.status === "loading" &&
+          !(
+            job.kind === "portal-operation" && job.requestId.endsWith(":apply")
+          ),
+      ),
+    ),
+  );
+  const aiWorkflowDescription = (job: (typeof activeAiJobs)[number]) => {
+    if (job.progress === "analyzing-assets")
+      return t("workspace.aiAnalyzingAssets");
+    if (job.progress === "generating-copy")
+      return t("workspace.aiGeneratingCopy");
+    if (job.progress === "applying") return t("workspace.aiApplying");
+    return t("workspace.aiPreparing");
+  };
 
   return (
     <Sidebar collapsible="icon" variant="floating">
@@ -211,28 +240,47 @@ export function WorkspaceSidebar({ locale }: { locale: string }) {
             </SidebarGroupContent>
           </SidebarGroup>
         )}
+        {activeAiJobs.length > 0 ? (
+          <SidebarGroup>
+            <SidebarGroupLabel>{t("workspace.aiWorkflows")}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {activeAiJobs.map((job) => (
+                  <SidebarMenuItem key={job.id}>
+                    <SidebarMenuButton
+                      render={<Link href={`/create/${job.portalId}`} />}
+                    >
+                      <IconLoader2 className="animate-spin" />
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate">
+                          {job.portalName ?? t("workspace.aiUntitledProject")}
+                        </span>
+                        <span className="truncate text-xs font-normal text-sidebar-foreground/70">
+                          {aiWorkflowDescription(job)}
+                        </span>
+                      </span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
       </SidebarContent>
 
       <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <form action={signOut} ref={signOutFormRef}>
+        {user ? (
+          <>
+            <form action={signOut} className="hidden" ref={signOutFormRef}>
               <input name="locale" type="hidden" value={locale} />
-              <SidebarMenuButton
-                render={
-                  <Button
-                    onClick={() => setSignOutOpen(true)}
-                    type="button"
-                    variant="ghost"
-                  />
-                }
-              >
-                <IconLogout />
-                <span>{t("workspace.signOut")}</span>
-              </SidebarMenuButton>
             </form>
-          </SidebarMenuItem>
-        </SidebarMenu>
+            <WorkspaceSidebarUserMenu
+              locale={locale}
+              onSignOut={() => setSignOutOpen(true)}
+              user={user}
+            />
+          </>
+        ) : null}
       </SidebarFooter>
       <Dialog onOpenChange={setSignOutOpen} open={signOutOpen}>
         <DialogContent>
