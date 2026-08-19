@@ -13,6 +13,8 @@ import {
   IconLockFilled,
   IconSearch,
   IconSettings,
+  IconStar,
+  IconStarFilled,
   IconTrash,
   IconWorldFilled,
 } from "@tabler/icons-react";
@@ -23,6 +25,8 @@ import {
   deletePortalFromHome,
   getHomePortals,
   type HomePortal,
+  type HomePortalsResult,
+  togglePortalFavorite,
   updatePortalSettings,
 } from "@/app/[locale]/_actions/portals";
 import { PortalWorkspaceToolbar } from "@/components/portal/portal-workspace-toolbar";
@@ -162,6 +166,11 @@ export type PortalHomeCopy = {
     trigger: string;
   };
   portal: {
+    favorite: {
+      add: string;
+      remove: string;
+      saveError: string;
+    };
     edit: string;
     lastEdited: string;
     view: string;
@@ -285,7 +294,7 @@ export function ConnectAccountDialog({
   });
   const status =
     statusQuery.data ??
-    (statusQuery.isError ? initialStatus ?? { connected: false } : null);
+    (statusQuery.isError ? (initialStatus ?? { connected: false }) : null);
   const countryNames = new Intl.DisplayNames([locale], { type: "region" });
   const countryOptions = STRIPE_CONNECT_COUNTRY_CODES.map((code) => ({
     code,
@@ -382,7 +391,9 @@ export function ConnectAccountDialog({
             {status.displayName ? (
               <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="text-muted-foreground">{copy.profile}</span>
-                <span className="font-medium text-right">{status.displayName}</span>
+                <span className="font-medium text-right">
+                  {status.displayName}
+                </span>
               </div>
             ) : null}
             {status.country ? (
@@ -406,7 +417,9 @@ export function ConnectAccountDialog({
               <Badge variant="secondary">{verificationLabel}</Badge>
             </div>
             <div className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-muted-foreground">{copy.detailsSubmitted}</span>
+              <span className="text-muted-foreground">
+                {copy.detailsSubmitted}
+              </span>
               <span className="font-medium text-right">
                 {status.detailsSubmitted ? copy.activeShort : copy.inactive}
               </span>
@@ -879,12 +892,61 @@ function UsageCircle({ percent }: { percent: number }) {
 
 function PortalCard({
   copy,
+  locale,
   portal,
 }: {
-  copy: Pick<PortalHomeCopy, "portal">;
+  copy: Pick<PortalHomeCopy, "portal" | "authRequired" | "errorGeneric">;
+  locale: string;
   portal: HomePortal;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const favoriteMutation = useMutation({
+    mutationFn: () =>
+      togglePortalFavorite({
+        isFavorite: portal.isFavorite === true,
+        locale,
+        portalId: portal.id,
+      }),
+    onMutate: async () => {
+      const queryKey = portalsQueryKey(locale);
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<HomePortalsResult>(queryKey);
+      queryClient.setQueryData<HomePortalsResult>(queryKey, (current) =>
+        current
+          ? {
+              ...current,
+              portals: current.portals.map((item) =>
+                item.id === portal.id
+                  ? { ...item, isFavorite: item.isFavorite !== true }
+                  : item,
+              ),
+            }
+          : current,
+      );
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(portalsQueryKey(locale), context.previous);
+      }
+      toast.error(copy.errorGeneric);
+    },
+    onSuccess: async (result, _variables, context) => {
+      if (result.error) {
+        if (context?.previous) {
+          queryClient.setQueryData(portalsQueryKey(locale), context.previous);
+        }
+        toast.error(copy.portal.favorite.saveError);
+      }
+      await queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.favorites(locale),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: portalsQueryKey(locale),
+      });
+    },
+  });
   const purchasedDate = portal.purchasedAt
     ? new Date(portal.purchasedAt).toLocaleDateString(undefined, {
         day: "numeric",
@@ -901,12 +963,15 @@ function PortalCard({
     },
   );
   const plan = portal.plan ?? "free";
-  const storageLimit = {
-    free: 100,
-    starter: 500,
-    pro: 1024,
-    premium: 2048,
-  }[plan] * 1024 * 1024;
+  const storageLimit =
+    {
+      free: 100,
+      starter: 500,
+      pro: 1024,
+      premium: 2048,
+    }[plan] *
+    1024 *
+    1024;
   const usagePercent = Math.round(
     storagePercent(portal.storageUsedBytes ?? 0, storageLimit),
   );
@@ -964,7 +1029,25 @@ function PortalCard({
           </Link>
         </CardDescription>
         {portal.isPurchased ? (
-          <CardAction>
+          <CardAction className="flex items-center gap-1">
+            <Button
+              aria-label={
+                portal.isFavorite === true
+                  ? copy.portal.favorite.remove
+                  : copy.portal.favorite.add
+              }
+              aria-pressed={portal.isFavorite === true}
+              disabled={favoriteMutation.isPending}
+              onClick={(event) => {
+                event.stopPropagation();
+                favoriteMutation.mutate();
+              }}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              {portal.isFavorite === true ? <IconStarFilled /> : <IconStar />}
+            </Button>
             <Badge className="bg-amber-400/20 text-amber-700 dark:text-amber-300">
               <IconCrownFilled className="size-4" />
               {copy.portal.visibility.purchased}
@@ -972,6 +1055,24 @@ function PortalCard({
           </CardAction>
         ) : (
           <CardAction className="flex items-center gap-1">
+            <Button
+              aria-label={
+                portal.isFavorite === true
+                  ? copy.portal.favorite.remove
+                  : copy.portal.favorite.add
+              }
+              aria-pressed={portal.isFavorite === true}
+              disabled={favoriteMutation.isPending}
+              onClick={(event) => {
+                event.stopPropagation();
+                favoriteMutation.mutate();
+              }}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              {portal.isFavorite === true ? <IconStarFilled /> : <IconStar />}
+            </Button>
             <Badge
               className={
                 plan === "free"
@@ -1112,7 +1213,12 @@ export function PortalHome({
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
               {filteredPortals.map((portal) => (
-                <PortalCard copy={copy} key={portal.id} portal={portal} />
+                <PortalCard
+                  copy={copy}
+                  key={portal.id}
+                  locale={locale}
+                  portal={portal}
+                />
               ))}
             </div>
           )}

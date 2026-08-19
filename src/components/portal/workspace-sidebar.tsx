@@ -9,7 +9,9 @@ import {
   IconPlusFilled,
   IconSettingsFilled,
   IconSpiral,
+  IconStarFilled,
 } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import {
   createContext,
@@ -21,6 +23,7 @@ import {
 } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { signOut } from "@/app/[locale]/_actions/auth";
+import { getRecentWorkspaceFavorites } from "@/app/[locale]/_actions/portals";
 import type { WorkspaceSidebarUser } from "@/components/portal/workspace-sidebar-user";
 import { WorkspaceSidebarUser as WorkspaceSidebarUserMenu } from "@/components/portal/workspace-sidebar-user";
 import { Button } from "@/components/ui/button";
@@ -48,6 +51,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Link, usePathname } from "@/i18n/navigation";
 import { useAiWorkflowStore } from "@/lib/portal/ai-workflow-store";
+import { workspaceQueryKeys } from "@/lib/portal/workspace-read-models";
 
 type ProjectMeta = { id: string; name: string };
 type WorkspaceSidebarContextValue = {
@@ -166,6 +170,23 @@ export function WorkspaceSidebar({
       return t("workspace.aiImproveWithAiTitle");
     return t("workspace.aiAddWithAiTitle");
   };
+  const favoritesQuery = useQuery({
+    enabled: Boolean(user),
+    queryKey: workspaceQueryKeys.favorites(locale),
+    queryFn: async () => {
+      const rows = await getRecentWorkspaceFavorites(locale);
+      return rows.flatMap((row) => {
+        if (!row || typeof row !== "object" || Array.isArray(row)) return [];
+        const item = row as Record<string, unknown>;
+        return typeof item.id === "string" &&
+          typeof item.portalId === "string" &&
+          typeof item.name === "string"
+          ? [{ id: item.id, portalId: item.portalId, name: item.name }]
+          : [];
+      });
+    },
+    staleTime: 30_000,
+  });
 
   return (
     <Sidebar collapsible="icon" variant="floating">
@@ -265,6 +286,31 @@ export function WorkspaceSidebar({
             </SidebarGroupContent>
           </SidebarGroup>
         ) : null}
+        <SidebarGroup>
+          <SidebarGroupLabel>{t("workspace.favorites")}</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {favoritesQuery.data?.length ? (
+                favoritesQuery.data.map((favorite) => (
+                  <SidebarMenuItem key={favorite.id}>
+                    <SidebarMenuButton
+                      render={<Link href={`/create/${favorite.portalId}`} />}
+                    >
+                      <IconStarFilled />
+                      <span className="truncate">{favorite.name}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))
+              ) : (
+                <SidebarMenuItem>
+                  <span className="px-2 text-xs text-sidebar-foreground/70">
+                    {t("workspace.noFavorites")}
+                  </span>
+                </SidebarMenuItem>
+              )}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter>

@@ -56,6 +56,7 @@ export type HomePortal = Pick<
   plan?: "free" | "starter" | "pro" | "premium";
   storageUsedBytes?: number;
   canDelete?: boolean;
+  isFavorite: boolean;
 };
 
 export type HomePortalsResult = {
@@ -132,12 +133,44 @@ export async function getHomePortals(
             ? portal.storageUsedBytes
             : 0,
         canDelete: portal.canDelete !== false,
+        isFavorite: portal.isFavorite === true,
       })),
     };
   } catch (error) {
     unstable_rethrow(error);
     return homePortalsFailure("unexpected", error);
   }
+}
+
+export async function togglePortalFavorite(args: {
+  locale: string;
+  portalId: string;
+  isFavorite: boolean;
+}): Promise<
+  { error: null } | { error: "saveFailed" | "authenticationRequired" }
+> {
+  try {
+    const supabase = await requireAuthenticatedUser(args.locale);
+    const { error } = await supabase.rpc(
+      args.isFavorite ? "remove_portal_favorite" : "add_portal_favorite",
+      { target_portal_id: args.portalId },
+    );
+    if (error) return { error: "saveFailed" };
+    revalidatePath(`/${args.locale}/home`);
+    return { error: null };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: "saveFailed" };
+  }
+}
+
+export async function getRecentWorkspaceFavorites(locale: string) {
+  const supabase = await requireAuthenticatedUser(locale);
+  const { data, error } = await supabase.rpc("get_recent_workspace_favorites", {
+    target_limit: 5,
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? data : [];
 }
 
 function getString(formData: FormData, key: string) {

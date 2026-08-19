@@ -106,7 +106,7 @@ describe("home portal access", () => {
         id: "portal-1", name: "Brand", slug: "brand",
         updated_at: "2026-07-24T00:00:00.000Z", visibility: "private",
         hasPurchasedPlan: false, isPurchased: false, plan: "free",
-        storageUsedBytes: 0, canDelete: true,
+        storageUsedBytes: 0, canDelete: true, isFavorite: false,
       }],
     });
     expect(from).not.toHaveBeenCalled();

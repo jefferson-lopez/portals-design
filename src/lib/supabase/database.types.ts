@@ -146,6 +146,39 @@ export type Database = {
         };
         Relationships: [];
       };
+      portal_favorites: {
+        Row: { user_id: string; portal_id: string; created_at: string };
+        Insert: { user_id: string; portal_id: string; created_at?: string };
+        Update: { user_id?: string; portal_id?: string; created_at?: string };
+        Relationships: [];
+      };
+      portal_likes: {
+        Row: { user_id: string; portal_id: string; created_at: string };
+        Insert: { user_id: string; portal_id: string; created_at?: string };
+        Update: { user_id?: string; portal_id?: string; created_at?: string };
+        Relationships: [];
+      };
+      portal_library_items: {
+        Row: {
+          user_id: string;
+          portal_id: string;
+          source: Database["public"]["Enums"]["portal_library_source"];
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          portal_id: string;
+          source: Database["public"]["Enums"]["portal_library_source"];
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          portal_id?: string;
+          source?: Database["public"]["Enums"]["portal_library_source"];
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       paid_portal_access_grants: {
         Row: {
           buyer_id: string;
@@ -862,6 +895,31 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      add_portal_favorite: {
+        Args: { target_portal_id: string };
+        Returns: boolean;
+      };
+      remove_portal_favorite: {
+        Args: { target_portal_id: string };
+        Returns: boolean;
+      };
+      add_portal_like: { Args: { target_portal_id: string }; Returns: boolean };
+      remove_portal_like: {
+        Args: { target_portal_id: string };
+        Returns: boolean;
+      };
+      add_free_portal_to_library: {
+        Args: { target_portal_id: string };
+        Returns: boolean;
+      };
+      remove_free_portal_from_library: {
+        Args: { target_portal_id: string };
+        Returns: boolean;
+      };
+      get_recent_workspace_favorites: {
+        Args: { target_limit?: number };
+        Returns: Json;
+      };
       get_home_workspace_summary: {
         Args: Record<PropertyKey, never>;
         Returns: Json;
@@ -1606,6 +1664,7 @@ export type Database = {
       portal_member_role: "owner" | "editor" | "viewer";
       portal_status: "draft" | "published";
       portal_theme: "light" | "dark" | "auto";
+      portal_library_source: "free_added" | "purchased";
       portal_visibility:
         | "public"
         | "private"
@@ -1789,6 +1848,7 @@ export const Constants = {
       portal_member_role: ["owner", "editor", "viewer"],
       portal_status: ["draft", "published"],
       portal_theme: ["light", "dark", "auto"],
+      portal_library_source: ["free_added", "purchased"],
       portal_visibility: [
         "public",
         "private",
@@ -1801,6 +1861,7 @@ export const Constants = {
 } as const;
 
 export type Portal = Tables<"portals">;
+export type PortalLibrarySource = Enums<"portal_library_source">;
 export type PortalBlock = Tables<"portal_blocks">;
 export type PortalDocumentRowType = Tables<"portal_documents">;
 export type PortalPublication = Tables<"portal_publications">;

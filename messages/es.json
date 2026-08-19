@@ -243,6 +243,11 @@
       "save": "Guardar cambios"
     },
     "portal": {
+      "favorite": {
+        "add": "Agregar a favoritos",
+        "remove": "Quitar de favoritos",
+        "saveError": "No se pudo guardar el favorito"
+      },
       "lastEdited": "Última edición",
       "edit": "Editar",
       "view": "Ver",
@@ -270,7 +275,13 @@
       "title": "Conecta Supabase",
       "description": "Configura el backend para crear y administrar portales para clientes."
     },
-    "errorGeneric": "No se pudo completar la acción."
+    "errorGeneric": "No se pudo completar la acción.",
+    "social": {
+      "like": "Dar like al proyecto",
+      "unlike": "Quitar like",
+      "addToLibrary": "Agregar a la biblioteca",
+      "removeFromLibrary": "Quitar de la biblioteca"
+    }
   },
   "Common": {
     "close": "Cerrar"
@@ -586,6 +597,8 @@
       "projects": "Proyectos",
       "createProject": "Crear proyecto",
       "workspace": "Área de trabajo",
+      "favorites": "Favoritos",
+      "noFavorites": "Aún no tienes favoritos",
       "aiWorkflows": "Procesos de IA",
       "aiUntitledProject": "Proyecto sin título",
       "aiCreatingProjectTitle": "Creando proyecto con IA",

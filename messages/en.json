@@ -243,6 +243,11 @@
       "save": "Save changes"
     },
     "portal": {
+      "favorite": {
+        "add": "Add to favorites",
+        "remove": "Remove from favorites",
+        "saveError": "Favorite could not be saved"
+      },
       "lastEdited": "Last edited",
       "edit": "Edit",
       "view": "View",
@@ -270,7 +275,13 @@
       "title": "Connect Supabase",
       "description": "Configure the backend to create and manage client portals."
     },
-    "errorGeneric": "The action could not be completed."
+    "errorGeneric": "The action could not be completed.",
+    "social": {
+      "like": "Like project",
+      "unlike": "Remove like",
+      "addToLibrary": "Add to library",
+      "removeFromLibrary": "Remove from library"
+    }
   },
   "Common": {
     "close": "Close"
@@ -586,6 +597,8 @@
       "projects": "Projects",
       "createProject": "Create project",
       "workspace": "Workspace",
+      "favorites": "Favorites",
+      "noFavorites": "No favorites yet",
       "aiWorkflows": "AI workflows",
       "aiUntitledProject": "Untitled project",
       "aiCreatingProjectTitle": "Creating project with AI",

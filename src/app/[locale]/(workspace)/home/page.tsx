@@ -98,7 +98,9 @@ export default async function HomePage({ params, searchParams }: Props) {
           requirementsPending: t.raw("connect.requirementsPending") as string,
           verification: t("connect.verification"),
           verificationActive: t("connect.verificationActive"),
-          verificationNeedsInformation: t("connect.verificationNeedsInformation"),
+          verificationNeedsInformation: t(
+            "connect.verificationNeedsInformation",
+          ),
           verificationProcessing: t("connect.verificationProcessing"),
           verificationNotStarted: t("connect.verificationNotStarted"),
           continue: t("connect.continue"),
@@ -131,6 +133,11 @@ export default async function HomePage({ params, searchParams }: Props) {
         searchPlaceholder: t("searchPlaceholder"),
         searchClearLabel: t("searchClearLabel"),
         portal: {
+          favorite: {
+            add: t("portal.favorite.add"),
+            remove: t("portal.favorite.remove"),
+            saveError: t("portal.favorite.saveError"),
+          },
           edit: t("portal.edit"),
           lastEdited: t("portal.lastEdited"),
           usage: t("portal.usage"),
