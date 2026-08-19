@@ -1,0 +1,69 @@
+import { describe, expect, test } from "bun:test";
+
+const source = await Bun.file(
+  new URL("./ai-workflow-reconciler.tsx", import.meta.url),
+).text();
+const layoutSource = await Bun.file(
+  new URL("../../app/[locale]/layout.tsx", import.meta.url),
+).text();
+const migrationSource = await Bun.file(
+  new URL(
+    "../../../supabase/migrations/20260819100000_enable_ai_workflow_realtime.sql",
+    import.meta.url,
+  ),
+).text();
+const sidebarSource = await Bun.file(
+  new URL("./workspace-sidebar.tsx", import.meta.url),
+).text();
+
+describe("AiWorkflowReconciler", () => {
+  test("persists completed document jobs across router refreshes", () => {
+    expect(source).toContain("useRef");
+    expect(source).toContain("appliedDocumentJobByPortalRef");
+    expect(source).toContain("previousStatusesRef");
+    expect(source).toContain("updateDocument(");
+    expect(source).toContain("job.result.document");
+    expect(source).toContain("aiCreatingProjectTitle");
+    expect(source).toContain("aiImproveWithAiTitle");
+    expect(source).toContain("aiAddWithAiTitle");
+    expect(source).toContain('"portal-ai-workflow-reconcile"');
+    expect(source).toContain("toast.dismiss");
+    expect(source).toContain("job.portalId");
+    expect(source).not.toContain(
+      "const appliedDocumentJobByPortal = new Map<string, string>();",
+    );
+    expect(source).not.toContain(
+      'const previousStatuses = new Map<string, Job["status"]>();',
+    );
+  });
+
+  test("uses Supabase Realtime and keeps polling only as a slow fallback", () => {
+    expect(source).toContain("const tRef = useRef(t);");
+    expect(source).toContain("const routerRef = useRef(router);");
+    expect(source).toContain("const pathnameRef = useRef(pathname);");
+    expect(source).toContain('.channel("ai-workflow-jobs")');
+    expect(source).toContain('event: "*"');
+    expect(source).toContain('table: "ai_workflow_jobs"');
+    expect(source).toContain("removeChannel");
+    expect(source).toContain(
+      "window.setInterval(() => void reconcile(), 30000)",
+    );
+    expect(source).not.toContain(", router, t, upsertJob]");
+  });
+
+  test("declares smooth scrolling for Next.js route transitions", () => {
+    expect(layoutSource).toContain('data-scroll-behavior="smooth"');
+  });
+
+  test("publishes AI job changes for Supabase Realtime", () => {
+    expect(migrationSource).toContain(
+      "alter publication supabase_realtime add table public.ai_workflow_jobs;",
+    );
+  });
+
+  test("keeps active AI workflows visible from every sidebar", () => {
+    expect(sidebarSource).not.toContain("currentProjectId === job.portalId");
+    expect(sidebarSource).toContain("jobsById");
+    expect(sidebarSource).toContain("pathname.match(/\\/create\\/([^/]+)/)");
+  });
+});

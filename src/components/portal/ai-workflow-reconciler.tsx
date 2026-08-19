@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,8 @@ import { usePathname, useRouter } from "@/i18n/navigation";
 import type { AiWorkflowProgress } from "@/lib/portal/ai-workflow-store";
 import { useAiWorkflowStore } from "@/lib/portal/ai-workflow-store";
 import type { PortalDocument } from "@/lib/portal/document";
+import { usePortalEditorStore } from "@/lib/portal/editor-store";
+import { createClient } from "@/lib/supabase/client";
 
 type Job = {
   id: string;
@@ -32,6 +34,7 @@ type Job = {
   payload?: {
     operation?: "generate" | "improve-project" | "refine-copy";
     autoApply?: boolean;
+    target?: { id?: string; kind?: string };
   };
   operation?: "generate" | "improve-project" | "refine-copy";
   autoApply?: boolean;
@@ -43,31 +46,50 @@ export function AiWorkflowReconciler() {
   const t = useTranslations("PortalEditor.workspace");
   const pathname = usePathname();
   const router = useRouter();
+  const pathnameRef = useRef(pathname);
+  const routerRef = useRef(router);
+  const tRef = useRef(t);
   const [cancelJob, setCancelJob] = useState<Job | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const previousStatusesRef = useRef(new Map<string, Job["status"]>());
+  const appliedDocumentJobByPortalRef = useRef(new Map<string, string>());
   const upsertJob = useAiWorkflowStore((state) => state.upsertJob);
   const removeJob = useAiWorkflowStore((state) => state.removeJob);
+  const updateDocument = usePortalEditorStore((state) => state.updateDocument);
+  pathnameRef.current = pathname;
+  routerRef.current = router;
+  tRef.current = t;
 
   useEffect(() => {
     let disposed = false;
-    const previousStatuses = new Map<string, Job["status"]>();
-    const appliedDocumentJobByPortal = new Map<string, string>();
-    const currentPortalId = pathname.match(/^\/create\/([^/]+)/)?.[1] ?? null;
+    const previousStatuses = previousStatusesRef.current;
+    const appliedDocumentJobByPortal = appliedDocumentJobByPortalRef.current;
+    const currentPortalId = () =>
+      pathnameRef.current.match(/\/create\/([^/]+)/)?.[1] ?? null;
+    const translate = (...args: Parameters<typeof t>) => tRef.current(...args);
     const progressDescription = (job: Job) => {
       if (job.result?.progress === "analyzing-assets")
-        return t("aiAnalyzingAssets");
+        return translate("aiAnalyzingAssets");
       if (job.result?.progress === "generating-copy")
-        return t("aiGeneratingCopy");
-      if (job.result?.progress === "applying") return t("aiApplying");
-      if (job.kind === "portal-content") return t("aiProcessingContent");
-      if (job.kind === "portal-operation") return t("aiApplying");
-      return t("aiPreparing");
+        return translate("aiGeneratingCopy");
+      if (job.result?.progress === "applying") return translate("aiApplying");
+      if (job.kind === "portal-content")
+        return translate("aiProcessingContent");
+      if (job.kind === "portal-operation") return translate("aiApplying");
+      return translate("aiPreparing");
+    };
+    const actionTitle = (job: Job) => {
+      if (job.operation === "generate")
+        return translate("aiCreatingProjectTitle");
+      if (job.operation === "refine-copy")
+        return translate("aiImproveWithAiTitle");
+      return translate("aiAddWithAiTitle");
     };
     const failureDescription = (job: Job) => {
       if (job.error_code === "insufficient_credits")
-        return t("aiInsufficientCredits");
-      if (job.error_code === "plan_limit") return t("aiPlanLimit");
-      return t("aiFailedDescription");
+        return translate("aiInsufficientCredits");
+      if (job.error_code === "plan_limit") return translate("aiPlanLimit");
+      return translate("aiFailedDescription");
     };
     const reconcile = async () => {
       const response = await fetch("/api/ai/jobs", { cache: "no-store" }).catch(
@@ -106,8 +128,14 @@ export function AiWorkflowReconciler() {
           requestId: job.request_id,
           errorCode: job.error_code,
           updatedAt: job.updated_at,
-          operation: job.operation,
+          operation:
+            job.operation ??
+            (job.kind === "portal-content" ? "refine-copy" : undefined),
           autoApply: job.autoApply,
+          targetKey:
+            job.payload?.target?.kind && job.payload.target.id
+              ? `${job.payload.target.kind}:${job.payload.target.id}`
+              : undefined,
           progress: job.result?.progress,
           proposal: (job.result as { proposal?: never } | null)?.proposal,
         });
@@ -116,8 +144,9 @@ export function AiWorkflowReconciler() {
           previousStatuses.get(job.id) === "processing";
         const isInternalApplyJob =
           job.kind === "portal-operation" && job.request_id.endsWith(":apply");
+        const activePortalId = currentPortalId();
         const belongsToCurrentProject = Boolean(
-          currentPortalId && job.portal_id === currentPortalId,
+          activePortalId && job.portal_id === activePortalId,
         );
         const toastId = `ai-workflow-${job.portal_id}`;
         if (
@@ -125,9 +154,9 @@ export function AiWorkflowReconciler() {
           !isInternalApplyJob &&
           (job.status === "queued" || job.status === "processing")
         ) {
-          toast.loading(t("aiGeneratingTitle"), {
+          toast.loading(actionTitle(job), {
             action: {
-              label: t("aiCancelAction"),
+              label: translate("aiCancelAction"),
               onClick: () => setCancelJob(job),
             },
             description: progressDescription(job),
@@ -140,9 +169,9 @@ export function AiWorkflowReconciler() {
           wasActive &&
           job.status === "completed"
         ) {
-          toast.success(t("aiCompletedTitle"), {
+          toast.success(translate("aiCompletedTitle"), {
             action: null,
-            description: t("aiCompletedDescription"),
+            description: translate("aiCompletedDescription"),
             id: toastId,
           });
         } else if (
@@ -151,7 +180,7 @@ export function AiWorkflowReconciler() {
           wasActive &&
           job.status === "error"
         ) {
-          toast.error(t("aiFailedTitle"), {
+          toast.error(translate("aiFailedTitle"), {
             action: null,
             description: failureDescription(job),
             id: toastId,
@@ -162,9 +191,9 @@ export function AiWorkflowReconciler() {
           wasActive &&
           job.status === "cancelled"
         ) {
-          toast.info(t("aiCancelledTitle"), {
+          toast.info(translate("aiCancelledTitle"), {
             action: null,
-            description: t("aiCancelledDescription"),
+            description: translate("aiCancelledDescription"),
             id: toastId,
           });
         } else if (!belongsToCurrentProject && !isInternalApplyJob) {
@@ -188,20 +217,73 @@ export function AiWorkflowReconciler() {
             isLatestDocumentJob &&
             appliedDocumentJobByPortal.get(job.portal_id) !== job.id
           ) {
-            if (currentPortalId === job.portal_id) router.refresh();
             appliedDocumentJobByPortal.set(job.portal_id, job.id);
+            if (activePortalId === job.portal_id) {
+              const completedDocument = job.result.document;
+              const updated = updateDocument(
+                job.portal_id,
+                () => completedDocument as PortalDocument,
+              );
+              if (!updated) routerRef.current.refresh();
+            }
           }
           removeJob(job.id);
         }
       }
     };
     void reconcile();
-    const timer = window.setInterval(() => void reconcile(), 2500);
+    const reconcileOnNavigation = () => void reconcile();
+    window.addEventListener(
+      "portal-ai-workflow-reconcile",
+      reconcileOnNavigation,
+    );
+    const supabase = createClient();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    const setupRealtime = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (disposed || !data.user) return;
+      channel = supabase
+        .channel("ai-workflow-jobs")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            filter: `owner_id=eq.${data.user.id}`,
+            schema: "public",
+            table: "ai_workflow_jobs",
+          },
+          () => void reconcile(),
+        )
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") void reconcile();
+        });
+    };
+    void setupRealtime();
+    const timer = window.setInterval(() => void reconcile(), 30000);
     return () => {
       disposed = true;
       window.clearInterval(timer);
+      window.removeEventListener(
+        "portal-ai-workflow-reconcile",
+        reconcileOnNavigation,
+      );
+      if (channel) void supabase.removeChannel(channel);
     };
-  }, [pathname, removeJob, router, t, upsertJob]);
+  }, [removeJob, updateDocument, upsertJob]);
+
+  useEffect(() => {
+    const currentPortalId = pathname.match(/\/create\/([^/]+)/)?.[1] ?? null;
+    for (const job of Object.values(useAiWorkflowStore.getState().jobsById)) {
+      if (
+        job.status === "loading" &&
+        job.portalId !== currentPortalId &&
+        !(job.kind === "portal-operation" && job.requestId.endsWith(":apply"))
+      ) {
+        toast.dismiss(`ai-workflow-${job.portalId}`);
+      }
+    }
+    window.dispatchEvent(new Event("portal-ai-workflow-reconcile"));
+  }, [pathname]);
 
   async function confirmCancel() {
     if (!cancelJob) return;

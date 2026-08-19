@@ -87,6 +87,16 @@ export function useFileUpload({
     });
   }, []);
 
+  const clearFiles = useCallback(() => {
+    setFiles((current) => {
+      for (const { preview } of current) {
+        if (preview) URL.revokeObjectURL(preview);
+      }
+      return [];
+    });
+    setErrors([]);
+  }, []);
+
   useEffect(() => {
     filesRef.current = files;
   }, [files]);
@@ -118,6 +128,7 @@ export function useFileUpload({
         addFiles(Array.from(event.dataTransfer.files));
       },
       openFileDialog: () => inputRef.current?.click(),
+      clearFiles,
       removeFile,
       getInputProps: () => ({
         accept,

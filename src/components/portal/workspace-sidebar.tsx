@@ -141,7 +141,7 @@ export function WorkspaceSidebar({
 }) {
   const pathname = usePathname();
   const t = useTranslations("PortalEditor");
-  const projectMatch = pathname.match(/^\/create\/([^/]+)/);
+  const projectMatch = pathname.match(/\/create\/([^/]+)/);
   const inProject = Boolean(projectMatch?.[1]);
   const title = useWorkspaceSidebarTitle();
   const sidebarHeaderLabel =
@@ -159,13 +159,12 @@ export function WorkspaceSidebar({
       ),
     ),
   );
-  const aiWorkflowDescription = (job: (typeof activeAiJobs)[number]) => {
-    if (job.progress === "analyzing-assets")
-      return t("workspace.aiAnalyzingAssets");
-    if (job.progress === "generating-copy")
-      return t("workspace.aiGeneratingCopy");
-    if (job.progress === "applying") return t("workspace.aiApplying");
-    return t("workspace.aiPreparing");
+  const aiWorkflowTitle = (job: (typeof activeAiJobs)[number]) => {
+    if (job.operation === "generate")
+      return t("workspace.aiCreatingProjectTitle");
+    if (job.operation === "refine-copy")
+      return t("workspace.aiImproveWithAiTitle");
+    return t("workspace.aiAddWithAiTitle");
   };
 
   return (
@@ -256,7 +255,7 @@ export function WorkspaceSidebar({
                           {job.portalName ?? t("workspace.aiUntitledProject")}
                         </span>
                         <span className="truncate text-xs font-normal text-sidebar-foreground/70">
-                          {aiWorkflowDescription(job)}
+                          {aiWorkflowTitle(job)}
                         </span>
                       </span>
                     </SidebarMenuButton>

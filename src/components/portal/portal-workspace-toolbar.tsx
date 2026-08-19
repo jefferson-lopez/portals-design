@@ -13,6 +13,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useLocale, useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,7 +36,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Link } from "@/i18n/navigation";
-import { useAiCredits } from "@/lib/billing/ai-credits-client";
+import {
+  canAffordAiOperation,
+  useAiCredits,
+} from "@/lib/billing/ai-credits-client";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
 import { PORTAL_OPEN_ADD_SECTION_DIALOG_EVENT } from "@/lib/portal/scroll-to-section";
 import { SidebarTrigger } from "../ui/sidebar";
@@ -82,6 +86,16 @@ export function PortalWorkspaceToolbar({
     creditBalance === undefined
       ? "…"
       : new Intl.NumberFormat(locale).format(creditBalance.available);
+  const canAddWithAi =
+    creditBalance === undefined ||
+    canAffordAiOperation(creditBalance.available, "improve-project");
+  const openAiUpload = () => {
+    if (!canAddWithAi) {
+      toast.warning(t("ai.insufficientCredits"));
+      return;
+    }
+    dispatchWorkspaceAction("upload");
+  };
   const hasUnpublishedChanges = usePortalEditorStore((state) =>
     portalId ? state.hasUnpublishedChangesByPortalId[portalId] : undefined,
   );
@@ -318,19 +332,21 @@ export function PortalWorkspaceToolbar({
             <TooltipContent>{t("workspace.openPublished")}</TooltipContent>
           </Tooltip>
           <Button
-            aria-label={t("ai.addWithAi")}
+            aria-label={t("ai.addWithAiLabel")}
             className="hidden lg:inline-flex"
-            onClick={() => dispatchWorkspaceAction("upload")}
+            aria-disabled={!canAddWithAi || undefined}
+            onClick={openAiUpload}
             type="button"
             variant="default"
           >
             <IconUpload data-icon="inline-start" />
-            {t("ai.addWithAi")}
+            {t("ai.addWithAiLabel")}
           </Button>
           <Button
-            aria-label={t("ai.addWithAi")}
+            aria-label={t("ai.addWithAiLabel")}
             className="inline-flex lg:hidden"
-            onClick={() => dispatchWorkspaceAction("upload")}
+            aria-disabled={!canAddWithAi || undefined}
+            onClick={openAiUpload}
             size="icon"
             type="button"
             variant="default"

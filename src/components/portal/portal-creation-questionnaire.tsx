@@ -2,11 +2,7 @@
 
 import {
   IconAlertCircle,
-  IconBrain,
-  IconCheck,
   IconFile,
-  IconFileSearch,
-  IconLayoutDashboard,
   IconLoader2,
   IconLock,
   IconPlus,
@@ -14,7 +10,7 @@ import {
   IconWorld,
   IconX,
 } from "@tabler/icons-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
@@ -62,6 +58,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useRouter } from "@/i18n/navigation";
+import {
+  aiCreditsQueryKey,
+  canAffordAiOperation,
+  finalizeAiCredits,
+  reserveAiCredits,
+  useAiCredits,
+} from "@/lib/billing/ai-credits-client";
 import type { AiAssetInput, AiPortalProposal } from "@/lib/portal/ai-proposal";
 import { useAiWorkflowStore } from "@/lib/portal/ai-workflow-store";
 import { extractAssetMetadata } from "@/lib/portal/asset-metadata";
@@ -88,6 +91,7 @@ function fileCategory(file: File) {
 export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
   const t = useTranslations("Home.create");
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<"private" | "public">("private");
@@ -109,16 +113,11 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
     accept: "image/*,.pdf,.txt,.md,.ai,.eps,.psd,.indd,.ttf,.otf,.woff,.woff2",
     maxSize: 500 * 1024 * 1024,
   });
-  const [processingStage, setProcessingStage] = useState<
-    | "creating"
-    | "uploading"
-    | "analyzing-assets"
-    | "generating-copy"
-    | "applying"
-  >("creating");
-  const [uploadedCount, setUploadedCount] = useState(0);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const upsertJob = useAiWorkflowStore((state) => state.upsertJob);
+  const { data: creditData } = useAiCredits();
+  const canAffordGeneration =
+    creditData === undefined ||
+    canAffordAiOperation(creditData.available, "generate");
   useEffect(() => {
     setFiles(selectedFiles.map(({ file }) => file));
   }, [selectedFiles]);
@@ -129,8 +128,9 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
   ] as const;
   const mutation = useMutation({
     mutationFn: async () => {
-      setProcessingStage("creating");
-      setUploadedCount(0);
+      if (files.length > 0 && creditData && !canAffordGeneration) {
+        throw new Error("insufficient_credits");
+      }
       const portal = await createPortalFromHome({
         contentLanguage,
         locale,
@@ -151,12 +151,17 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
       // first generation after files are added.
       if (files.length === 0)
         return { aiSkipReason: null, portalId: portal.id };
+      const proposalRequestId = crypto.randomUUID();
+      const creditRequestId = `${proposalRequestId}:apply`;
+      let creditReserved = false;
       let aiSkipped = false;
       let aiSkipReason: string | null = null;
       try {
-        setProcessingStage("uploading");
+        await reserveAiCredits("generate", creditRequestId);
+        creditReserved = true;
+        await queryClient.invalidateQueries({ queryKey: aiCreditsQueryKey });
         const uploadedAssets: AiAssetInput[] = [];
-        for (const [index, file] of files.entries()) {
+        for (const file of files) {
           try {
             const category = fileCategory(file);
             const uploaded = shouldUseServerOwnedUpload(file.size)
@@ -180,16 +185,13 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
               sizeBytes: file.size,
               storagePath: uploaded.path,
             });
-            setUploadedCount(index + 1);
           } catch (error) {
             const reason =
               error instanceof Error ? error.message : "upload_failed";
             throw new Error(`${file.name}: ${reason}`);
           }
         }
-        setProcessingStage("analyzing-assets");
         const projectDescription = description.trim() || name.trim();
-        const proposalRequestId = crypto.randomUUID();
         const proposalResponse = await fetch("/api/ai/portal-proposals", {
           body: JSON.stringify({
             assets: uploadedAssets,
@@ -222,6 +224,8 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
           });
           // The workflow is durable. Move the user to the project immediately
           // and let the workspace reconciler show live progress there.
+          creditReserved = false;
+          toast.success(t("aiQueued"));
           router.push(`/create/${portal.id}`);
           return { aiSkipReason: null, portalId: portal.id };
         }
@@ -239,6 +243,12 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
         // Do not submit a second operation here: that could apply the same
         // document twice and charge credits twice.
       } catch (error) {
+        if (creditReserved) {
+          await finalizeAiCredits(creditRequestId, "refunded").catch(
+            () => undefined,
+          );
+          await queryClient.invalidateQueries({ queryKey: aiCreditsQueryKey });
+        }
         aiSkipped = true;
         aiSkipReason = error instanceof Error ? error.message : "unknown_error";
         console.warn("AI proposal skipped during project creation", {
@@ -251,7 +261,12 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
         portalId: portal.id,
       };
     },
-    onError: () => toast.error(t("error")),
+    onError: (error) =>
+      toast.error(
+        error instanceof Error && error.message === "insufficient_credits"
+          ? t("aiInsufficientCredits")
+          : t("error"),
+      ),
     onSuccess: ({ aiSkipReason, portalId }) => {
       if (aiSkipReason === "insufficient_credits") {
         toast.warning(t("aiInsufficientCredits"));
@@ -268,115 +283,6 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
       router.push(`/create/${portalId}`);
     },
   });
-
-  useEffect(() => {
-    if (!mutation.isPending) {
-      setElapsedSeconds(0);
-      return;
-    }
-    const startedAt = Date.now();
-    const updateElapsed = () =>
-      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
-    updateElapsed();
-    const interval = window.setInterval(updateElapsed, 1000);
-    return () => window.clearInterval(interval);
-  }, [mutation.isPending]);
-
-  if (mutation.isPending) {
-    const stages = [
-      {
-        detail: t("creatingDetail"),
-        icon: IconPlus,
-        key: "creating",
-        label: t("creating"),
-      },
-      {
-        detail: t("uploadingDetail"),
-        icon: IconFileSearch,
-        key: "uploading",
-        label: t("uploading"),
-      },
-      {
-        detail: t("analyzingAssetsDetail"),
-        icon: IconBrain,
-        key: "analyzing-assets",
-        label: t("analyzingAssets"),
-      },
-      {
-        detail: t("generatingCopyDetail"),
-        icon: IconLayoutDashboard,
-        key: "generating-copy",
-        label: t("generatingCopy"),
-      },
-      {
-        detail: t("applyingDetail"),
-        icon: IconCheck,
-        key: "applying",
-        label: t("applying"),
-      },
-    ];
-    const currentIndex = stages.findIndex(
-      (stage) => stage.key === processingStage,
-    );
-    return (
-      <main className="grid min-h-dvh place-items-center bg-background px-4 py-8">
-        <section
-          aria-live="polite"
-          className="flex w-full max-w-lg flex-col gap-8 rounded-xl border bg-card p-6 shadow-sm sm:p-8"
-        >
-          <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium text-primary">{t("title")}</p>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {stages[currentIndex]?.label ?? t("creating")}
-            </h1>
-            <p className="text-sm text-muted-foreground">{t("pleaseWait")}</p>
-            <p className="text-xs text-muted-foreground">
-              {t("elapsedTime")}: {elapsedSeconds}s
-            </p>
-          </div>
-          <div className="flex flex-col gap-4">
-            {stages.map((stage, index) => {
-              const StageIcon = stage.icon;
-              const complete = index < currentIndex;
-              const active = index === currentIndex;
-              return (
-                <div
-                  className="flex items-center gap-3 text-sm"
-                  key={stage.key}
-                >
-                  <span
-                    className={
-                      complete || active
-                        ? "grid size-8 place-items-center rounded-full bg-primary text-primary-foreground"
-                        : "grid size-8 place-items-center rounded-full border text-muted-foreground"
-                    }
-                  >
-                    {active ? (
-                      <IconLoader2 className="animate-spin" />
-                    ) : (
-                      <StageIcon />
-                    )}
-                  </span>
-                  <span
-                    className={active ? "font-medium" : "text-muted-foreground"}
-                  >
-                    <span className="block">{stage.label}</span>
-                    {active ? (
-                      <span className="mt-1 block max-w-sm text-xs font-normal text-muted-foreground">
-                        {stage.key === "uploading"
-                          ? `${stage.detail} ${uploadedCount}/${files.length}`
-                          : stage.detail}
-                      </span>
-                    ) : null}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      </main>
-    );
-  }
 
   return (
     <main className="mx-auto flex min-w-0 w-full max-w-[calc(900px-240px-2rem)] flex-col bg-background px-4 pb-24 pt-6 md:px-6">
@@ -487,12 +393,33 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
                 </FieldLabel>
                 <div className="flex flex-col gap-3">
                   <label
-                    className="relative flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed p-6 pt-14 text-center transition-colors hover:bg-accent/50 data-[dragging=true]:bg-accent/50"
+                    className={`relative flex min-h-44 flex-col items-center justify-center rounded-xl border border-dashed p-6 pt-14 text-center transition-colors ${canAffordGeneration ? "cursor-pointer hover:bg-accent/50" : "cursor-not-allowed opacity-60"} data-[dragging=true]:bg-accent/50`}
                     data-dragging={isDragging || undefined}
-                    onDragEnter={handleDragEnter}
-                    onDragLeave={handleDragLeave}
-                    onDragOver={handleDragOver}
-                    onDrop={handleDrop}
+                    onClick={(event) => {
+                      if (!canAffordGeneration) {
+                        event.preventDefault();
+                        toast.warning(t("aiInsufficientCredits"));
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (
+                        !canAffordGeneration &&
+                        (event.key === "Enter" || event.key === " ")
+                      ) {
+                        event.preventDefault();
+                        toast.warning(t("aiInsufficientCredits"));
+                      }
+                    }}
+                    onDragEnter={
+                      canAffordGeneration ? handleDragEnter : undefined
+                    }
+                    onDragLeave={
+                      canAffordGeneration ? handleDragLeave : undefined
+                    }
+                    onDragOver={
+                      canAffordGeneration ? handleDragOver : undefined
+                    }
+                    onDrop={canAffordGeneration ? handleDrop : undefined}
                     htmlFor="creation-files"
                   >
                     <div className="absolute inset-x-4 top-4 flex items-center justify-between gap-3 text-xs text-muted-foreground">
@@ -506,6 +433,7 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
                       aria-label={t("files")}
                       id="creation-files"
                       className="sr-only"
+                      disabled={!canAffordGeneration}
                       multiple
                     />
                     <span className="mb-3 flex size-11 items-center justify-center rounded-full border bg-background">

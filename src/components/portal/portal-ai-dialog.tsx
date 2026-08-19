@@ -1,39 +1,53 @@
 "use client";
 
 import {
+  IconAlertCircle,
   IconCheck,
+  IconFile,
   IconFileUpload,
   IconLoader2,
-  IconSparkles,
+  IconUpload,
+  IconX,
 } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
+import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import {
+  Attachment,
+  AttachmentAction,
+  AttachmentActions,
+  AttachmentContent,
+  AttachmentDescription,
+  AttachmentMedia,
+  AttachmentTitle,
+} from "@/components/ui/attachment";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from "@/components/ui/field";
-import { Progress } from "@/components/ui/progress";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { useFileUpload } from "@/hooks/use-file-upload";
 import { useRouter } from "@/i18n/navigation";
 import {
   aiCreditsQueryKey,
+  canAffordAiOperation,
+  finalizeAiCredits,
+  reserveAiCredits,
   useAiCredits,
 } from "@/lib/billing/ai-credits-client";
 import type { AiAssetInput, AiPortalProposal } from "@/lib/portal/ai-proposal";
-import { useAiWorkflowStore } from "@/lib/portal/ai-workflow-store";
+import {
+  useAiWorkflowStore,
+  waitForAiWorkflowJob,
+} from "@/lib/portal/ai-workflow-store";
 import { extractAssetMetadata } from "@/lib/portal/asset-metadata";
 import {
   inferAssetMimeType,
@@ -56,22 +70,38 @@ export function PortalAiDialog({
   triggerless?: boolean;
 }) {
   const t = useTranslations("PortalEditor.ai");
+  const workspaceT = useTranslations("PortalEditor.workspace");
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [
+    { files: selectedFiles, isDragging, errors: fileErrors },
+    {
+      clearFiles,
+      handleDragEnter,
+      handleDragLeave,
+      handleDragOver,
+      handleDrop,
+      getInputProps,
+      removeFile,
+    },
+  ] = useFileUpload({
+    accept: "image/*,.pdf,.txt,.md,.ai,.eps,.psd,.indd,.ttf,.otf,.woff,.woff2",
+    maxSize: 500 * 1024 * 1024,
+  });
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzed, setAnalyzed] = useState(false);
   const [proposal, setProposal] = useState<AiPortalProposal | null>(null);
   const [proposalError, setProposalError] = useState(false);
   const [applyError, setApplyError] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [processingStage, setProcessingStage] = useState<
-    "analyzing" | "applying"
-  >("analyzing");
   const [operation, setOperation] = useState<
     "generate" | "improve-project" | "refine-copy"
   >("generate");
   const [applyImmediately, setApplyImmediately] = useState(false);
   const [analyzedAssets, setAnalyzedAssets] = useState<AiAssetInput[]>([]);
+  const [proposalRequestId, setProposalRequestId] = useState<string | null>(
+    null,
+  );
   const [quarantineDecisions, setQuarantineDecisions] = useState<
     Record<string, "include" | "exclude">
   >({});
@@ -80,16 +110,39 @@ export function PortalAiDialog({
   );
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { data: creditData, isError: creditError } = useAiCredits();
-  const creditBalance = creditData?.available ?? null;
+  const { data: creditData } = useAiCredits();
+  const canAffordOperation =
+    creditData === undefined ||
+    canAffordAiOperation(creditData.available, operation);
   const upsertJob = useAiWorkflowStore((state) => state.upsertJob);
+  const hasActiveProjectJob = useAiWorkflowStore((state) =>
+    Object.values(state.jobsById).some(
+      (job) => job.portalId === portalId && job.status === "loading",
+    ),
+  );
+
+  useEffect(() => {
+    setFiles(selectedFiles.map(({ file }) => file));
+    setAnalyzed(false);
+  }, [selectedFiles]);
 
   useEffect(() => {
     if (!triggerless) return;
     const openUpload = () => {
+      if (hasActiveProjectJob) {
+        toast.info(t("alreadyInProgress"));
+        return;
+      }
+      if (
+        creditData &&
+        !canAffordAiOperation(creditData.available, "improve-project")
+      ) {
+        toast.warning(t("insufficientCredits"));
+        return;
+      }
       setOperation("improve-project");
       setApplyImmediately(true);
-      setFiles([]);
+      clearFiles();
       setAnalyzed(false);
       setAnalyzedAssets([]);
       setProposal(null);
@@ -101,14 +154,29 @@ export function PortalAiDialog({
     window.addEventListener("portal-workspace:upload", openUpload);
     return () =>
       window.removeEventListener("portal-workspace:upload", openUpload);
-  }, [triggerless]);
+  }, [clearFiles, creditData, hasActiveProjectJob, t, triggerless]);
 
   async function analyze() {
+    if (hasActiveProjectJob) {
+      toast.info(t("alreadyInProgress"));
+      return;
+    }
+    if (!canAffordOperation) {
+      toast.warning(t("insufficientCredits"));
+      return;
+    }
     setAnalyzing(true);
-    setProcessingStage("analyzing");
     setProposalError(false);
     setApplyError(false);
+    const nextProposalRequestId = crypto.randomUUID();
+    const creditRequestId = applyImmediately
+      ? `${nextProposalRequestId}:apply`
+      : nextProposalRequestId;
+    let creditReserved = false;
     try {
+      await reserveAiCredits(operation, creditRequestId);
+      creditReserved = true;
+      await queryClient.invalidateQueries({ queryKey: aiCreditsQueryKey });
       const uploaded = [] as {
         assetId: string;
         file: File;
@@ -155,7 +223,6 @@ export function PortalAiDialog({
         }),
       );
       setAnalyzedAssets(assets);
-      const proposalRequestId = crypto.randomUUID();
       const response = await fetch("/api/ai/portal-proposals", {
         body: JSON.stringify({
           assets,
@@ -167,18 +234,21 @@ export function PortalAiDialog({
             currentDocument?.portal.description ||
             "Portal project",
           existingDocument: currentDocument,
-          requestId: proposalRequestId,
+          requestId: nextProposalRequestId,
         }),
         headers: { "content-type": "application/json" },
         method: "POST",
       });
-      if (!response.ok) throw new Error("proposal_error");
       const result = (await response.json()) as {
         document?: PortalDocument;
+        error?: string;
         jobId?: string;
         proposal?: AiPortalProposal;
       };
+      if (!response.ok) throw new Error(result.error ?? "proposal_error");
       if (response.status === 202 && result.jobId) {
+        creditReserved = false;
+        setProposalRequestId(nextProposalRequestId);
         upsertJob({
           autoApply: applyImmediately,
           errorCode: null,
@@ -186,41 +256,30 @@ export function PortalAiDialog({
           kind: "portal-proposal",
           operation,
           portalId,
-          requestId: proposalRequestId,
+          requestId: nextProposalRequestId,
           status: "loading",
           updatedAt: new Date().toISOString(),
         });
+        toast.success(t("jobQueued"));
+        toast.loading(
+          operation === "refine-copy"
+            ? workspaceT("aiImproveWithAiTitle")
+            : workspaceT("aiAddWithAiTitle"),
+          {
+            description: workspaceT("aiProcessingContent"),
+            duration: Number.POSITIVE_INFINITY,
+            id: `ai-workflow-${portalId}`,
+          },
+        );
         if (applyImmediately) {
           // The durable workflow continues in the background. Keep the
           // editor available instead of trapping the user in a loading modal.
           setOpen(false);
           return;
         }
-        for (;;) {
-          await new Promise((resolve) => window.setTimeout(resolve, 1000));
-          const jobResponse = await fetch(
-            `/api/ai/jobs?jobId=${encodeURIComponent(result.jobId)}`,
-            { cache: "no-store" },
-          );
-          const body = (await jobResponse.json().catch(() => null)) as {
-            jobs?: Array<{
-              error_code: string | null;
-              result: {
-                document?: PortalDocument;
-                proposal?: AiPortalProposal;
-              } | null;
-              status: string;
-            }>;
-          } | null;
-          const job = body?.jobs?.[0];
-          if (job?.status === "error")
-            throw new Error(job.error_code ?? "proposal_error");
-          if (job?.status === "completed" && job.result?.proposal) {
-            result.proposal = job.result.proposal;
-            result.document = job.result.document;
-            break;
-          }
-        }
+        const job = await waitForAiWorkflowJob(result.jobId);
+        if (!job.proposal) throw new Error("proposal_error");
+        result.proposal = job.proposal;
       }
       if (!result.proposal) throw new Error("proposal_error");
       if (applyImmediately && currentDocument) {
@@ -232,21 +291,35 @@ export function PortalAiDialog({
         setOpen(false);
         return;
       }
+      setProposalRequestId(nextProposalRequestId);
       setProposal(result.proposal);
       setAnalyzed(true);
     } catch (error) {
+      if (creditReserved) {
+        await finalizeAiCredits(creditRequestId, "refunded").catch(
+          () => undefined,
+        );
+        await queryClient.invalidateQueries({ queryKey: aiCreditsQueryKey });
+      }
       if (applyImmediately) {
         const reason = error instanceof Error ? error.message : "";
         toast.error(
-          reason === "insufficient_credits"
-            ? t("insufficientCredits")
-            : reason === "plan_limit"
-              ? t("planLimit")
-              : t("applyError"),
+          reason === "ai_workflow_in_progress"
+            ? t("alreadyInProgress")
+            : reason === "insufficient_credits"
+              ? t("insufficientCredits")
+              : reason === "plan_limit"
+                ? t("planLimit")
+                : t("applyError"),
         );
         setApplyError(true);
       } else {
-        setProposalError(true);
+        const reason = error instanceof Error ? error.message : "";
+        if (reason === "ai_workflow_in_progress") {
+          toast.info(t("alreadyInProgress"));
+        } else {
+          setProposalError(true);
+        }
       }
     } finally {
       setAnalyzing(false);
@@ -260,6 +333,7 @@ export function PortalAiDialog({
     const nextDecisions = { ...quarantineDecisions, [assetId]: decision };
     setQuarantineDecisions(nextDecisions);
     setAnalyzing(true);
+    const nextProposalRequestId = crypto.randomUUID();
     try {
       const response = await fetch("/api/ai/portal-proposals", {
         body: JSON.stringify({
@@ -275,17 +349,19 @@ export function PortalAiDialog({
           portalId,
           projectDescription:
             currentDocument?.portal.description || "Portal project",
-          requestId: crypto.randomUUID(),
+          requestId: nextProposalRequestId,
         }),
         headers: { "content-type": "application/json" },
         method: "POST",
       });
-      if (!response.ok) throw new Error("proposal_error");
       const result = (await response.json()) as {
+        error?: string;
         jobId?: string;
         proposal?: AiPortalProposal;
       };
+      if (!response.ok) throw new Error(result.error ?? "proposal_error");
       if (response.status === 202 && result.jobId) {
+        setProposalRequestId(nextProposalRequestId);
         upsertJob({
           autoApply: false,
           errorCode: null,
@@ -293,31 +369,24 @@ export function PortalAiDialog({
           kind: "portal-proposal",
           operation,
           portalId,
-          requestId: result.jobId,
+          requestId: nextProposalRequestId,
           status: "loading",
           updatedAt: new Date().toISOString(),
         });
-        for (;;) {
-          await new Promise((resolve) => window.setTimeout(resolve, 1000));
-          const jobResponse = await fetch(
-            `/api/ai/jobs?jobId=${encodeURIComponent(result.jobId)}`,
-            { cache: "no-store" },
-          );
-          const body = (await jobResponse.json().catch(() => null)) as {
-            jobs?: Array<{
-              error_code: string | null;
-              result: { proposal?: AiPortalProposal } | null;
-              status: string;
-            }>;
-          } | null;
-          const job = body?.jobs?.[0];
-          if (job?.status === "error")
-            throw new Error(job.error_code ?? "proposal_error");
-          if (job?.status === "completed" && job.result?.proposal) {
-            result.proposal = job.result.proposal;
-            break;
-          }
-        }
+        toast.success(t("jobQueued"));
+        toast.loading(
+          operation === "refine-copy"
+            ? workspaceT("aiImproveWithAiTitle")
+            : workspaceT("aiAddWithAiTitle"),
+          {
+            description: workspaceT("aiProcessingContent"),
+            duration: Number.POSITIVE_INFINITY,
+            id: `ai-workflow-${portalId}`,
+          },
+        );
+        const job = await waitForAiWorkflowJob(result.jobId);
+        if (!job.proposal) throw new Error("proposal_error");
+        result.proposal = job.proposal;
       }
       if (!result.proposal) throw new Error("proposal_error");
       setProposal(result.proposal);
@@ -330,9 +399,8 @@ export function PortalAiDialog({
 
   async function applyProposal() {
     if (!proposal || !currentDocument || applying) return;
-    const requestId = crypto.randomUUID();
+    const requestId = proposalRequestId ?? crypto.randomUUID();
     setApplying(true);
-    setProcessingStage("applying");
     setApplyError(false);
     try {
       const response = await fetch("/api/ai/portal-operations", {
@@ -364,6 +432,14 @@ export function PortalAiDialog({
         <Button
           className="rounded-lg"
           onClick={() => {
+            if (
+              creditData &&
+              !canAffordAiOperation(creditData.available, "improve-project")
+            ) {
+              toast.warning(t("insufficientCredits"));
+              return;
+            }
+            clearFiles();
             setOperation("improve-project");
             setApplyImmediately(true);
             setAnalyzed(false);
@@ -374,58 +450,108 @@ export function PortalAiDialog({
           <IconFileUpload data-icon="inline-start" /> {t("uploadNewFiles")}
         </Button>
       ) : null}
-      <Dialog onOpenChange={setOpen} open={open}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{t("uploadTitle")}</DialogTitle>
-            <DialogDescription>{t("uploadDescription")}</DialogDescription>
-          </DialogHeader>
-          <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-            {creditError
-              ? t("creditsUnavailable")
-              : t("credits", { count: creditBalance ?? "…" })}
-          </div>
-          <FieldGroup>
+      <Sheet onOpenChange={setOpen} open={open}>
+        <SheetContent
+          className="w-full overflow-y-auto sm:max-w-xl"
+          side="right"
+        >
+          <SheetHeader>
+            <SheetTitle>{t("uploadTitle")}</SheetTitle>
+            <SheetDescription>{t("uploadDescription")}</SheetDescription>
+          </SheetHeader>
+          <FieldGroup className="px-4 pb-4">
             <Field>
-              <FieldLabel htmlFor="portal-ai-files">
+              <FieldLabel className="sr-only" htmlFor="portal-ai-files">
                 {t("filesLabel")}
               </FieldLabel>
-              <input
-                accept="image/*,.pdf,.txt,.md,.ai,.eps,.psd,.indd,.ttf,.otf,.woff,.woff2"
-                className="block w-full rounded-lg border border-dashed bg-muted/30 px-4 py-8 text-sm"
-                id="portal-ai-files"
-                multiple
-                onChange={(event) => {
-                  setFiles(Array.from(event.target.files ?? []));
-                  setAnalyzed(false);
-                }}
-                type="file"
-              />
-              <FieldDescription>{t("filesDescription")}</FieldDescription>
-            </Field>
-            {files.length > 0 ? (
-              <div className="flex flex-col gap-2 rounded-lg border p-3 text-sm">
-                {files.map((file) => (
-                  <div
-                    className="flex items-center justify-between gap-3"
-                    key={`${file.name}-${file.size}`}
-                  >
-                    <span className="truncate">{file.name}</span>
-                    <Badge variant="secondary">
-                      {Math.ceil(file.size / 1024)} KB
-                    </Badge>
+              <div className="flex flex-col gap-3">
+                <label
+                  className={`relative flex min-h-44 flex-col items-center justify-center rounded-xl border border-dashed p-6 pt-14 text-center transition-colors ${canAffordOperation ? "cursor-pointer hover:bg-accent/50" : "cursor-not-allowed opacity-60"} data-[dragging=true]:bg-accent/50`}
+                  data-dragging={isDragging || undefined}
+                  onDragEnter={canAffordOperation ? handleDragEnter : undefined}
+                  onDragLeave={canAffordOperation ? handleDragLeave : undefined}
+                  onDragOver={canAffordOperation ? handleDragOver : undefined}
+                  onDrop={canAffordOperation ? handleDrop : undefined}
+                  htmlFor="portal-ai-files"
+                >
+                  <div className="absolute inset-x-4 top-4 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                    <span>{t("filesAdded", { count: files.length })}</span>
+                    <span className="font-medium text-foreground">
+                      {t("addWithAi")}
+                    </span>
                   </div>
-                ))}
+                  <input
+                    {...getInputProps()}
+                    aria-label={t("filesLabel")}
+                    className="sr-only"
+                    disabled={!canAffordOperation}
+                    id="portal-ai-files"
+                    multiple
+                  />
+                  <span className="mb-3 flex size-11 items-center justify-center rounded-full border bg-background">
+                    <IconUpload className="size-5 text-muted-foreground" />
+                  </span>
+                  <p className="font-medium">{t("uploadPrompt")}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t("uploadDetails")}
+                  </p>
+                </label>
+                {selectedFiles.length > 0 ? (
+                  <div className="scroll-fade-y max-h-72 overflow-y-auto">
+                    <ul
+                      aria-label={t("filesLabel")}
+                      className="flex flex-col gap-2"
+                    >
+                      {selectedFiles.map(({ file, id, preview }) => (
+                        <li key={id}>
+                          <Attachment className="w-full">
+                            <AttachmentMedia
+                              variant={preview ? "image" : "icon"}
+                            >
+                              {preview ? (
+                                <Image
+                                  alt=""
+                                  height={40}
+                                  src={preview}
+                                  unoptimized
+                                  width={40}
+                                />
+                              ) : (
+                                <IconFile />
+                              )}
+                            </AttachmentMedia>
+                            <AttachmentContent>
+                              <AttachmentTitle>{file.name}</AttachmentTitle>
+                              <AttachmentDescription>
+                                {file.type || t("file")} ·{" "}
+                                {Math.max(1, Math.round(file.size / 1024))} KB
+                              </AttachmentDescription>
+                            </AttachmentContent>
+                            <AttachmentActions>
+                              <AttachmentAction
+                                aria-label={`${t("remove")} ${file.name}`}
+                                onClick={() => removeFile(id)}
+                              >
+                                <IconX />
+                              </AttachmentAction>
+                            </AttachmentActions>
+                          </Attachment>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {fileErrors.length > 0 ? (
+                  <div
+                    className="flex items-start gap-2 text-xs text-destructive"
+                    role="alert"
+                  >
+                    <IconAlertCircle className="mt-0.5 size-4 shrink-0" />
+                    <span>{fileErrors[0]}</span>
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-            {analyzing ? (
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <IconLoader2 className="animate-spin" /> {t("analyzing")}
-                </div>
-                <Progress value={65} />
-              </div>
-            ) : null}
+            </Field>
             {analyzed ? (
               <div className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
                 <div className="flex items-center gap-2 font-medium">
@@ -538,7 +664,7 @@ export function PortalAiDialog({
               <p className="text-sm text-destructive">{t("applyError")}</p>
             ) : null}
           </FieldGroup>
-          <DialogFooter>
+          <SheetFooter>
             <Button onClick={() => setOpen(false)} variant="outline">
               {t("cancel")}
             </Button>
@@ -547,10 +673,12 @@ export function PortalAiDialog({
                 (operation !== "refine-copy" && files.length === 0) ||
                 analyzing ||
                 applying ||
-                analyzed
+                analyzed ||
+                !canAffordOperation
               }
               onClick={() => void analyze()}
             >
+              {analyzing ? <IconLoader2 className="animate-spin" /> : null}
               {analyzing
                 ? t("analyzing")
                 : applyImmediately
@@ -558,50 +686,16 @@ export function PortalAiDialog({
                   : t("analyzeAndPreview")}
             </Button>
             {analyzed ? (
-              <Button
-                disabled={
-                  applying ||
-                  (creditBalance !== null &&
-                    creditBalance < (proposal?.creditCost ?? 1))
-                }
-                onClick={() => void applyProposal()}
-              >
+              <Button disabled={applying} onClick={() => void applyProposal()}>
+                {applying ? <IconLoader2 className="animate-spin" /> : null}
                 {applying
                   ? t("applying")
                   : t("apply", { count: proposal?.creditCost ?? 3 })}
               </Button>
             ) : null}
-          </DialogFooter>
-          {analyzing || applying ? (
-            <div
-              aria-live="polite"
-              className="absolute inset-0 z-10 grid place-items-center rounded-xl bg-background/95 p-6 backdrop-blur-sm"
-            >
-              <div className="flex w-full max-w-sm flex-col gap-6 text-center">
-                <div className="mx-auto grid size-14 place-items-center rounded-full bg-primary/10 text-primary">
-                  <IconSparkles className="animate-pulse" />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <h3 className="text-lg font-semibold">
-                    {processingStage === "applying"
-                      ? t("applying")
-                      : t("analyzing")}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {processingStage === "applying"
-                      ? t("applyingDescription")
-                      : t("analyzingDescription")}
-                  </p>
-                </div>
-                <Progress value={processingStage === "applying" ? 85 : 55} />
-                <p className="text-xs text-muted-foreground">
-                  {t("pleaseWait")}
-                </p>
-              </div>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

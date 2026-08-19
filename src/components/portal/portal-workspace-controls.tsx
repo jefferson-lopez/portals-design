@@ -28,7 +28,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
-import type { FormEvent, ReactElement, ReactNode } from "react";
+import type { ComponentProps, FormEvent, ReactElement, ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { parseColor } from "react-aria-components";
 import { toast } from "sonner";
@@ -111,9 +111,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { aiCreditsQueryKey } from "@/lib/billing/ai-credits-client";
+import {
+  aiCreditsQueryKey,
+  canAffordAiOperation,
+  useAiCredits,
+} from "@/lib/billing/ai-credits-client";
 import { markImageFieldManual } from "@/lib/portal/ai";
 import type { AiContentTarget } from "@/lib/portal/ai-sdk";
+import { useAiWorkflowStore } from "@/lib/portal/ai-workflow-store";
 import { extractAssetMetadata } from "@/lib/portal/asset-metadata";
 import {
   displayNameWithoutExtension,
@@ -221,19 +226,52 @@ const aspectRatios: ImageAspectRatio[] = ["auto", "1/1", "4/3", "16/9", "21/9"];
 const galleryModes = ["grid", "comparison"] as const;
 
 function ImproveWithAiButton({
+  buttonLabel,
+  className,
   portalId,
+  showIcon = true,
   target,
+  variant = "outline",
 }: {
+  buttonLabel?: string;
+  className?: string;
   portalId: string;
+  showIcon?: boolean;
   target: AiContentTarget;
+  variant?: ComponentProps<typeof Button>["variant"];
 }) {
   const t = useTranslations("PortalEditor.ai");
+  const workspaceT = useTranslations("PortalEditor.workspace");
   const [improving, setImproving] = useState(false);
+  const { data: creditData } = useAiCredits();
+  const canAffordRefineCopy =
+    creditData === undefined ||
+    canAffordAiOperation(creditData.available, "refine-copy");
   const document = usePortalEditorStore(
     (state) => state.documentsByPortalId[portalId],
   );
   const updateDocument = usePortalEditorStore((state) => state.updateDocument);
   const queryClient = useQueryClient();
+  const upsertJob = useAiWorkflowStore((state) => state.upsertJob);
+  const targetKey = `${target.kind}:${target.id}`;
+  const hasActiveTargetJob = useAiWorkflowStore((state) =>
+    Object.values(state.jobsById).some(
+      (job) =>
+        job.portalId === portalId &&
+        job.status === "loading" &&
+        job.operation === "refine-copy" &&
+        job.targetKey === targetKey,
+    ),
+  );
+  function showInsufficientCreditsToast() {
+    toast.warning(t("insufficientCredits"), {
+      action: {
+        label: workspaceT("credits.upgrade"),
+        onClick: () =>
+          window.dispatchEvent(new Event("billing:credits-upgrade")),
+      },
+    });
+  }
 
   function documentWithRenderedImageDimensions(
     source: PortalDocument,
@@ -273,14 +311,23 @@ function ImproveWithAiButton({
 
   async function improve() {
     if (!document || improving) return;
+    if (hasActiveTargetJob) {
+      toast.info(t("alreadyInProgress"));
+      return;
+    }
+    if (!canAffordRefineCopy) {
+      showInsufficientCreditsToast();
+      return;
+    }
     setImproving(true);
     try {
       const documentForAi = documentWithRenderedImageDimensions(document);
+      const requestId = crypto.randomUUID();
       const response = await fetch("/api/ai/portal-content", {
         body: JSON.stringify({
           currentDocument: documentForAi,
           portalId,
-          requestId: crypto.randomUUID(),
+          requestId,
           target,
         }),
         headers: { "content-type": "application/json" },
@@ -289,9 +336,33 @@ function ImproveWithAiButton({
       const result = (await response.json().catch(() => null)) as {
         document?: PortalDocument;
         error?: string;
+        jobId?: string;
       } | null;
       if (!response.ok || (!result?.document && response.status !== 202)) {
         throw new Error(result?.error ?? "ai_operation_failed");
+      }
+      await queryClient.invalidateQueries({ queryKey: aiCreditsQueryKey });
+      if (response.status === 202) {
+        if (!result?.jobId) throw new Error("ai_operation_failed");
+        upsertJob({
+          autoApply: true,
+          errorCode: null,
+          id: result.jobId,
+          kind: "portal-content",
+          operation: "refine-copy",
+          portalId,
+          requestId,
+          status: "loading",
+          targetKey,
+          updatedAt: new Date().toISOString(),
+        });
+        toast.success(t("jobQueued"));
+        toast.loading(workspaceT("aiImproveWithAiTitle"), {
+          description: workspaceT("aiProcessingContent"),
+          duration: Number.POSITIVE_INFINITY,
+          id: `ai-workflow-${portalId}`,
+        });
+        return;
       }
       if (result?.document) {
         updateDocument(portalId, () => result.document as PortalDocument);
@@ -300,11 +371,13 @@ function ImproveWithAiButton({
       toast.success(t("improveTextSuccess"));
     } catch (error) {
       const reason = error instanceof Error ? error.message : "";
-      toast.error(
-        reason === "insufficient_credits"
-          ? t("insufficientCredits")
-          : t("improveTextError"),
-      );
+      if (reason === "ai_workflow_in_progress") {
+        toast.error(t("alreadyInProgress"));
+      } else if (reason === "insufficient_credits") {
+        showInsufficientCreditsToast();
+      } else {
+        toast.error(t("improveTextError"));
+      }
     } finally {
       setImproving(false);
     }
@@ -312,14 +385,19 @@ function ImproveWithAiButton({
 
   return (
     <Button
-      disabled={improving}
+      aria-disabled={!canAffordRefineCopy || undefined}
+      className={cn(className, !canAffordRefineCopy && "opacity-60")}
       onClick={() => void improve()}
       size="sm"
       type="button"
-      variant="outline"
+      variant={variant}
     >
-      {improving ? <IconLoader2 className="animate-spin" /> : <IconSparkles />}
-      {improving ? t("improvingText") : t("improveText")}
+      {improving ? (
+        <IconLoader2 className="animate-spin" />
+      ) : showIcon ? (
+        <IconSparkles />
+      ) : null}
+      {improving ? t("improvingText") : (buttonLabel ?? t("improveText"))}
     </Button>
   );
 }
@@ -354,13 +432,17 @@ function ImproveSectionWithAiPopover({
           </PopoverDescription>
         </PopoverHeader>
         <ImproveWithAiButton
+          buttonLabel={t("improveSection")}
+          className="rounded-full"
           portalId={portalId}
+          showIcon={false}
           target={{
             description: section.description,
             id: section.id,
             kind: "section",
             title: section.title,
           }}
+          variant="default"
         />
       </PopoverContent>
     </Popover>
@@ -717,13 +799,17 @@ function ImageSettingsPopover({
         </PopoverHeader>
         <FieldGroup>
           <ImproveWithAiButton
+            buttonLabel={t("ai.improveTextLabel")}
+            className="rounded-full"
             portalId={portalId}
+            showIcon={false}
             target={{
               altText: image.alt_text,
               id: image.id,
               kind: "image",
               name: image.display_name ?? image.image_url,
             }}
+            variant="default"
           />
           <Field>
             <FieldLabel>{t("image.name")}</FieldLabel>
@@ -1440,6 +1526,7 @@ function FilesSettingsPopover({
   updateSection: (section: PortalSection) => void;
 }) {
   const t = useTranslations("PortalEditor.files");
+  const aiT = useTranslations("PortalEditor.ai");
   return (
     <Popover onOpenChange={onOpenChange} open={open}>
       <PopoverTrigger render={trigger} />
@@ -1449,6 +1536,8 @@ function FilesSettingsPopover({
           <PopoverDescription>{t("settingsDescription")}</PopoverDescription>
         </PopoverHeader>
         <ImproveWithAiButton
+          buttonLabel={aiT("improveTextLabel")}
+          className="rounded-full"
           portalId={portalId}
           target={{
             description: section.description,
@@ -3025,6 +3114,7 @@ function FilesItemSettingsPopover({
             kind: "file",
             name: file.display_name ?? file.file_name,
           }}
+          variant="default"
         />
         <Field>
           <FieldLabel>{t("displayName")}</FieldLabel>
