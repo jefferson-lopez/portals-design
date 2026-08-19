@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { start } from "workflow/api";
 import {
+  completeAiWorkflowCredits,
   errorMessage,
   markAiWorkflowJob,
   processAiProposalJob,
@@ -27,6 +28,12 @@ async function processProposal(input: Input) {
   try {
     return await processAiProposalJob(supabase, job);
   } catch (error) {
+    const payload = job.payload as { autoApply?: boolean } | null;
+    await completeAiWorkflowCredits(
+      supabase,
+      payload?.autoApply === true ? `${job.request_id}:apply` : job.request_id,
+      "refunded",
+    ).catch(() => undefined);
     await markAiWorkflowJob(supabase, input.jobId, {
       status: "error",
       error_code: errorMessage(error, "ai_content_failed"),

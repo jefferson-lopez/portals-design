@@ -108,6 +108,18 @@ export async function markAiWorkflowJob(
   if (error) throw error;
 }
 
+export async function completeAiWorkflowCredits(
+  supabase: WorkflowClient,
+  requestId: string,
+  status: "committed" | "refunded",
+) {
+  const { error } = await supabase.rpc("complete_ai_credits", {
+    target_request_id: requestId,
+    target_status: status,
+  });
+  if (error) throw error;
+}
+
 export async function processAiOperationJob(
   supabase: WorkflowClient,
   job: Pick<AiWorkflowJob, "id"> & {
@@ -288,6 +300,7 @@ export async function processAiProposalJob(
       });
       return { document, proposal };
     }
+    await completeAiWorkflowCredits(supabase, job.request_id, "committed");
     await markAiWorkflowJob(supabase, job.id, {
       status: "completed",
       result: { proposal } as Json,

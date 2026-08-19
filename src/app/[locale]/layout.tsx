@@ -52,6 +52,7 @@ export default async function LocaleLayout({ children, params }: Props) {
 
   return (
     <html
+      data-scroll-behavior="smooth"
       lang={locale}
       suppressHydrationWarning
       className={`${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}

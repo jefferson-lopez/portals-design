@@ -23,6 +23,7 @@ export type AiWorkflowMetadata = {
   updatedAt: string;
   operation?: "generate" | "improve-project" | "refine-copy";
   autoApply?: boolean;
+  targetKey?: string;
   progress?: AiWorkflowProgress;
   proposal?: AiPortalProposal;
 };
@@ -52,3 +53,32 @@ export const useAiWorkflowStore = create<AiWorkflowState>()(
     },
   ),
 );
+
+export function waitForAiWorkflowJob(jobId: string) {
+  return new Promise<AiWorkflowMetadata>((resolve, reject) => {
+    let settled = false;
+    const finish = (job: AiWorkflowMetadata | undefined) => {
+      if (settled) return;
+      if (!job) return;
+      if (job.status === "error" || job.status === "cancelled") {
+        settled = true;
+        unsubscribe();
+        reject(new Error(job.errorCode ?? "ai_workflow_failed"));
+      } else if (job.status === "completed") {
+        settled = true;
+        unsubscribe();
+        resolve(job);
+      }
+    };
+    const unsubscribe = useAiWorkflowStore.subscribe((state) =>
+      finish(state.jobsById[jobId]),
+    );
+    finish(useAiWorkflowStore.getState().jobsById[jobId]);
+    window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      unsubscribe();
+      reject(new Error("ai_workflow_timeout"));
+    }, 120_000);
+  });
+}

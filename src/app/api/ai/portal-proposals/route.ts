@@ -55,6 +55,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
+  const { data: activeJobs, error: activeJobsError } = await supabase
+    .from("ai_workflow_jobs")
+    .select("id")
+    .eq("portal_id", body.portalId)
+    .in("status", ["queued", "processing"])
+    .limit(1);
+  if (activeJobsError)
+    return NextResponse.json({ error: "jobs_unavailable" }, { status: 503 });
+  if (activeJobs?.length) {
+    return NextResponse.json(
+      { error: "ai_workflow_in_progress" },
+      { status: 409 },
+    );
+  }
+
   const { data: portal, error: portalError } = await supabase
     .from("portals")
     .select("name,short_description,cover_url,icon_url,theme,content_language")
@@ -77,6 +92,25 @@ export async function POST(request: Request) {
     ? normalizePortalDocument(body.existingDocument, portal)
     : undefined;
   const requestId = body.requestId?.trim() || crypto.randomUUID();
+  const creditRequestId =
+    body.autoApply === true ? `${requestId}:apply` : requestId;
+  const { data: creditResult, error: creditError } = await supabase.rpc(
+    "reserve_ai_credits",
+    {
+      target_operation: body.operation,
+      target_request_id: creditRequestId,
+    },
+  );
+  if (creditError) {
+    return NextResponse.json({ error: "credits_unavailable" }, { status: 503 });
+  }
+  if (!creditResult?.[0]?.ok) {
+    return NextResponse.json(
+      { error: creditResult?.[0]?.reason ?? "insufficient_credits" },
+      { status: 402 },
+    );
+  }
+  let workflowStarted = false;
   try {
     const job = await createAiWorkflowJob(supabase, {
       owner_id: userData.user.id,
@@ -104,13 +138,19 @@ export async function POST(request: Request) {
     });
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;
-    if (!accessToken)
+    if (!accessToken) {
+      await supabase.rpc("complete_ai_credits", {
+        target_request_id: creditRequestId,
+        target_status: "refunded",
+      });
       return NextResponse.json(
         { error: "authentication_required" },
         { status: 401 },
       );
+    }
     if (job.status === "queued") {
       const run = await startAiPortalProposal({ accessToken, jobId: job.id });
+      workflowStarted = true;
       await supabase
         .from("ai_workflow_jobs")
         .update({ workflow_run_id: run.runId })
@@ -121,6 +161,12 @@ export async function POST(request: Request) {
       { status: 202 },
     );
   } catch (error) {
+    if (!workflowStarted) {
+      await supabase.rpc("complete_ai_credits", {
+        target_request_id: creditRequestId,
+        target_status: "refunded",
+      });
+    }
     console.error("Failed to queue AI portal proposal", error);
     return NextResponse.json({ error: "ai_proposal_failed" }, { status: 503 });
   }

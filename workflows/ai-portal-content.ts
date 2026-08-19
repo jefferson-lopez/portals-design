@@ -1,7 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { start } from "workflow/api";
 import { processAiContentJob } from "@/lib/portal/ai-content-workflow";
-import { markAiWorkflowJob } from "@/lib/portal/ai-workflow";
+import {
+  completeAiWorkflowCredits,
+  markAiWorkflowJob,
+} from "@/lib/portal/ai-workflow";
 import type { Database } from "@/lib/supabase/database.types";
 
 type Input = {
@@ -27,6 +30,9 @@ async function processContent(input: Input) {
   try {
     return await processAiContentJob(supabase, job);
   } catch (error) {
+    await completeAiWorkflowCredits(supabase, job.request_id, "refunded").catch(
+      () => undefined,
+    );
     await markAiWorkflowJob(supabase, input.jobId, {
       status: "error",
       error_code: error instanceof Error ? error.message : "ai_content_failed",

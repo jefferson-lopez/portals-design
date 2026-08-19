@@ -14,10 +14,11 @@ describe("AI portal proposal route", () => {
     expect(source).toContain("portal_not_found");
   });
 
-  it("returns a preview without reserving credits", () => {
+  it("reserves credits before starting the AI preview workflow", () => {
     expect(source).toContain("createAiWorkflowJob");
     expect(source).toContain("startAiPortalProposal");
-    expect(source).not.toContain("reserve_ai_credits");
+    expect(source).toContain("reserve_ai_credits");
+    expect(source).toContain("insufficient_credits");
     expect(source).toContain('status: 202');
     expect(source).toContain("jobId");
     expect(source).not.toContain("File");

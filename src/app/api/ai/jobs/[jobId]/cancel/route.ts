@@ -17,7 +17,7 @@ export async function POST(
   const { jobId } = await params;
   const { data: job, error } = await supabase
     .from("ai_workflow_jobs")
-    .select("id,status,workflow_run_id,request_id,kind")
+    .select("id,status,workflow_run_id,request_id,kind,payload")
     .eq("id", jobId)
     .single();
   if (error || !job)
@@ -49,6 +49,17 @@ export async function POST(
         .eq("request_id", `${job.request_id}:apply`)
         .in("status", ["queued", "processing"]);
     }
+    const payload =
+      job.payload && typeof job.payload === "object"
+        ? (job.payload as { autoApply?: boolean })
+        : null;
+    await supabase.rpc("complete_ai_credits", {
+      target_request_id:
+        job.kind === "portal-proposal" && payload?.autoApply === true
+          ? `${job.request_id}:apply`
+          : job.request_id,
+      target_status: "refunded",
+    });
     return NextResponse.json({ ok: true, status: "cancelled" });
   } catch (cancelError) {
     console.error("Failed to cancel AI workflow", {

@@ -253,6 +253,50 @@ export async function POST(request: Request) {
   }
 
   const workflowJobId = request.headers.get("x-ai-workflow-job-id");
+  let creditReserved = false;
+  if (!workflowJobId) {
+    const target = body.target as AiContentTarget;
+    const { data: activeJobs, error: activeJobsError } = await supabase
+      .from("ai_workflow_jobs")
+      .select("payload")
+      .eq("portal_id", body.portalId)
+      .in("status", ["queued", "processing"]);
+    if (activeJobsError)
+      return NextResponse.json({ error: "jobs_unavailable" }, { status: 503 });
+    const duplicateTarget = (activeJobs ?? []).some((activeJob) => {
+      const payload =
+        activeJob.payload && typeof activeJob.payload === "object"
+          ? (activeJob.payload as { target?: { id?: string; kind?: string } })
+          : null;
+      return (
+        payload?.target?.id === target.id &&
+        payload?.target?.kind === target.kind
+      );
+    });
+    if (duplicateTarget)
+      return NextResponse.json(
+        { error: "ai_workflow_in_progress" },
+        { status: 409 },
+      );
+    const { data: creditResult, error: creditError } = await supabase.rpc(
+      "reserve_ai_credits",
+      {
+        target_operation: "refine-copy",
+        target_request_id: body.requestId,
+      },
+    );
+    if (creditError)
+      return NextResponse.json(
+        { error: "credits_unavailable" },
+        { status: 503 },
+      );
+    if (!creditResult?.[0]?.ok)
+      return NextResponse.json(
+        { error: creditResult?.[0]?.reason ?? "insufficient_credits" },
+        { status: 402 },
+      );
+    creditReserved = true;
+  }
   const job = workflowJobId
     ? (
         await supabase
@@ -275,21 +319,42 @@ export async function POST(request: Request) {
           target: body.target,
         } as never,
       });
-  if (!job)
+  if (!job) {
+    if (creditReserved)
+      await supabase.rpc("complete_ai_credits", {
+        target_request_id: body.requestId,
+        target_status: "refunded",
+      });
     return NextResponse.json({ error: "job_not_found" }, { status: 404 });
+  }
   if (!workflowJobId) {
     const accessToken = (await supabase.auth.getSession()).data.session
       ?.access_token;
     if (!accessToken) {
+      if (creditReserved)
+        await supabase.rpc("complete_ai_credits", {
+          target_request_id: body.requestId,
+          target_status: "refunded",
+        });
       return NextResponse.json(
         { error: "authentication_required" },
         { status: 401 },
       );
     }
-    const run = await startAiPortalContent({
-      accessToken,
-      jobId: job.id,
-    });
+    let run: Awaited<ReturnType<typeof startAiPortalContent>>;
+    try {
+      run = await startAiPortalContent({
+        accessToken,
+        jobId: job.id,
+      });
+    } catch (error) {
+      if (creditReserved)
+        await supabase.rpc("complete_ai_credits", {
+          target_request_id: body.requestId,
+          target_status: "refunded",
+        });
+      throw error;
+    }
     await supabase
       .from("ai_workflow_jobs")
       .update({ workflow_run_id: run.runId })
