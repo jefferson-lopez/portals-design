@@ -85,6 +85,6 @@ export function waitForAiWorkflowJob(jobId: string) {
       settled = true;
       unsubscribe();
       reject(new Error("ai_workflow_timeout"));
-    }, 180_000);
+    }, 600_000);
   });
 }

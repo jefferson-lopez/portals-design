@@ -17,7 +17,8 @@ function isTerminalAiError(message: string) {
     message.startsWith("ai_provider_failed:") ||
     message.startsWith("ai_provider_") ||
     message === "ai_analysis_timeout" ||
-    message === "ai_composition_timeout" ||
+    message === "ai_structure_timeout" ||
+    message === "ai_copy_timeout" ||
     message.startsWith("ai_visual_asset_fetch_failed:") ||
     message === "ai_content_unavailable" ||
     message === "ai_content_incomplete" ||

@@ -31,17 +31,19 @@ describe("AI SDK proposal adapter", () => {
     expect(
       classifyAiProviderError(new Error("provider rejected structured output")),
     ).toBe("ai_provider_failed:provider rejected structured output");
-    expect(classifyAiProviderError(new Error("ai_composition_timeout"))).toBe(
-      "ai_composition_timeout",
+    expect(classifyAiProviderError(new Error("ai_structure_timeout"))).toBe(
+      "ai_structure_timeout",
     );
   });
 
   it("keeps visual analysis and composition timeouts within the portal budget", () => {
     expect(source).toContain("AI_ANALYSIS_TIMEOUT_MS = 300_000");
     expect(source).toContain("AI_ANALYSIS_MAX_CONCURRENCY = 4");
-    expect(source).toContain("AI_COMPOSITION_TIMEOUT_MS = 90_000");
+    expect(source).toContain("AI_STRUCTURE_TIMEOUT_MS = 300_000");
+    expect(source).toContain("AI_COPY_TIMEOUT_MS = 300_000");
     expect(source).toContain('"ai_analysis_timeout"');
-    expect(source).toContain('"ai_composition_timeout"');
+    expect(source).toContain('"ai_structure_timeout"');
+    expect(source).toContain('"ai_copy_timeout"');
     expect(source).toContain("AI_COMPOSITION_MODEL");
     expect(source).toContain('"openai/gpt-5-mini"');
   });
@@ -240,7 +242,8 @@ describe("AI SDK proposal adapter", () => {
   it("parallelizes bounded analysis and aborts slow provider requests", () => {
     expect(source).toContain("Promise.all(");
     expect(source).toContain("AI_ANALYSIS_TIMEOUT_MS");
-    expect(source).toContain("AI_COMPOSITION_TIMEOUT_MS");
+    expect(source).toContain("AI_STRUCTURE_MODEL");
+    expect(source).toContain("AI_COPY_MODEL");
     expect(source).toContain("abortSignal");
   });
 

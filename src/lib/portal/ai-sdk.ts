@@ -293,7 +293,8 @@ export function chunkVisualAssets(
 export const AI_VISUAL_MAX_BYTES = 8 * 1024 * 1024;
 const AI_VISUAL_MAX_DIMENSION = 2048;
 export const AI_ANALYSIS_TIMEOUT_MS = 300_000;
-export const AI_COMPOSITION_TIMEOUT_MS = 90_000;
+export const AI_STRUCTURE_TIMEOUT_MS = 300_000;
+export const AI_COPY_TIMEOUT_MS = 300_000;
 export const AI_ANALYSIS_MAX_CONCURRENCY = 4;
 
 export function classifyAiProviderError(error: unknown): string {
@@ -315,7 +316,8 @@ export function classifyAiProviderError(error: unknown): string {
   if (
     message.startsWith("ai_visual_asset_fetch_failed:") ||
     message === "ai_analysis_timeout" ||
-    message === "ai_composition_timeout"
+    message === "ai_structure_timeout" ||
+    message === "ai_copy_timeout"
   )
     return message;
   if (candidate?.name === "AbortError" || /timed out|timeout/i.test(message))
@@ -552,13 +554,24 @@ export async function generateAiStructuredEnhancement({
           analysisConfiguredModel.replace(/^openai\//, ""),
         )
       : analysisConfiguredModel;
-    const compositionConfiguredModel =
-      process.env.AI_COMPOSITION_MODEL ?? "openai/gpt-5-mini";
-    const compositionModel = isOpenAiApiKey
+    const structureConfiguredModel =
+      process.env.AI_STRUCTURE_MODEL ??
+      process.env.AI_COMPOSITION_MODEL ??
+      "openai/gpt-5-mini";
+    const structureModel = isOpenAiApiKey
       ? createOpenAI({ apiKey: process.env.AI_GATEWAY_API_KEY })(
-          compositionConfiguredModel.replace(/^openai\//, ""),
+          structureConfiguredModel.replace(/^openai\//, ""),
         )
-      : compositionConfiguredModel;
+      : structureConfiguredModel;
+    const copyConfiguredModel =
+      process.env.AI_COPY_MODEL ??
+      process.env.AI_COMPOSITION_MODEL ??
+      "openai/gpt-5-mini";
+    const copyModel = isOpenAiApiKey
+      ? createOpenAI({ apiKey: process.env.AI_GATEWAY_API_KEY })(
+          copyConfiguredModel.replace(/^openai\//, ""),
+        )
+      : copyConfiguredModel;
     const contentAnalyses: z.infer<typeof contentAnalysisSchema>[] = [];
     const visualBatches = chunkVisualAssets(assets);
     const analysisBatches = visualBatches.length ? visualBatches : [assets];
@@ -690,7 +703,7 @@ export async function generateAiStructuredEnhancement({
       (abortSignal) =>
         generateText({
           abortSignal,
-          model: compositionModel,
+          model: structureModel,
           messages: [
             {
               role: "user",
@@ -704,8 +717,8 @@ export async function generateAiStructuredEnhancement({
             schema: structurePlanSchema,
           }),
         }),
-      AI_COMPOSITION_TIMEOUT_MS,
-      "ai_composition_timeout",
+      AI_STRUCTURE_TIMEOUT_MS,
+      "ai_structure_timeout",
     );
     if (!structurePlan) return null;
 
@@ -735,7 +748,7 @@ export async function generateAiStructuredEnhancement({
       (abortSignal) =>
         generateText({
           abortSignal,
-          model: compositionModel,
+          model: copyModel,
           messages: [
             { role: "user", content: [{ type: "text", text: copyPrompt }] },
           ],
@@ -746,8 +759,8 @@ export async function generateAiStructuredEnhancement({
             schema: copyPlanSchema,
           }),
         }),
-      AI_COMPOSITION_TIMEOUT_MS,
-      "ai_composition_timeout",
+      AI_COPY_TIMEOUT_MS,
+      "ai_copy_timeout",
     );
     if (!copyPlan) return null;
 
