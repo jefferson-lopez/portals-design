@@ -46,16 +46,23 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
-  const documentResult = access.isOwner
-    ? await admin
-        .from("portal_documents")
-        .select("document")
-        .eq("portal_id", access.portal.id)
-        .maybeSingle()
-    : null;
+  const [documentResult, blocksResult] = access.isOwner
+    ? await Promise.all([
+        admin
+          .from("portal_documents")
+          .select("document")
+          .eq("portal_id", access.portal.id)
+          .maybeSingle(),
+        admin
+          .from("portal_blocks")
+          .select("content")
+          .eq("portal_id", access.portal.id),
+      ])
+    : [null, null];
   const isReferenced = [
     documentResult?.data?.document,
     access.publication?.snapshot,
+    ...(blocksResult?.data ?? []),
   ].some((document) => containsAssetReference(document, assetId, path));
   if (!isReferenced) return new NextResponse("Not found", { status: 404 });
 

@@ -749,6 +749,7 @@ export function RenderPortal({
               {editor ? (
                 <SectionContentEditor
                   portalId={editor.portalId}
+                  portalSlug={editor.slug ?? ""}
                   section={section}
                   updateSection={updateEditableSection}
                 />

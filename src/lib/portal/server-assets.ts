@@ -34,6 +34,32 @@ const PREVIEWABLE_FILE_EXTENSIONS = new Set([
 // that lifecycle, so keep the private signed URLs valid for one hour.
 export const PORTAL_ASSET_PREVIEW_TTL_SECONDS = 60 * 60;
 
+function parseLegacyPortalStorageReference(value: string) {
+  try {
+    const url = new URL(value);
+    const match = url.pathname.match(
+      /^\/storage\/v1\/object\/(?:public|sign)\/portal-assets\/(.+)$/,
+    );
+    if (!match) return null;
+    const path = decodeURIComponent(match[1]);
+    if (
+      !path ||
+      path.split("/").some((part) => !part || part === "." || part === "..")
+    )
+      return null;
+    return { bucket: "portal-assets" as const, path };
+  } catch {
+    return null;
+  }
+}
+
+function resolvePreviewStorageReference(value: string) {
+  return (
+    parsePortalStorageReference(value, getSupabaseEnv().url) ??
+    parseLegacyPortalStorageReference(value)
+  );
+}
+
 export async function fetchStorageEntry(
   entry: ExportEntry,
   remainingBytes: number,
@@ -97,7 +123,7 @@ async function previewImage(
   if (!image.visible) return { ...image, image_url: "" };
   const storage = image.storage_path
     ? { bucket: "portal-assets" as const, path: image.storage_path }
-    : parsePortalStorageReference(image.image_url, getSupabaseEnv().url);
+    : resolvePreviewStorageReference(image.image_url);
   if (
     !storage ||
     !isCanonicalPortalAssetPath(
@@ -112,7 +138,8 @@ async function previewImage(
     image.asset_id,
     storage.path,
   );
-  if (stableUrl) return { ...image, image_url: stableUrl };
+  if (stableUrl)
+    return { ...image, image_url: stableUrl, storage_path: storage.path };
   const supabaseUrl = getSupabaseEnv().url;
   const bucket = createAdminClient().storage.from(storage.bucket);
   const { data, error } = await bucket.createSignedUrl(
@@ -164,7 +191,7 @@ async function previewFile(
   const storage = file.storage_path
     ? { bucket: "portal-assets" as const, path: file.storage_path }
     : file.file_url
-      ? parsePortalStorageReference(file.file_url, getSupabaseEnv().url)
+      ? resolvePreviewStorageReference(file.file_url)
       : null;
   if (
     !storage ||
@@ -181,7 +208,8 @@ async function previewFile(
     file.asset_id,
     storage.path,
   );
-  if (stableUrl) return { ...file, file_url: stableUrl };
+  if (stableUrl)
+    return { ...file, file_url: stableUrl, storage_path: storage.path };
 
   const bucket = createAdminClient().storage.from(storage.bucket);
   const { data, error } = await bucket.createSignedUrl(
@@ -217,7 +245,7 @@ async function previewFont(
   const storage = font.storage_path
     ? { bucket: "portal-assets" as const, path: font.storage_path }
     : font.file_url
-      ? parsePortalStorageReference(font.file_url, getSupabaseEnv().url)
+      ? resolvePreviewStorageReference(font.file_url)
       : null;
   if (
     !storage ||
@@ -234,7 +262,8 @@ async function previewFont(
     font.asset_id,
     storage.path,
   );
-  if (stableUrl) return { ...font, file_url: stableUrl };
+  if (stableUrl)
+    return { ...font, file_url: stableUrl, storage_path: storage.path };
 
   const { data, error } = await createAdminClient()
     .storage.from(storage.bucket)

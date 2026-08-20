@@ -588,8 +588,16 @@ function normalizeFileItems(value: unknown): PortalFileItem[] {
 }
 
 export function portalDocumentToJson(document: PortalDocument): Json {
-  const stableUrl = (assetId: string | undefined, url: string) =>
-    assetId ? `portal-asset:${assetId}` : url;
+  const stableUrl = (
+    assetId: string | undefined,
+    storagePath: string | undefined,
+    url: string,
+  ) =>
+    assetId
+      ? `portal-asset:${assetId}`
+      : storagePath
+        ? `portal-asset-path:${storagePath}`
+        : url;
   return {
     ...document,
     sections: document.sections.map((section) => ({
@@ -601,22 +609,27 @@ export function portalDocumentToJson(document: PortalDocument): Json {
               ...section.content.image,
               image_url: stableUrl(
                 section.content.image.asset_id,
+                section.content.image.storage_path,
                 section.content.image.image_url,
               ),
             }
           : section.content.image,
         images: section.content.images?.map((image) => ({
           ...image,
-          image_url: stableUrl(image.asset_id, image.image_url),
+          image_url: stableUrl(
+            image.asset_id,
+            image.storage_path,
+            image.image_url,
+          ),
         })),
         files: section.content.files?.map((file) => ({
           ...file,
-          file_url: stableUrl(file.asset_id, file.file_url),
+          file_url: stableUrl(file.asset_id, file.storage_path, file.file_url),
         })),
         fonts: section.content.fonts?.map((font) => ({
           ...font,
           file_url: font.file_url
-            ? stableUrl(font.asset_id, font.file_url)
+            ? stableUrl(font.asset_id, font.storage_path, font.file_url)
             : font.file_url,
         })),
       },

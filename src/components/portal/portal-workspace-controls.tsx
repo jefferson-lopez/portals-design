@@ -951,6 +951,7 @@ function ImageTile({
   onRemove,
   onSave,
   portalId,
+  portalSlug,
   pending = false,
 }: {
   captionEditable?: boolean;
@@ -960,6 +961,7 @@ function ImageTile({
   onRemove: () => void;
   onSave: (image: PortalImageItem) => void;
   portalId: string;
+  portalSlug?: string;
   pending?: boolean;
 }) {
   const t = useTranslations("PortalEditor.image");
@@ -981,6 +983,7 @@ function ImageTile({
         : image.fit === "auto"
           ? "object-scale-down"
           : "object-cover";
+  const imageUrl = getStableEditorPreviewUrl(image, portalSlug);
   const [settingsOpen, setSettingsOpen] = useState(false);
   return (
     <figure
@@ -1004,7 +1007,7 @@ function ImageTile({
             dragHandleRef && "cursor-grab active:cursor-grabbing",
           )}
           ref={dragHandleRef}
-          src={image.image_url}
+          src={imageUrl}
         />
         {pending ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50 text-white">
@@ -1185,6 +1188,7 @@ function AddImageTile({
           onSave={() => undefined}
           pending
           portalId={portalId}
+          portalSlug=""
         />
       ))}
       {availableSlots === 0 ? null : (
@@ -1713,10 +1717,12 @@ function ColorsSettingsPopover({
 
 function ImageEditor({
   portalId,
+  portalSlug,
   section,
   updateSection,
 }: {
   portalId: string;
+  portalSlug: string;
   section: PortalSection;
   updateSection: (section: PortalSection) => void;
 }) {
@@ -1746,6 +1752,7 @@ function ImageEditor({
         updateSection({ ...section, content: { image: nextImage } })
       }
       portalId={portalId}
+      portalSlug={portalSlug}
     />
   );
 }
@@ -1757,6 +1764,7 @@ function SortableGalleryItem({
   onRemove,
   onSave,
   portalId,
+  portalSlug,
 }: {
   captionEditable?: boolean;
   image: PortalImageItem;
@@ -1764,6 +1772,7 @@ function SortableGalleryItem({
   onRemove: () => void;
   onSave: (image: PortalImageItem) => void;
   portalId: string;
+  portalSlug: string;
 }) {
   const { handleRef, isDragging, ref } = useSortable({
     group: "gallery",
@@ -1781,17 +1790,49 @@ function SortableGalleryItem({
         onRemove={onRemove}
         onSave={onSave}
         portalId={portalId}
+        portalSlug={portalSlug}
       />
     </div>
   );
 }
 
+function getStableEditorPreviewUrl(
+  image: PortalImageItem,
+  portalSlug?: string,
+) {
+  if (!portalSlug) return image.image_url;
+  if (image.image_url.startsWith("/api/portal-assets/preview")) {
+    return image.image_url;
+  }
+
+  const params = new URLSearchParams({ slug: portalSlug });
+  if (image.asset_id) {
+    params.set("assetId", image.asset_id);
+  } else if (image.storage_path) {
+    params.set("path", image.storage_path);
+  } else {
+    try {
+      const pathname = new URL(image.image_url, "http://portal.local").pathname;
+      const match = pathname.match(
+        /^\/storage\/v1\/object\/(?:public|sign)\/portal-assets\/(.+)$/,
+      );
+      if (!match) return image.image_url;
+      params.set("path", decodeURIComponent(match[1]));
+    } catch {
+      return image.image_url;
+    }
+  }
+  return `/api/portal-assets/preview?${params.toString()}`;
+}
+
 function GalleryEditor({
   portalId,
+  portalSlug,
   section,
   updateSection,
 }: {
   portalId: string;
+  portalSlug: string;
   section: PortalSection;
   updateSection: (section: PortalSection) => void;
 }) {
@@ -1876,6 +1917,7 @@ function GalleryEditor({
               index={index}
               key={image.id}
               portalId={portalId}
+              portalSlug={portalSlug}
               onRemove={() => {
                 saveImages(images.filter((item) => item.id !== image.id));
               }}
@@ -3404,10 +3446,12 @@ function FilesEditor({
 
 export function SectionContentEditor({
   portalId,
+  portalSlug,
   section,
   updateSection,
 }: {
   portalId: string;
+  portalSlug: string;
   section: PortalSection;
   updateSection: (section: PortalSection) => void;
 }) {
@@ -3438,6 +3482,7 @@ export function SectionContentEditor({
     return (
       <ImageEditor
         portalId={portalId}
+        portalSlug={portalSlug}
         section={section}
         updateSection={updateSection}
       />
@@ -3446,6 +3491,7 @@ export function SectionContentEditor({
     return (
       <GalleryEditor
         portalId={portalId}
+        portalSlug={portalSlug}
         section={section}
         updateSection={updateSection}
       />
@@ -3472,6 +3518,7 @@ export function SectionContentEditor({
     return (
       <GalleryEditor
         portalId={portalId}
+        portalSlug={portalSlug}
         section={{
           ...section,
           layout: { ...section.layout, columns: 2, mode: "comparison" },

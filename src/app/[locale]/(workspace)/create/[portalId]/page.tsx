@@ -15,6 +15,7 @@ import { RenderPortal } from "@/components/portal/render-portal";
 import { WorkspaceProjectRegistration } from "@/components/portal/workspace-sidebar";
 import {
   normalizePortalDocument,
+  portalDocumentToJson,
   type PortalDocument,
   portalBlocksToDocument,
 } from "@/lib/portal/document";
@@ -123,7 +124,10 @@ function hasUnpublishedPortalChanges({
       : portal.theme,
   });
 
-  return JSON.stringify(document) !== JSON.stringify(snapshotDocument);
+  return (
+    JSON.stringify(portalDocumentToJson(document)) !==
+    JSON.stringify(portalDocumentToJson(snapshotDocument))
+  );
 }
 
 async function getWorkspace(
@@ -206,7 +210,7 @@ async function getWorkspace(
 
   const snapshot = asPublicationSnapshot(publicationRow?.snapshot ?? null);
   const hasUnpublishedChanges = hasUnpublishedPortalChanges({
-    document,
+    document: storedDocument,
     portal: safePortal,
     snapshot,
   });
@@ -275,7 +279,7 @@ export default async function CreatePortalPage({
         className="min-h-0"
         document={document}
         editable
-        editor={{ focus, locale, portalId: portal.id }}
+        editor={{ focus, locale, portalId: portal.id, slug: portal.slug }}
       />
     </PortalPlanProvider>
   );
