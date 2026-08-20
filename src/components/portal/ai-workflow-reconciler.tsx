@@ -166,6 +166,9 @@ export function AiWorkflowReconciler() {
           previousStatuses.get(job.id) === "processing";
         const isInternalApplyJob =
           job.kind === "portal-operation" && job.request_id.endsWith(":apply");
+        const canCancel =
+          job.result?.progress !== "generating-structure" &&
+          job.result?.progress !== "generating-copy";
         const activePortalId = currentPortalId();
         const belongsToCurrentProject = Boolean(
           activePortalId && job.portal_id === activePortalId,
@@ -177,10 +180,12 @@ export function AiWorkflowReconciler() {
           (job.status === "queued" || job.status === "processing")
         ) {
           toast.loading(actionTitle(job), {
-            action: {
-              label: translate("aiCancelAction"),
-              onClick: () => setCancelJob(job),
-            },
+            action: canCancel
+              ? {
+                  label: translate("aiCancelAction"),
+                  onClick: () => setCancelJob(job),
+                }
+              : null,
             description: progressDescription(job),
             duration: Number.POSITIVE_INFINITY,
             id: toastId,
