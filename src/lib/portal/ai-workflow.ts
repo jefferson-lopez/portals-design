@@ -2,6 +2,7 @@ import {
   createClient as createSupabaseClient,
   type SupabaseClient,
 } from "@supabase/supabase-js";
+import type { PortalPlan } from "@/lib/billing/portal-policy";
 import type { AiPortalOperation } from "@/lib/portal/ai";
 import {
   type AiAssetInput,
@@ -104,7 +105,8 @@ export async function markAiWorkflowJob(
   const { error } = await supabase
     .from("ai_workflow_jobs")
     .update(patch)
-    .eq("id", id);
+    .eq("id", id)
+    .neq("status", "cancelled");
   if (error) throw error;
 }
 
@@ -226,10 +228,10 @@ export async function processAiProposalJob(
     const enhancement = await generateAiStructuredEnhancement({
       assets,
       existingDocument,
-      onProgress: async (progress) => {
+      onProgress: async (progress, progressDetail) => {
         await markAiWorkflowJob(supabase, job.id, {
           status: "processing",
-          result: { progress } as Json,
+          result: { progress, progressDetail } as Json,
         });
       },
       operation,
@@ -237,6 +239,7 @@ export async function processAiProposalJob(
       aiContext: typeof aiContext === "string" ? aiContext : "",
       generateColors,
       contentLanguage: portal.content_language === "es" ? "es" : "en",
+      plan: plan as PortalPlan,
     });
     if (!enhancement) throw new Error("ai_content_unavailable");
     if (

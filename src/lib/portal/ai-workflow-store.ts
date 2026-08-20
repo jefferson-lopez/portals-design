@@ -9,8 +9,13 @@ export type AiWorkflowClientStatus =
   | "cancelled";
 export type AiWorkflowProgress =
   | "analyzing-assets"
+  | "generating-structure"
   | "generating-copy"
   | "applying";
+export type AiWorkflowProgressDetail = {
+  batch: number;
+  total: number;
+};
 
 export type AiWorkflowMetadata = {
   id: string;
@@ -25,6 +30,7 @@ export type AiWorkflowMetadata = {
   autoApply?: boolean;
   targetKey?: string;
   progress?: AiWorkflowProgress;
+  progressDetail?: AiWorkflowProgressDetail;
   proposal?: AiPortalProposal;
 };
 
@@ -79,6 +85,6 @@ export function waitForAiWorkflowJob(jobId: string) {
       settled = true;
       unsubscribe();
       reject(new Error("ai_workflow_timeout"));
-    }, 120_000);
+    }, 180_000);
   });
 }

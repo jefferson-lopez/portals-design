@@ -15,7 +15,7 @@ describe("portal creation files step", () => {
     expect(source).toContain("maxSize: 500 * 1024 * 1024");
     expect(source).toContain('id="creation-files"');
     expect(source).toContain("multiple");
-    expect(source).toContain("scroll-fade-y max-h-72 overflow-y-auto");
+    expect(source).toContain("scroll-fade-y max-h-[34rem] overflow-y-auto");
     expect(source).toContain("<Attachment");
     expect(source).toContain("justify-between");
     expect(source).not.toContain(
@@ -44,10 +44,12 @@ describe("portal creation files step", () => {
     expect(english.Home.create.filesTitle).toBe(
       "Build with AI from your files (optional)",
     );
-    expect(english.Home.create.uploadDetails).toContain("500 MB per file");
+    expect(english.Home.create.uploadDetails).toContain("100 MB of storage");
     expect(spanish.Home.create.filesTitle).toBe(
       "Crea con IA desde tus archivos (opcional)",
     );
-    expect(spanish.Home.create.uploadDetails).toContain("500 MB por archivo");
+    expect(spanish.Home.create.uploadDetails).toContain(
+      "100 MB de almacenamiento",
+    );
   });
 });

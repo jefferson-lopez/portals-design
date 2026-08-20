@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   chunkVisualAssets,
+  classifyAiProviderError,
   ensureAiStructuredEnhancementCompleteness,
   generateAiStructuredEnhancement,
 } from "@/lib/portal/ai-sdk";
@@ -13,6 +14,46 @@ const source = readFileSync(
 );
 
 describe("AI SDK proposal adapter", () => {
+  it("preserves safe provider failure diagnostics", () => {
+    expect(
+      classifyAiProviderError(new Error("ai_visual_asset_fetch_failed:403")),
+    ).toBe("ai_visual_asset_fetch_failed:403");
+    expect(
+      classifyAiProviderError(
+        Object.assign(new Error("rate limited"), { status: 429 }),
+      ),
+    ).toBe("ai_provider_rate_limited");
+    expect(
+      classifyAiProviderError(
+        new DOMException("The operation was aborted", "AbortError"),
+      ),
+    ).toBe("ai_provider_timeout");
+    expect(
+      classifyAiProviderError(new Error("provider rejected structured output")),
+    ).toBe("ai_provider_failed:provider rejected structured output");
+    expect(classifyAiProviderError(new Error("ai_composition_timeout"))).toBe(
+      "ai_composition_timeout",
+    );
+  });
+
+  it("keeps visual analysis and composition timeouts within the portal budget", () => {
+    expect(source).toContain("AI_ANALYSIS_TIMEOUT_MS = 300_000");
+    expect(source).toContain("AI_ANALYSIS_MAX_CONCURRENCY = 4");
+    expect(source).toContain("AI_COMPOSITION_TIMEOUT_MS = 90_000");
+    expect(source).toContain('"ai_analysis_timeout"');
+    expect(source).toContain('"ai_composition_timeout"');
+    expect(source).toContain("AI_COMPOSITION_MODEL");
+    expect(source).toContain('"openai/gpt-5-mini"');
+  });
+
+  it("gives the model the active plan gallery limits", () => {
+    expect(source).toContain("Gallery rules for the");
+    expect(source).toContain("portalGalleryItemLimit(plan)");
+    expect(source).toContain("portalGallerySectionLimit(plan)");
+    expect(source).toContain("nextBatchIndex");
+    expect(source).not.toContain("AI_ANALYSIS_GLOBAL_TIMEOUT_MS");
+  });
+
   it("chunks every visual asset while preserving logos and order", () => {
     const assets = [
       ...Array.from({ length: 20 }, (_, index) => ({
@@ -185,14 +226,28 @@ describe("AI SDK proposal adapter", () => {
 
   it("separates asset analysis from final portal composition", () => {
     expect(source).toContain("Analyze the supplied asset inventory");
-    expect(source).toContain("This is the composition phase");
-    expect(source).toContain("Treat .ai, .eps, .psd");
+    expect(source).toContain("Create only the portal structure plan");
     expect(source).toContain(
-      "Complete content analysis from all analysis requests",
+      "Generate only the project and visitor-facing copy",
     );
+    expect(source).toContain("Treat .ai, .eps, .psd");
+    expect(source).toContain("Completed asset analysis");
     expect(source).not.toContain(
       "The attached visual files may be only a representative sample",
     );
+  });
+
+  it("parallelizes bounded analysis and aborts slow provider requests", () => {
+    expect(source).toContain("Promise.all(");
+    expect(source).toContain("AI_ANALYSIS_TIMEOUT_MS");
+    expect(source).toContain("AI_COMPOSITION_TIMEOUT_MS");
+    expect(source).toContain("abortSignal");
+  });
+
+  it("reports completed analysis batches for live progress", () => {
+    expect(source).toContain("batch");
+    expect(source).toContain("total");
+    expect(source).toContain("onProgress");
   });
 
   it("keeps local preview available when the gateway is not configured", async () => {

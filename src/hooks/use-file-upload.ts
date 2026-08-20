@@ -11,6 +11,7 @@ export type UploadedFile = {
 type FileUploadOptions = {
   accept?: string;
   maxSize?: number;
+  validateFile?: (file: File, existingFiles: File[]) => string | undefined;
 };
 
 function matchesAccept(file: File, accept: string) {
@@ -27,6 +28,7 @@ function matchesAccept(file: File, accept: string) {
 export function useFileUpload({
   accept = "*/*",
   maxSize,
+  validateFile,
 }: FileUploadOptions = {}) {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const filesRef = useRef(files);
@@ -37,19 +39,27 @@ export function useFileUpload({
   const addFiles = useCallback(
     (incoming: File[]) => {
       const nextErrors: string[] = [];
-      const validFiles = incoming.filter((file) => {
+      const validFiles: File[] = [];
+      const acceptedFiles = filesRef.current.map(({ file }) => file);
+      for (const file of incoming) {
         if (!matchesAccept(file, accept)) {
           nextErrors.push(`${file.name}: File type is not supported.`);
-          return false;
+          continue;
         }
         if (maxSize && file.size > maxSize) {
           nextErrors.push(
             `${file.name}: File exceeds the ${Math.round(maxSize / 1024 / 1024)}MB limit.`,
           );
-          return false;
+          continue;
         }
-        return true;
-      });
+        const validationError = validateFile?.(file, acceptedFiles);
+        if (validationError) {
+          nextErrors.push(`${file.name}: ${validationError}`);
+          continue;
+        }
+        validFiles.push(file);
+        acceptedFiles.push(file);
+      }
 
       setErrors(nextErrors);
       setFiles((current) => {
@@ -75,7 +85,7 @@ export function useFileUpload({
         return [...current, ...additions];
       });
     },
-    [accept, maxSize],
+    [accept, maxSize, validateFile],
   );
 
   const removeFile = useCallback((id?: string) => {

@@ -13,3 +13,8 @@ test("proposal workflow is durable and only receives serializable input", () => 
   expect(source).toContain("processAiProposalJob");
   expect(source).not.toContain("File");
 });
+
+test("terminal AI failures do not restart the entire proposal analysis", () => {
+  expect(source).toContain('import { FatalError } from "workflow"');
+  expect(source).toContain("new FatalError");
+});

@@ -29,17 +29,34 @@ export async function POST(
   )
     return NextResponse.json({ error: "job_not_cancellable" }, { status: 409 });
   try {
-    if (job.workflow_run_id) await getRun(job.workflow_run_id).cancel();
-    await supabase
+    if (job.workflow_run_id) {
+      try {
+        await getRun(job.workflow_run_id).cancel();
+      } catch (workflowError) {
+        // The database state is authoritative. A run can disappear between
+        // reconciliation and cancellation, but the job must still become
+        // non-applicable and refund its credits.
+        console.warn("AI workflow run was already unavailable", {
+          error:
+            workflowError instanceof Error
+              ? workflowError.message
+              : workflowError,
+          jobId,
+        });
+      }
+    }
+    const { error: cancelError } = await supabase
       .from("ai_workflow_jobs")
       .update({
         completed_at: new Date().toISOString(),
         error_code: "ai_cancelled",
         status: "cancelled",
       })
-      .eq("id", job.id);
+      .eq("id", job.id)
+      .in("status", ["queued", "processing"]);
+    if (cancelError) throw cancelError;
     if (job.kind === "portal-proposal") {
-      await supabase
+      const { error: applyCancelError } = await supabase
         .from("ai_workflow_jobs")
         .update({
           completed_at: new Date().toISOString(),
@@ -48,6 +65,7 @@ export async function POST(
         })
         .eq("request_id", `${job.request_id}:apply`)
         .in("status", ["queued", "processing"]);
+      if (applyCancelError) throw applyCancelError;
     }
     const payload =
       job.payload && typeof job.payload === "object"

@@ -116,6 +116,14 @@ export const PORTAL_PLANS: Record<PortalPlan, PortalPlanPolicy> = {
   },
 };
 
+export function portalGalleryItemLimit(plan: PortalPlan) {
+  return PORTAL_PLANS[plan].sections.gallery?.items ?? Number.POSITIVE_INFINITY;
+}
+
+export function portalGallerySectionLimit(plan: PortalPlan) {
+  return PORTAL_PLANS[plan].sections.gallery?.sections ?? 0;
+}
+
 export type PortalPolicyResult =
   | { ok: true }
   | { code: PortalPolicyCode; limit: number; ok: false; value: number };

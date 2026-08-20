@@ -13,7 +13,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { usePathname, useRouter } from "@/i18n/navigation";
-import type { AiWorkflowProgress } from "@/lib/portal/ai-workflow-store";
+import type {
+  AiWorkflowProgress,
+  AiWorkflowProgressDetail,
+} from "@/lib/portal/ai-workflow-store";
 import { useAiWorkflowStore } from "@/lib/portal/ai-workflow-store";
 import type { PortalDocument } from "@/lib/portal/document";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
@@ -30,6 +33,7 @@ type Job = {
     document?: PortalDocument;
     proposal?: unknown;
     progress?: AiWorkflowProgress;
+    progressDetail?: AiWorkflowProgressDetail;
   } | null;
   payload?: {
     operation?: "generate" | "improve-project" | "refine-copy";
@@ -68,10 +72,17 @@ export function AiWorkflowReconciler() {
       pathnameRef.current.match(/\/create\/([^/]+)/)?.[1] ?? null;
     const translate = (...args: Parameters<typeof t>) => tRef.current(...args);
     const progressDescription = (job: Job) => {
+      if (
+        job.result?.progress === "analyzing-assets" &&
+        job.result.progressDetail?.batch
+      )
+        return translate("aiAnalyzingAssets");
       if (job.result?.progress === "analyzing-assets")
         return translate("aiAnalyzingAssets");
       if (job.result?.progress === "generating-copy")
         return translate("aiGeneratingCopy");
+      if (job.result?.progress === "generating-structure")
+        return translate("aiGeneratingStructure");
       if (job.result?.progress === "applying") return translate("aiApplying");
       if (job.kind === "portal-content")
         return translate("aiProcessingContent");
@@ -79,17 +90,27 @@ export function AiWorkflowReconciler() {
       return translate("aiPreparing");
     };
     const actionTitle = (job: Job) => {
-      if (job.operation === "generate")
-        return translate("aiCreatingProjectTitle");
-      if (job.operation === "refine-copy")
-        return translate("aiImproveWithAiTitle");
-      return translate("aiAddWithAiTitle");
+      const title =
+        job.operation === "generate"
+          ? translate("aiCreatingProjectTitle")
+          : job.operation === "refine-copy"
+            ? translate("aiImproveWithAiTitle")
+            : translate("aiAddWithAiTitle");
+      if (job.result?.progressDetail?.batch) {
+        return `${title} · ${translate("aiBatchLabel", {
+          batch: job.result.progressDetail.batch,
+          total: job.result.progressDetail.total,
+        })}`;
+      }
+      return title;
     };
     const failureDescription = (job: Job) => {
       if (job.error_code === "insufficient_credits")
         return translate("aiInsufficientCredits");
       if (job.error_code === "plan_limit") return translate("aiPlanLimit");
-      return translate("aiFailedDescription");
+      return translate("aiFailedDescription", {
+        code: job.error_code ?? "unknown",
+      });
     };
     const reconcile = async () => {
       const response = await fetch("/api/ai/jobs", { cache: "no-store" }).catch(
@@ -137,6 +158,7 @@ export function AiWorkflowReconciler() {
               ? `${job.payload.target.kind}:${job.payload.target.id}`
               : undefined,
           progress: job.result?.progress,
+          progressDetail: job.result?.progressDetail,
           proposal: (job.result as { proposal?: never } | null)?.proposal,
         });
         const wasActive =
@@ -259,7 +281,7 @@ export function AiWorkflowReconciler() {
         });
     };
     void setupRealtime();
-    const timer = window.setInterval(() => void reconcile(), 30000);
+    const timer = window.setInterval(() => void reconcile(), 3000);
     return () => {
       disposed = true;
       window.clearInterval(timer);

@@ -9,6 +9,7 @@ export type FieldOrigin = "ai" | "manual";
 
 export type AssetAnalysisInput = {
   id: string;
+  isPrimary?: boolean;
   name: string;
   mimeType: string;
   storagePath?: string;

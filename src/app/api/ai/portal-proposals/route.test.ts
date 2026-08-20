@@ -19,8 +19,12 @@ describe("AI portal proposal route", () => {
     expect(source).toContain("startAiPortalProposal");
     expect(source).toContain("reserve_ai_credits");
     expect(source).toContain("insufficient_credits");
-    expect(source).toContain('status: 202');
+    expect(source).toContain("status: 202");
     expect(source).toContain("jobId");
     expect(source).not.toContain("File");
+  });
+
+  it("accepts explicit primary asset metadata", () => {
+    expect(source).toContain("isPrimary");
   });
 });

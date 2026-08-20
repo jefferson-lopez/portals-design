@@ -1,6 +1,7 @@
 import { AI_OPERATION_COSTS } from "@/lib/billing/ai-credits";
 import {
   type PortalPlan as BillingPortalPlan,
+  portalGalleryItemLimit,
   validatePortalPublication,
 } from "@/lib/billing/portal-policy";
 import {
@@ -333,8 +334,45 @@ export function createAiPortalProposal(input: ProposalInput): AiPortalProposal {
     }
   }
 
+  const plannedImageIds = new Set(
+    (
+      input.enhancement?.sectionPlan
+        .filter(
+          (section) => section.kind === "image" || section.kind === "gallery",
+        )
+        .flatMap((section) => section.assetIds) ?? []
+    ).filter((assetId): assetId is string => typeof assetId === "string"),
+  );
+  const imageOrder = new Map<string, number>();
+  let order = 0;
+  for (const asset of input.assets) {
+    if (asset.isPrimary && isRenderableImageMimeType(asset.mimeType)) {
+      imageOrder.set(asset.id, order++);
+    }
+  }
+  for (const assetId of plannedImageIds) {
+    if (!imageOrder.has(assetId)) imageOrder.set(assetId, order++);
+  }
+  images.sort(
+    (left, right) =>
+      (imageOrder.get(left.asset_id ?? "") ?? Number.MAX_SAFE_INTEGER) -
+      (imageOrder.get(right.asset_id ?? "") ?? Number.MAX_SAFE_INTEGER),
+  );
+  images.forEach((image, position) => {
+    image.position = position;
+  });
+
   const sections: PortalSection[] = [];
   const presentedImages = unifyImagePresentation(images);
+  const primaryImageId = input.assets.find(
+    (asset) => asset.isPrimary && isRenderableImageMimeType(asset.mimeType),
+  )?.id;
+  const presentedPrimaryImage = primaryImageId
+    ? presentedImages.find((image) => image.asset_id === primaryImageId)
+    : undefined;
+  const presentedGalleryImages = presentedPrimaryImage
+    ? presentedImages.filter((image) => image !== presentedPrimaryImage)
+    : presentedImages;
   const plannedSection = (
     kind: "image" | "gallery" | "fonts" | "colors" | "files",
   ) => input.enhancement?.sectionPlan.find((section) => section.kind === kind);
@@ -348,7 +386,21 @@ export function createAiPortalProposal(input: ProposalInput): AiPortalProposal {
     }
     return copy;
   };
-  if (images.length === 1 && plannedSection("image"))
+  if (presentedPrimaryImage)
+    (() => {
+      const copy = sectionCopy("image");
+      sections.push(
+        sectionWithCopy(
+          {
+            ...createPortalSection("image", sections.length),
+            content: { image: presentedPrimaryImage },
+          },
+          copy.title,
+          copy.description,
+        ),
+      );
+    })();
+  else if (images.length === 1 && plannedSection("image"))
     (() => {
       const copy = sectionCopy("image");
       sections.push(
@@ -362,19 +414,49 @@ export function createAiPortalProposal(input: ProposalInput): AiPortalProposal {
         ),
       );
     })();
-  else if (images.length)
+  if (
+    presentedGalleryImages.length &&
+    (presentedPrimaryImage || images.length > 1 || plannedSection("gallery"))
+  )
     (() => {
       const copy = sectionCopy("gallery");
-      sections.push(
-        sectionWithCopy(
-          {
-            ...createPortalSection("gallery", sections.length),
-            content: { images: presentedImages },
-          },
-          copy.title,
-          copy.description,
-        ),
-      );
+      const itemLimit = portalGalleryItemLimit(input.plan);
+      const galleryBatches =
+        itemLimit === Number.POSITIVE_INFINITY
+          ? [presentedGalleryImages]
+          : (() => {
+              const batchCount = Math.ceil(
+                presentedGalleryImages.length / itemLimit,
+              );
+              const baseBatchSize = Math.floor(
+                presentedGalleryImages.length / batchCount,
+              );
+              const remainder = presentedGalleryImages.length % batchCount;
+              let cursor = 0;
+              return Array.from({ length: batchCount }, (_, index) => {
+                const batchSize = baseBatchSize + (index < remainder ? 1 : 0);
+                const batch = presentedGalleryImages.slice(
+                  cursor,
+                  cursor + batchSize,
+                );
+                cursor += batchSize;
+                return batch;
+              });
+            })();
+      galleryBatches.forEach((batch, index) => {
+        sections.push(
+          sectionWithCopy(
+            {
+              ...createPortalSection("gallery", sections.length),
+              content: { images: batch },
+            },
+            galleryBatches.length > 1
+              ? `${copy.title} ${index + 1}`
+              : copy.title,
+            copy.description,
+          ),
+        );
+      });
     })();
   if (fonts.length)
     (() => {

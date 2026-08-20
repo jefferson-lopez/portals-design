@@ -31,6 +31,124 @@ const assets: AiAssetInput[] = [
 ];
 
 describe("AI portal proposal", () => {
+  it("splits galleries according to the active plan item limit", () => {
+    const proposal = createAiPortalProposal({
+      assets: Array.from({ length: 14 }, (_, index) => ({
+        id: `image-${index}`,
+        mimeType: "image/png",
+        name: `image-${index}.png`,
+      })),
+      enhancement: {
+        assetInsights: [],
+        colorInsights: [],
+        copyPlan: [],
+        imageRecommendations: [],
+        projectCopy: { description: "Football federation", name: "Federation" },
+        quarantinedAssetIds: [],
+        sectionPlan: [
+          {
+            assetIds: Array.from(
+              { length: 14 },
+              (_, index) => `image-${index}`,
+            ),
+            description: "Federation imagery.",
+            kind: "gallery",
+            sectionId: "gallery",
+            title: "Federation imagery",
+          },
+        ],
+      },
+      operation: "generate",
+      plan: "free",
+      portal: {
+        cover_url: null,
+        icon_url: null,
+        name: "Federation",
+        short_description: "Football federation",
+        theme: "auto",
+      },
+      projectDescription: "Football federation",
+    });
+
+    const galleries = proposal.proposedDocument.sections.filter(
+      (section) => section.type === "gallery",
+    );
+    expect(galleries).toHaveLength(2);
+    expect(galleries.map((section) => section.content.images?.length)).toEqual([
+      7, 7,
+    ]);
+    expect(
+      galleries.flatMap(
+        (section) =>
+          section.content.images?.map((image) => image.asset_id) ?? [],
+      ),
+    ).toEqual(Array.from({ length: 14 }, (_, index) => `image-${index}`));
+    expect(proposal.warnings).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: "plan_limit" })]),
+    );
+  });
+
+  it("puts an explicitly marked primary image in its own section", () => {
+    const proposal = createAiPortalProposal({
+      assets: [{ ...assets[1], isPrimary: true }, assets[0]],
+      operation: "generate",
+      plan: "free",
+      portal: {
+        cover_url: null,
+        icon_url: null,
+        name: "Acme",
+        short_description: "Brand identity",
+        theme: "auto",
+      },
+      projectDescription: "Brand identity",
+    });
+
+    expect(proposal.proposedDocument.sections[0]).toMatchObject({
+      content: { image: { asset_id: "photo" } },
+      type: "image",
+    });
+    expect(proposal.proposedDocument.sections[1]?.content.images).toMatchObject(
+      [{ asset_id: "logo" }],
+    );
+  });
+
+  it("follows the planned asset order after the primary image", () => {
+    const proposal = createAiPortalProposal({
+      assets: [assets[0], assets[1]],
+      enhancement: {
+        assetInsights: [],
+        colorInsights: [],
+        copyPlan: [],
+        imageRecommendations: [],
+        projectCopy: { description: "Brand identity", name: "Acme" },
+        quarantinedAssetIds: [],
+        sectionPlan: [
+          {
+            assetIds: ["photo", "logo"],
+            description: "The project imagery.",
+            kind: "gallery",
+            sectionId: "gallery",
+            title: "Project imagery",
+          },
+        ],
+      },
+      operation: "generate",
+      plan: "free",
+      portal: {
+        cover_url: null,
+        icon_url: null,
+        name: "Acme",
+        short_description: "Brand identity",
+        theme: "auto",
+      },
+      projectDescription: "Brand identity",
+    });
+
+    expect(proposal.proposedDocument.sections[0]?.content.images).toMatchObject(
+      [{ asset_id: "photo" }, { asset_id: "logo" }],
+    );
+  });
+
   it("applies project copy and asset insights to the generated document", () => {
     const proposal = createAiPortalProposal({
       assets: [

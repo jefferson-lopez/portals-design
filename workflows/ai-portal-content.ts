@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { FatalError } from "workflow";
 import { start } from "workflow/api";
 import { processAiContentJob } from "@/lib/portal/ai-content-workflow";
 import {
@@ -11,6 +12,15 @@ type Input = {
   accessToken: string;
   jobId: string;
 };
+
+function isTerminalAiError(message: string) {
+  return (
+    message === "ai_provider_failed" ||
+    message.startsWith("ai_provider_failed:") ||
+    message.startsWith("ai_provider_") ||
+    message === "ai_content_unavailable"
+  );
+}
 
 async function processContent(input: Input) {
   "use step";
@@ -38,7 +48,9 @@ async function processContent(input: Input) {
       error_code: error instanceof Error ? error.message : "ai_content_failed",
       completed_at: new Date().toISOString(),
     });
-    throw error;
+    const message =
+      error instanceof Error ? error.message : "ai_content_failed";
+    throw isTerminalAiError(message) ? new FatalError(message) : error;
   }
 }
 

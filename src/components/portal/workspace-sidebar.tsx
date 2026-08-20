@@ -170,6 +170,20 @@ export function WorkspaceSidebar({
       return t("workspace.aiImproveWithAiTitle");
     return t("workspace.aiAddWithAiTitle");
   };
+  const aiWorkflowProgress = (job: (typeof activeAiJobs)[number]) => {
+    if (job.progress === "analyzing-assets" && job.progressDetail?.batch) {
+      return t("workspace.aiBatchLabel", {
+        batch: job.progressDetail.batch,
+        total: job.progressDetail.total,
+      });
+    }
+    if (job.progress === "generating-copy")
+      return t("workspace.aiGeneratingCopy");
+    if (job.progress === "generating-structure")
+      return t("workspace.aiGeneratingStructure");
+    if (job.progress === "applying") return t("workspace.aiApplying");
+    return t("workspace.aiPreparing");
+  };
   const favoritesQuery = useQuery({
     enabled: Boolean(user),
     queryKey: workspaceQueryKeys.favorites(locale),
@@ -276,7 +290,7 @@ export function WorkspaceSidebar({
                           {job.portalName ?? t("workspace.aiUntitledProject")}
                         </span>
                         <span className="truncate text-xs font-normal text-sidebar-foreground/70">
-                          {aiWorkflowTitle(job)}
+                          {aiWorkflowTitle(job)} · {aiWorkflowProgress(job)}
                         </span>
                       </span>
                     </SidebarMenuButton>

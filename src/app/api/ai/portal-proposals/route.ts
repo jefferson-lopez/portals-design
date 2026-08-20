@@ -19,6 +19,7 @@ function isAsset(value: unknown): value is AiAssetInput {
     typeof asset.id === "string" &&
     typeof asset.name === "string" &&
     typeof asset.mimeType === "string" &&
+    (asset.isPrimary === undefined || typeof asset.isPrimary === "boolean") &&
     (asset.fileUrl === undefined || typeof asset.fileUrl === "string")
   );
 }

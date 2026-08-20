@@ -2,6 +2,11 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, Output } from "ai";
 import sharp from "sharp";
 import { z } from "zod";
+import {
+  type PortalPlan,
+  portalGalleryItemLimit,
+  portalGallerySectionLimit,
+} from "@/lib/billing/portal-policy";
 import type { AiAssetInput } from "@/lib/portal/ai-proposal";
 import { isRenderableImageMimeType } from "@/lib/portal/asset-validation";
 import type { PortalDocument, PortalSection } from "@/lib/portal/document";
@@ -65,6 +70,25 @@ const contentAnalysisSchema = z.object({
   colorInsights: enhancementSchema.shape.colorInsights,
   imageRecommendations: enhancementSchema.shape.imageRecommendations,
   quarantinedAssetIds: z.array(z.string()),
+});
+
+const structurePlanSchema = z.object({
+  colorInsights: enhancementSchema.shape.colorInsights,
+  imageRecommendations: enhancementSchema.shape.imageRecommendations,
+  quarantinedAssetIds: enhancementSchema.shape.quarantinedAssetIds,
+  sectionPlan: z.array(
+    z.object({
+      assetIds: z.array(z.string()),
+      kind: z.enum(["image", "gallery", "fonts", "colors", "files"]),
+      sectionId: z.string(),
+    }),
+  ),
+});
+
+const copyPlanSchema = z.object({
+  assetInsights: enhancementSchema.shape.assetInsights,
+  copyPlan: enhancementSchema.shape.copyPlan,
+  projectCopy: enhancementSchema.shape.projectCopy,
 });
 
 const contentImprovementSchema = z.object({
@@ -158,10 +182,14 @@ function requiredSectionAssets(
     (asset) => !images.includes(asset) && !fonts.includes(asset),
   );
   const required: Partial<Record<AiSectionKind, string[]>> = {};
-  if (images.length)
-    required[images.length === 1 ? "image" : "gallery"] = images.map(
-      (asset) => asset.id,
-    );
+  const primaryImage = images.find((asset) => asset.isPrimary);
+  const galleryImages = primaryImage
+    ? images.filter((asset) => asset.id !== primaryImage.id)
+    : images;
+  if (primaryImage) required.image = [primaryImage.id];
+  else if (images.length === 1) required.image = [images[0].id];
+  if (galleryImages.length && !(galleryImages.length === 1 && !primaryImage))
+    required.gallery = galleryImages.map((asset) => asset.id);
   if (fonts.length) required.fonts = fonts.map((asset) => asset.id);
   if (files.length) required.files = files.map((asset) => asset.id);
   const colorAssets = activeAssets.filter(
@@ -264,6 +292,71 @@ export function chunkVisualAssets(
 // model provider. The provider only needs a bounded visual proxy for analysis.
 export const AI_VISUAL_MAX_BYTES = 8 * 1024 * 1024;
 const AI_VISUAL_MAX_DIMENSION = 2048;
+export const AI_ANALYSIS_TIMEOUT_MS = 300_000;
+export const AI_COMPOSITION_TIMEOUT_MS = 90_000;
+export const AI_ANALYSIS_MAX_CONCURRENCY = 4;
+
+export function classifyAiProviderError(error: unknown): string {
+  const candidate = error as {
+    message?: unknown;
+    name?: unknown;
+    status?: unknown;
+    statusCode?: unknown;
+  };
+  const message =
+    typeof candidate?.message === "string" ? candidate.message : "";
+  const status =
+    typeof candidate?.status === "number"
+      ? candidate.status
+      : typeof candidate?.statusCode === "number"
+        ? candidate.statusCode
+        : null;
+
+  if (
+    message.startsWith("ai_visual_asset_fetch_failed:") ||
+    message === "ai_analysis_timeout" ||
+    message === "ai_composition_timeout"
+  )
+    return message;
+  if (candidate?.name === "AbortError" || /timed out|timeout/i.test(message))
+    return "ai_provider_timeout";
+  if (status === 429 || /\b429\b|rate limit|too many requests/i.test(message))
+    return "ai_provider_rate_limited";
+  if (status !== null && status >= 500) return "ai_provider_unavailable";
+
+  const diagnostic = message
+    .replace(/https?:\/\/\S+/gi, "[url]")
+    .replace(/\bsk-[A-Za-z0-9_-]+\b/g, "[secret]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160);
+  return diagnostic ? `ai_provider_failed:${diagnostic}` : "ai_provider_failed";
+}
+
+async function withTimeout<T>(
+  task: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  timeoutCode: string,
+) {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  try {
+    return await task(controller.signal);
+  } catch (error) {
+    if (
+      timedOut ||
+      (error instanceof DOMException && error.name === "AbortError")
+    )
+      throw new Error(timeoutCode);
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 export async function prepareAiVisualAsset(
   bytes: Uint8Array,
@@ -433,26 +526,25 @@ export async function generateAiStructuredEnhancement({
   aiContext = "",
   generateColors = true,
   contentLanguage = "en",
+  plan,
 }: {
   assets: AiAssetInput[];
   existingDocument?: PortalDocument;
-  onProgress?: (stage: "analyzing-assets" | "generating-copy") => Promise<void>;
+  onProgress?: (
+    stage: "analyzing-assets" | "generating-structure" | "generating-copy",
+    detail?: { batch: number; total: number },
+  ) => Promise<void>;
   operation?: "generate" | "improve-project" | "refine-copy";
   projectDescription: string;
   aiContext?: string;
   generateColors?: boolean;
   contentLanguage?: "en" | "es";
+  plan?: PortalPlan;
 }): Promise<AiStructuredEnhancement | null> {
   if (!process.env.AI_GATEWAY_API_KEY) return null;
 
   try {
-    const configuredModel = process.env.AI_MODEL ?? "openai/gpt-5-mini";
     const isOpenAiApiKey = process.env.AI_GATEWAY_API_KEY.startsWith("sk-");
-    const model = isOpenAiApiKey
-      ? createOpenAI({ apiKey: process.env.AI_GATEWAY_API_KEY })(
-          configuredModel.replace(/^openai\//, ""),
-        )
-      : configuredModel;
     const analysisConfiguredModel =
       process.env.AI_ANALYSIS_MODEL ?? "openai/gpt-5-mini";
     const analysisModel = isOpenAiApiKey
@@ -460,128 +552,234 @@ export async function generateAiStructuredEnhancement({
           analysisConfiguredModel.replace(/^openai\//, ""),
         )
       : analysisConfiguredModel;
+    const compositionConfiguredModel =
+      process.env.AI_COMPOSITION_MODEL ?? "openai/gpt-5-mini";
+    const compositionModel = isOpenAiApiKey
+      ? createOpenAI({ apiKey: process.env.AI_GATEWAY_API_KEY })(
+          compositionConfiguredModel.replace(/^openai\//, ""),
+        )
+      : compositionConfiguredModel;
     const contentAnalyses: z.infer<typeof contentAnalysisSchema>[] = [];
     const visualBatches = chunkVisualAssets(assets);
     const analysisBatches = visualBatches.length ? visualBatches : [assets];
-    await onProgress?.("analyzing-assets");
-    for (const [batchIndex, batch] of analysisBatches.entries()) {
-      const visualAssets = await Promise.all(
-        batch
-          .filter(
-            (asset) =>
-              typeof asset.fileUrl === "string" &&
-              /^https?:\/\//.test(asset.fileUrl),
-          )
-          .map(async (asset) => {
-            const response = await fetch(asset.fileUrl as string);
-            if (!response.ok) {
-              throw new Error(
-                `ai_visual_asset_fetch_failed:${response.status}`,
-              );
-            }
-            const prepared = await prepareAiVisualAsset(
-              new Uint8Array(await response.arrayBuffer()),
-              asset.mimeType,
-            );
-            return { type: "file" as const, ...prepared };
-          }),
-      );
-      const inventory = batchIndex === 0 ? assets : batch;
-      const { output } = await generateText({
-        model: analysisModel,
-        messages: [
-          {
-            role: "user",
-            content: [
+    await onProgress?.("analyzing-assets", {
+      batch: 0,
+      total: analysisBatches.length,
+    });
+    const batchAnalyses: Array<z.infer<typeof contentAnalysisSchema> | null> =
+      Array.from({ length: analysisBatches.length }, () => null);
+    let completedBatches = 0;
+    const analyzeBatch = async (batchIndex: number) => {
+      const batch = analysisBatches[batchIndex];
+      const analysis = await withTimeout(
+        async (signal) => {
+          const visualAssets = await Promise.all(
+            batch
+              .filter(
+                (asset) =>
+                  typeof asset.fileUrl === "string" &&
+                  /^https?:\/\//.test(asset.fileUrl),
+              )
+              .map(async (asset) => {
+                const response = await fetch(asset.fileUrl as string, {
+                  signal,
+                });
+                if (!response.ok) {
+                  throw new Error(
+                    `ai_visual_asset_fetch_failed:${response.status}`,
+                  );
+                }
+                const prepared = await prepareAiVisualAsset(
+                  new Uint8Array(await response.arrayBuffer()),
+                  asset.mimeType,
+                );
+                return { type: "file" as const, ...prepared };
+              }),
+          );
+          const inventory = batchIndex === 0 ? assets : batch;
+          const { output } = await generateText({
+            abortSignal: signal,
+            model: analysisModel,
+            messages: [
               {
-                type: "text",
-                text: [
-                  "Analyze the supplied asset inventory before any portal composition.",
-                  "Return one assetInsight for every supplied asset id.",
-                  "For visual assets, describe only what is visible.",
-                  "Treat .ai, .eps, .psd, and other Adobe source files as downloadable originals, not as visual assets. Do not inspect or invent their binary contents; use only filename, MIME type, size, and supplied metadata.",
-                  "For other non-visual files, use only the filename, MIME type, size, and supplied metadata. Do not invent contents that are not available.",
-                  "Return detected colors only when they are present in supplied metadata.",
-                  `Asset inventory for this request: ${JSON.stringify(inventory)}`,
-                ].join("\n"),
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: [
+                      "Analyze the supplied asset inventory before any portal composition.",
+                      "Return one assetInsight for every supplied asset id.",
+                      "For visual assets, describe only what is visible.",
+                      "Treat .ai, .eps, .psd, and other Adobe source files as downloadable originals, not as visual assets. Do not inspect or invent their binary contents; use only filename, MIME type, size, and supplied metadata.",
+                      "For other non-visual files, use only the filename, MIME type, size, and supplied metadata. Do not invent contents that are not available.",
+                      "Return detected colors only when they are present in supplied metadata.",
+                      `Asset inventory for this request: ${JSON.stringify(inventory)}`,
+                    ].join("\n"),
+                  },
+                  ...visualAssets,
+                ],
               },
-              ...visualAssets,
             ],
-          },
-        ],
-        output: Output.object({
-          description: "Content analysis for one asset batch.",
-          name: "PortalAssetContentAnalysis",
-          schema: contentAnalysisSchema,
-        }),
+            output: Output.object({
+              description: "Content analysis for one asset batch.",
+              name: "PortalAssetContentAnalysis",
+              schema: contentAnalysisSchema,
+            }),
+          });
+          return output;
+        },
+        AI_ANALYSIS_TIMEOUT_MS,
+        "ai_analysis_timeout",
+      );
+      batchAnalyses[batchIndex] = analysis;
+      completedBatches += 1;
+      await onProgress?.("analyzing-assets", {
+        batch: completedBatches,
+        total: analysisBatches.length,
       });
-      if (output) contentAnalyses.push(output);
-    }
+    };
+    let nextBatchIndex = 0;
+    const worker = async () => {
+      while (nextBatchIndex < analysisBatches.length) {
+        const batchIndex = nextBatchIndex++;
+        await analyzeBatch(batchIndex);
+      }
+    };
+    await Promise.all(
+      Array.from(
+        {
+          length: Math.min(AI_ANALYSIS_MAX_CONCURRENCY, analysisBatches.length),
+        },
+        worker,
+      ),
+    );
+    contentAnalyses.push(
+      ...batchAnalyses.filter(
+        (analysis): analysis is z.infer<typeof contentAnalysisSchema> =>
+          Boolean(analysis),
+      ),
+    );
+    const analyzedAssetInsights = [
+      ...new Map(
+        contentAnalyses
+          .flatMap((analysis) => analysis.assetInsights)
+          .map((insight) => [insight.assetId, insight] as const),
+      ).values(),
+    ];
+
+    await onProgress?.("generating-structure");
+    const structurePrompt = [
+      "Create only the portal structure plan from the completed asset analysis.",
+      "Do not write visitor-facing copy, project names, or section descriptions in this step.",
+      "Return only valid asset IDs and preserve the analyzed facts.",
+      "Choose the required section kinds, asset membership, image order, aspect ratios, quarantine decisions, and color insights.",
+      "If an asset is explicitly marked as primary, place it in its own image section. Put all remaining images in one or more gallery sections.",
+      ...(plan
+        ? [
+            `Gallery rules for the ${plan} plan: each gallery can contain at most ${portalGalleryItemLimit(plan)} images and the portal can contain at most ${portalGallerySectionLimit(plan)} gallery sections. If there are more images, plan multiple balanced galleries.`,
+          ]
+        : []),
+      generateColors
+        ? "Generate color insights only when supplied metadata contains detected colors."
+        : "Do not generate color insights.",
+      `Project description: ${projectDescription}`,
+      `Assets: ${JSON.stringify(assets)}`,
+      `Completed asset analysis: ${JSON.stringify(contentAnalyses)}`,
+    ].join("\n");
+    const { output: structurePlan } = await withTimeout(
+      (abortSignal) =>
+        generateText({
+          abortSignal,
+          model: compositionModel,
+          messages: [
+            {
+              role: "user",
+              content: [{ type: "text", text: structurePrompt }],
+            },
+          ],
+          output: Output.object({
+            description:
+              "A safe portal structure plan without visitor-facing copy.",
+            name: "PortalStructurePlan",
+            schema: structurePlanSchema,
+          }),
+        }),
+      AI_COMPOSITION_TIMEOUT_MS,
+      "ai_composition_timeout",
+    );
+    if (!structurePlan) return null;
 
     await onProgress?.("generating-copy");
-    const promptText = [
-      "Create the portal from the completed asset analysis below.",
-      "This is the composition phase. Do not analyze raw files again and do not invent new asset facts. Use the supplied content analysis as the source of truth.",
-      "Keep Adobe source files (.ai, .eps, .psd) as downloadable reference assets. Do not reinterpret them as images unless a rendered preview is explicitly supplied.",
-      "This is a strict completeness task: never return an empty project name or description.",
-      "Return only IDs present in the asset list. Never invent asset URLs.",
-      `Write every generated name, title, description, and label in ${contentLanguage === "es" ? "Spanish" : "English"}. This portal language setting overrides the language of the project description.`,
-      "Generate a better project name and a concise project description, not placeholders.",
-      "The project name must be clear and short. Section titles must be no more than three words.",
-      "Do not use a colon in titles or descriptions. Never repeat the same description across sections.",
-      "Every section description must be visitor-facing, concise, and explain what the section contains in one or two sentences.",
-      "Never use a design brief, instructions, production requirements, export dimensions, layout directions, or imperative language as a section description.",
-      "Preserve the analyzed assetInsights, detected colors, and image recommendations for every asset unless a safe formatting adjustment is required.",
-      "For image collections, use one consistent aspect ratio chosen from the dominant image dimensions; use fit per image to protect important content.",
-      "For every asset, generate a concise human-readable displayName while preserving its original extension in the stored filename.",
-      "For every asset, generate a lowercase hyphenated downloadName with the original extension, such as fonts-text.txt. Never change the extension.",
-      "Use sectionPlan to name and describe every generated section.",
-      "Based on the asset list, return exactly one non-empty sectionPlan entry for every required kind: image when there is one renderable image, gallery when there are multiple renderable images, fonts when there are fonts, and files when there are other files. Each required entry must include assetIds, a non-empty title, and a non-empty visitor-facing description.",
-      "When there is one important image, prefer a sectionPlan kind of image so it is displayed large. Use gallery only for a collection of images.",
-      "Mark administrative or financial files for quarantine.",
-      generateColors
-        ? "Generate a colors section when supplied metadata contains detected colors."
-        : "Do not generate a colors section or color insights for this request.",
+    const copyPrompt = [
+      "Generate only the project and visitor-facing copy for the validated portal structure below.",
+      "Do not change section kinds, asset IDs, image order, quarantine decisions, or color insights.",
+      "Return concise, specific copy. Never use instructions, design directions, export specifications, or placeholders.",
+      "Return a human-readable displayName and lowercase hyphenated downloadName for every asset while preserving extensions.",
+      "Write every generated name, title, description, and label in the requested portal language.",
+      "Section titles must be no more than three words. Do not use a colon and do not repeat descriptions.",
+      operation === "refine-copy"
+        ? `Rewrite every existing section and project copy while preserving exact sectionId values. Existing document: ${JSON.stringify(existingDocument)}.`
+        : operation === "improve-project" && existingDocument
+          ? `Improve the existing project copy without deleting existing content. Existing document: ${JSON.stringify(existingDocument)}.`
+          : "Create useful, specific copy for the planned portal.",
+      `Portal language: ${contentLanguage === "es" ? "Spanish" : "English"}`,
+      `Project description: ${projectDescription}`,
+      `Assets: ${JSON.stringify(assets)}`,
+      `Analyzed asset insights: ${JSON.stringify(analyzedAssetInsights)}`,
+      `Validated structure plan: ${JSON.stringify(structurePlan)}`,
       aiContext.trim()
         ? `Additional context from the user: ${aiContext.trim().slice(0, 2000)}`
         : "No additional user context was provided.",
-      operation === "refine-copy"
-        ? `Rewrite every existing section and the project copy. Preserve each section id using sectionId. Existing document: ${JSON.stringify(existingDocument)}.`
-        : operation === "improve-project" && existingDocument
-          ? `Improve the existing project with the new assets. Preserve every existing section and asset id; never delete content. Return copyPlan or sectionPlan entries for existing sections using their exact sectionId, and plan how the new assets should be incorporated. You may recommend changing a single-image section to a gallery or the reverse only when it improves the presentation. Existing document: ${JSON.stringify(existingDocument)}.`
-          : "Create useful, specific section titles and descriptions from the project context and assets.",
-      `Project description: ${projectDescription}`,
-      `Assets: ${JSON.stringify(assets)}`,
-      `Complete content analysis from all analysis requests: ${JSON.stringify(contentAnalyses)}`,
     ].join("\n");
-    const { output } = await generateText({
-      model,
-      messages: [
-        {
-          role: "user",
-          content: [{ type: "text", text: promptText }],
-        },
-      ],
-      output: Output.object({
-        description:
-          "A safe portal structure plan based only on supplied project assets.",
-        name: "PortalProposalPlan",
-        schema: enhancementSchema,
-      }),
-    });
-    return output
-      ? ensureAiStructuredEnhancementCompleteness(
-          output,
-          assets,
-          projectDescription,
-          generateColors,
-        )
-      : null;
+    const { output: copyPlan } = await withTimeout(
+      (abortSignal) =>
+        generateText({
+          abortSignal,
+          model: compositionModel,
+          messages: [
+            { role: "user", content: [{ type: "text", text: copyPrompt }] },
+          ],
+          output: Output.object({
+            description:
+              "Visitor-facing portal copy based on a validated structure.",
+            name: "PortalCopyPlan",
+            schema: copyPlanSchema,
+          }),
+        }),
+      AI_COMPOSITION_TIMEOUT_MS,
+      "ai_composition_timeout",
+    );
+    if (!copyPlan) return null;
+
+    const copyBySectionId = new Map(
+      copyPlan.copyPlan.map((sectionCopy) => [
+        sectionCopy.sectionId,
+        sectionCopy,
+      ]),
+    );
+    return ensureAiStructuredEnhancementCompleteness(
+      {
+        ...structurePlan,
+        sectionPlan: structurePlan.sectionPlan.map((section) => ({
+          ...section,
+          ...(copyBySectionId.get(section.sectionId) ?? {
+            description: "",
+            title: "",
+          }),
+        })),
+        ...copyPlan,
+      },
+      assets,
+      projectDescription,
+      generateColors,
+    );
   } catch (error) {
+    const errorCode = classifyAiProviderError(error);
     console.error("AI structured enhancement failed", {
       error: error instanceof Error ? error.message : "unknown_error",
+      errorCode,
       operation,
     });
-    throw new Error("ai_provider_failed");
+    throw new Error(errorCode);
   }
 }

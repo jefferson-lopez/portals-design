@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { FatalError } from "workflow";
 import { start } from "workflow/api";
 import {
   completeAiWorkflowCredits,
@@ -9,6 +10,20 @@ import {
 import type { Database } from "@/lib/supabase/database.types";
 
 type Input = { accessToken: string; jobId: string };
+
+function isTerminalAiError(message: string) {
+  return (
+    message === "ai_provider_failed" ||
+    message.startsWith("ai_provider_failed:") ||
+    message.startsWith("ai_provider_") ||
+    message === "ai_analysis_timeout" ||
+    message === "ai_composition_timeout" ||
+    message.startsWith("ai_visual_asset_fetch_failed:") ||
+    message === "ai_content_unavailable" ||
+    message === "ai_content_incomplete" ||
+    message.startsWith("ai_section_copy_missing:")
+  );
+}
 
 async function processProposal(input: Input) {
   "use step";
@@ -39,7 +54,8 @@ async function processProposal(input: Input) {
       error_code: errorMessage(error, "ai_content_failed"),
       completed_at: new Date().toISOString(),
     });
-    throw error;
+    const message = errorMessage(error, "ai_content_failed");
+    throw isTerminalAiError(message) ? new FatalError(message) : error;
   }
 }
 

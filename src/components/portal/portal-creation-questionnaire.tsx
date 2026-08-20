@@ -6,6 +6,8 @@ import {
   IconLoader2,
   IconLock,
   IconPlus,
+  IconStar,
+  IconStarFilled,
   IconUpload,
   IconWorld,
   IconX,
@@ -66,6 +68,7 @@ import {
   reserveAiCredits,
   useAiCredits,
 } from "@/lib/billing/ai-credits-client";
+import { PORTAL_PLANS } from "@/lib/billing/portal-policy";
 import type { AiAssetInput, AiPortalProposal } from "@/lib/portal/ai-proposal";
 import { useAiWorkflowStore } from "@/lib/portal/ai-workflow-store";
 import { extractAssetMetadata } from "@/lib/portal/asset-metadata";
@@ -89,6 +92,10 @@ function fileCategory(file: File) {
       : "file";
 }
 
+function fileKey(file: File) {
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
 export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
   const t = useTranslations("Home.create");
   const router = useRouter();
@@ -102,6 +109,19 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
     locale === "es" ? "es" : "en",
   );
   const [files, setFiles] = useState<File[]>([]);
+  const [primaryFileKey, setPrimaryFileKey] = useState<string | null>(null);
+  const freePlan = PORTAL_PLANS.free;
+  const selectedFileCounts = files.reduce(
+    (counts, file) => {
+      counts[fileCategory(file)] += 1;
+      return counts;
+    },
+    { file: 0, font: 0, image: 0 },
+  );
+  const selectedStorageBytes = files.reduce(
+    (total, file) => total + file.size,
+    0,
+  );
   const [
     { files: selectedFiles, isDragging, errors: fileErrors },
     {
@@ -115,6 +135,39 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
   ] = useFileUpload({
     accept: "image/*,.pdf,.txt,.md,.ai,.eps,.psd,.indd,.ttf,.otf,.woff,.woff2",
     maxSize: 500 * 1024 * 1024,
+    validateFile: (file, existingFiles) => {
+      const counts = existingFiles.reduce(
+        (result, existingFile) => {
+          result[fileCategory(existingFile)] += 1;
+          return result;
+        },
+        { file: 0, font: 0, image: 0 },
+      );
+      const category = fileCategory(file);
+      counts[category] += 1;
+      const limit =
+        category === "image"
+          ? 21
+          : category === "font"
+            ? (freePlan.sections.fonts?.items ?? 3)
+            : (freePlan.sections.files?.items ?? 10);
+      if (counts[category] > limit)
+        return t(
+          category === "image"
+            ? "uploadImageLimit"
+            : category === "font"
+              ? "uploadFontLimit"
+              : "uploadFileLimit",
+          { limit },
+        );
+      const existingStorage = existingFiles.reduce(
+        (total, existingFile) => total + existingFile.size,
+        0,
+      );
+      if (existingStorage + file.size > freePlan.storageBytes)
+        return t("uploadStorageLimit", { limit: "100 MB" });
+      return undefined;
+    },
   });
   const upsertJob = useAiWorkflowStore((state) => state.upsertJob);
   const { data: creditData } = useAiCredits();
@@ -123,7 +176,13 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
     canAffordAiOperation(creditData.available, "generate");
   useEffect(() => {
     setFiles(selectedFiles.map(({ file }) => file));
-  }, [selectedFiles]);
+    if (
+      primaryFileKey &&
+      !selectedFiles.some(({ file }) => fileKey(file) === primaryFileKey)
+    ) {
+      setPrimaryFileKey(null);
+    }
+  }, [primaryFileKey, selectedFiles]);
   const items = [
     { name: "project", required: true },
     { name: "files", required: false },
@@ -183,6 +242,7 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
               ...(await extractAssetMetadata(file)),
               fileUrl: uploaded.previewUrl,
               id: uploaded.assetId,
+              isPrimary: fileKey(file) === primaryFileKey,
               mimeType: inferAssetMimeType(file.name, file.type),
               name: file.name,
               sizeBytes: file.size,
@@ -477,9 +537,17 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
                     <p className="mt-1 text-xs text-muted-foreground">
                       {t("uploadDetails")}
                     </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {t("uploadLimits", {
+                        files: `${selectedFileCounts.file}/10`,
+                        fonts: `${selectedFileCounts.font}/3`,
+                        images: `${selectedFileCounts.image}/21`,
+                        storage: `${(selectedStorageBytes / (1024 * 1024)).toFixed(1)}/100 MB`,
+                      })}
+                    </p>
                   </label>
                   {selectedFiles.length > 0 ? (
-                    <div className="scroll-fade-y max-h-72 overflow-y-auto">
+                    <div className="scroll-fade-y max-h-[34rem] overflow-y-auto">
                       <ul
                         aria-label={t("files")}
                         className="flex flex-col gap-2"
@@ -510,6 +578,38 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
                                 </AttachmentDescription>
                               </AttachmentContent>
                               <AttachmentActions>
+                                {isRenderableImageMimeType(
+                                  inferAssetMimeType(file.name, file.type),
+                                ) ? (
+                                  <AttachmentAction
+                                    aria-label={
+                                      primaryFileKey === fileKey(file)
+                                        ? t("primaryImage")
+                                        : `${t("setAsPrimary")} ${file.name}`
+                                    }
+                                    aria-pressed={
+                                      primaryFileKey === fileKey(file)
+                                    }
+                                    onClick={() =>
+                                      setPrimaryFileKey(
+                                        primaryFileKey === fileKey(file)
+                                          ? null
+                                          : fileKey(file),
+                                      )
+                                    }
+                                    title={
+                                      primaryFileKey === fileKey(file)
+                                        ? t("primaryImage")
+                                        : t("setAsPrimary")
+                                    }
+                                  >
+                                    {primaryFileKey === fileKey(file) ? (
+                                      <IconStarFilled />
+                                    ) : (
+                                      <IconStar />
+                                    )}
+                                  </AttachmentAction>
+                                ) : null}
                                 <AttachmentAction
                                   aria-label={`${t("remove")} ${file.name}`}
                                   onClick={() => removeFile(id)}
