@@ -222,18 +222,18 @@ export function WorkspaceSidebar({
                   {title}
                 </MenuLink>
                 <MenuLink
-                  active={pathname === `/create/${projectMatch?.[1]}/settings`}
-                  href={`/create/${projectMatch?.[1]}/settings`}
-                  icon={IconSettingsFilled}
-                >
-                  {t("settings.generalTitle")}
-                </MenuLink>
-                <MenuLink
                   active={pathname === `/create/${projectMatch?.[1]}/usage`}
                   href={`/create/${projectMatch?.[1]}/usage`}
                   icon={IconAdjustmentsFilled}
                 >
                   {t("plan.usageTitle")}
+                </MenuLink>
+                <MenuLink
+                  active={pathname === `/create/${projectMatch?.[1]}/settings`}
+                  href={`/create/${projectMatch?.[1]}/settings`}
+                  icon={IconSettingsFilled}
+                >
+                  {t("settings.generalTitle")}
                 </MenuLink>
               </SidebarMenu>
             </SidebarGroupContent>

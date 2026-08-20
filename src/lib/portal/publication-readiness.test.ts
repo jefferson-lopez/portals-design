@@ -61,4 +61,19 @@ describe("portal publication readiness", () => {
       { code: "section_required", target: { kind: "add-section" } },
     ]);
   });
+
+  test("requires content for each section type", () => {
+    const emptyImage = section("image-1", "Image");
+    emptyImage.type = "image";
+    emptyImage.content = { image: null };
+    expect(
+      validatePortalPublicationReadiness(document("Portal", [emptyImage])),
+    ).toEqual([
+      {
+        code: "section_content_required",
+        sectionId: "image-1",
+        target: { kind: "section-content", sectionId: "image-1" },
+      },
+    ]);
+  });
 });

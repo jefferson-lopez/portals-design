@@ -728,6 +728,7 @@ function DeletePortalDialog({
   portal: HomePortal;
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [confirmationPhrase, setConfirmationPhrase] = useState("");
   const [confirmationSlug, setConfirmationSlug] = useState("");
@@ -753,9 +754,22 @@ function DeletePortalDialog({
         return;
       }
 
+      queryClient.setQueryData<HomePortalsResult>(
+        portalsQueryKey(locale),
+        (current) =>
+          current
+            ? {
+                ...current,
+                portals: current.portals.filter(
+                  (item) => item.id !== portal.id,
+                ),
+              }
+            : current,
+      );
       await queryClient.invalidateQueries({
         queryKey: portalsQueryKey(locale),
       });
+      router.refresh();
       setOpen(false);
       setConfirmationPhrase("");
       setConfirmationSlug("");
@@ -1211,7 +1225,7 @@ export function PortalHome({
               </EmptyHeader>
             </Empty>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
               {filteredPortals.map((portal) => (
                 <PortalCard
                   copy={copy}

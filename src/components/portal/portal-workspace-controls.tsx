@@ -3414,22 +3414,24 @@ export function SectionContentEditor({
   const t = useTranslations("PortalEditor.sections");
   if (section.type === "empty")
     return (
-      <SectionTypeDialog
-        onSelect={(type) =>
-          updateSection({
-            ...section,
-            content: defaultContentForType(type),
-            layout: defaultLayoutForType(type),
-            type,
-          })
-        }
-        trigger={
-          <Button className="h-28 w-full" type="button" variant="outline">
-            <IconPlus data-icon="inline-start" />
-            <span className="sr-only">{t("add")}</span>
-          </Button>
-        }
-      />
+      <div data-portal-section-content tabIndex={-1}>
+        <SectionTypeDialog
+          onSelect={(type) =>
+            updateSection({
+              ...section,
+              content: defaultContentForType(type),
+              layout: defaultLayoutForType(type),
+              type,
+            })
+          }
+          trigger={
+            <Button className="h-28 w-full" type="button" variant="outline">
+              <IconPlus data-icon="inline-start" />
+              <span className="sr-only">{t("add")}</span>
+            </Button>
+          }
+        />
+      </div>
     );
   if (section.type === "text") return null;
   if (section.type === "image")
@@ -4641,7 +4643,7 @@ export function UnpublishedChangesIndicator({
                         }}
                         size="sm"
                         type="button"
-                        variant="outline"
+                        variant="secondary"
                       >
                         {t("publication.fix")}
                       </Button>

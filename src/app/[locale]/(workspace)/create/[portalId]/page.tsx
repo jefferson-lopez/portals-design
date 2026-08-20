@@ -141,7 +141,7 @@ async function getWorkspace(
     redirect(`/${locale}/auth/sign-in`);
   }
 
-  const { data: portal, error: portalError } = await supabase
+  const { data: portal } = await supabase
     .from("portals")
     .select(
       "id,owner_id,name,slug,short_description,cover_url,icon_url,visibility,seo_title,seo_description,social_image_url,custom_domain,allow_downloads,allow_asset_downloads,allow_color_copy,allow_pdf_downloads,theme,designer_name,designer_logo_url,designer_photo_url,designer_website_url,designer_social_links,status,published_publication_id,published_at,created_at,updated_at",
@@ -150,11 +150,6 @@ async function getWorkspace(
     .single();
 
   if (!portal) {
-    console.error("Failed to load portal workspace", {
-      code: portalError?.code,
-      message: portalError?.message,
-      portalId,
-    });
     notFound();
   }
   const safePortal: Portal = {
@@ -206,6 +201,7 @@ async function getWorkspace(
   const document = await prepareDocumentForRendering(storedDocument, {
     ownerId: portal.owner_id,
     portalId: portal.id,
+    slug: portal.slug,
   });
 
   const snapshot = asPublicationSnapshot(publicationRow?.snapshot ?? null);

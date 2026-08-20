@@ -41,12 +41,19 @@ import {
   useAiCredits,
 } from "@/lib/billing/ai-credits-client";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
-import { PORTAL_OPEN_ADD_SECTION_DIALOG_EVENT } from "@/lib/portal/scroll-to-section";
+import type { PortalPublicationTarget } from "@/lib/portal/publication-readiness";
+import {
+  focusPortalPublicationTarget,
+  PORTAL_OPEN_ADD_SECTION_DIALOG_EVENT,
+} from "@/lib/portal/scroll-to-section";
+import { useRef } from "react";
 import { SidebarTrigger } from "../ui/sidebar";
 
 function dispatchWorkspaceAction(action: "order" | "publish" | "upload") {
   window.dispatchEvent(new CustomEvent(`portal-workspace:${action}`));
 }
+
+const EMPTY_PUBLICATION_ISSUES: never[] = [];
 
 function dispatchAddSectionAction() {
   document.dispatchEvent(
@@ -106,6 +113,20 @@ export function PortalWorkspaceToolbar({
     (state) => state.publishingPortalId,
   );
   const isPublishing = publishingPortalId === portalId;
+  const publicationIssues =
+    usePortalEditorStore(
+      (state) => state.publicationIssuesByPortalId[portalId ?? ""],
+    ) ?? EMPTY_PUBLICATION_ISSUES;
+  const publicationPopoverOpen = usePortalEditorStore(
+    (state) => state.publicationPopoverOpenByPortalId[portalId ?? ""] ?? false,
+  );
+  const setPublicationPopoverOpen = usePortalEditorStore(
+    (state) => state.setPublicationPopoverOpen,
+  );
+  const pendingPublicationTargetRef = useRef<PortalPublicationTarget | null>(
+    null,
+  );
+  const publicationClickRef = useRef(false);
 
   return (
     <>
@@ -204,22 +225,82 @@ export function PortalWorkspaceToolbar({
               {t("workspace.projects")}
             </Button>
           ) : (
-            <Button
-              disabled={!canPublish || isPublishing}
-              onClick={() => dispatchWorkspaceAction("publish")}
-              type="button"
-              variant="default"
-            >
-              {isPublishing ? (
-                <IconLoader2
-                  className="animate-spin"
-                  data-icon="inline-start"
-                />
-              ) : null}
-              {isPublishing
-                ? t("workspace.publishing")
-                : t("workspace.publish")}
-            </Button>
+            <>
+              <Popover
+                onOpenChange={(open) => {
+                  if (!open && publicationClickRef.current) return;
+                  if (open && publicationIssues.length === 0) return;
+                  setPublicationPopoverOpen(portalId ?? "", open);
+                }}
+                onOpenChangeComplete={(open) => {
+                  if (open || !pendingPublicationTargetRef.current) return;
+                  const target = pendingPublicationTargetRef.current;
+                  pendingPublicationTargetRef.current = null;
+                  focusPortalPublicationTarget(target);
+                }}
+                open={publicationPopoverOpen}
+              >
+                <PopoverTrigger
+                  render={
+                    <Button
+                      disabled={!canPublish || isPublishing}
+                      onClick={() => {
+                        publicationClickRef.current = true;
+                        dispatchWorkspaceAction("publish");
+                        queueMicrotask(() => {
+                          publicationClickRef.current = false;
+                        });
+                      }}
+                      type="button"
+                      variant="default"
+                    />
+                  }
+                >
+                  {isPublishing ? (
+                    <IconLoader2
+                      className="animate-spin"
+                      data-icon="inline-start"
+                    />
+                  ) : null}
+                  {isPublishing
+                    ? t("workspace.publishing")
+                    : t("workspace.publish")}
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72">
+                  <PopoverHeader>
+                    <PopoverTitle>
+                      {t("workspace.publication.title")}
+                    </PopoverTitle>
+                    <PopoverDescription>
+                      {t("workspace.publication.description")}
+                    </PopoverDescription>
+                  </PopoverHeader>
+                  <ul className="flex flex-col gap-2">
+                    {publicationIssues.map((issue) => (
+                      <li
+                        className="flex items-center justify-between gap-3 rounded-md border p-2"
+                        key={`${issue.code}-${"sectionId" in issue ? issue.sectionId : "portal"}`}
+                      >
+                        <span className="text-sm">
+                          {t(`workspace.publication.issues.${issue.code}`)}
+                        </span>
+                        <Button
+                          onClick={() => {
+                            pendingPublicationTargetRef.current = issue.target;
+                            setPublicationPopoverOpen(portalId ?? "", false);
+                          }}
+                          size="sm"
+                          type="button"
+                          variant="secondary"
+                        >
+                          {t("workspace.publication.fix")}
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                </PopoverContent>
+              </Popover>
+            </>
           )}
         </div>
       </header>

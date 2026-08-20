@@ -163,6 +163,7 @@ export default async function PublicPortalPage({
   const renderDocument = await prepareDocumentForRendering(document, {
     ownerId: access.portal.owner_id,
     portalId: access.portal.id,
+    slug: access.portal.slug,
   });
   const visibleSections = renderDocument.sections.filter(
     (section) =>

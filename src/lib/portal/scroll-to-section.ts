@@ -1,5 +1,3 @@
-import type { PortalPublicationTarget } from "./publication-readiness";
-
 export const PORTAL_OPEN_ADD_SECTION_DIALOG_EVENT =
   "portal-open-add-section-dialog";
 
@@ -9,16 +7,22 @@ type ScrollDocument = {
 
 type FocusDocument = {
   getElementById: (id: string) => {
-    querySelector: (selector: string) => Pick<HTMLInputElement, "focus"> | null;
+    querySelector: (selector: string) => PublicationFocusElement | null;
   } | null;
 };
+
+type PublicationTarget =
+  | { kind: "portal-name" }
+  | { kind: "add-section" }
+  | { kind: "section-title"; sectionId: string }
+  | { kind: "section-content"; sectionId: string };
 
 type PublicationFocusElement = Pick<HTMLElement, "focus"> &
   Partial<Pick<HTMLElement, "scrollIntoView">>;
 
 type PublicationFocusDocument = {
   getElementById: (id: string) => {
-    querySelector: (selector: string) => Pick<HTMLInputElement, "focus"> | null;
+    querySelector: (selector: string) => PublicationFocusElement | null;
     scrollIntoView: HTMLElement["scrollIntoView"];
   } | null;
   querySelector: (selector: string) => PublicationFocusElement | null;
@@ -91,7 +95,7 @@ export function requestPortalAddSectionDialog(
 }
 
 export function focusPortalPublicationTarget(
-  target: PortalPublicationTarget,
+  target: PublicationTarget,
   document: PublicationFocusDocument = window.document as unknown as PublicationFocusDocument,
 ) {
   if (target.kind === "portal-name") return focusPortalName(document);
@@ -104,5 +108,15 @@ export function focusPortalPublicationTarget(
   }
 
   scrollToPortalSection(target.sectionId, document);
+  if (target.kind === "section-content") {
+    const section = document.getElementById(target.sectionId);
+    const content = section?.querySelector(
+      "[data-portal-section-content], button, [data-portal-editor-field]:not([data-portal-section-title])",
+    );
+    if (!content) return scrollToPortalSection(target.sectionId, document);
+    content?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    (content as HTMLElement | null)?.focus?.({ preventScroll: true });
+    return Boolean(content);
+  }
   return focusPortalSectionTitle(target.sectionId, document);
 }

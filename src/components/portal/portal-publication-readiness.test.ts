@@ -12,7 +12,7 @@ const renderer = await Bun.file(
 
 test("publish validates readiness before flushing and invoking the server action", () => {
   const validationIndex = publish.indexOf("validatePortalPublicationReadiness");
-  const flushIndex = publish.indexOf("await flushPortalAutosave(portalId)");
+  const flushIndex = publish.indexOf("flushPortalAutosave(portalId)");
   const publishIndex = publish.indexOf("await publishPortalById");
 
   expect(validationIndex).toBeGreaterThan(-1);

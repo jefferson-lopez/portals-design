@@ -10,7 +10,10 @@ const pageSource = await Bun.file(
   new URL("../../app/[locale]/(workspace)/home/page.tsx", import.meta.url),
 ).text();
 const usagePageSource = await Bun.file(
-  new URL("../../app/[locale]/(workspace)/create/[portalId]/usage/page.tsx", import.meta.url),
+  new URL(
+    "../../app/[locale]/(workspace)/create/[portalId]/usage/page.tsx",
+    import.meta.url,
+  ),
 ).text();
 const planProviderSource = await Bun.file(
   new URL("./portal-plan-provider.tsx", import.meta.url),
@@ -89,7 +92,9 @@ describe("PortalHome", () => {
     );
     expect(source).toContain("shouldOpen");
     expect(source).toContain("/api/billing/connect/status$" + "{query}");
-    expect(source).toContain("queryKey: workspaceQueryKeys.connect(initialStatus?.accountId)");
+    expect(source).toContain(
+      "queryKey: workspaceQueryKeys.connect(initialStatus?.accountId)",
+    );
     expect(source).toContain("initialData: initialStatus");
     expect(source).toContain("/api/billing/connect/status${query}");
     expect(source).toContain("staleTime: 30_000");
@@ -99,7 +104,9 @@ describe("PortalHome", () => {
   });
 
   test("uses aggregated initial reads without unconditional home refetches", () => {
-    expect(source).toContain("initialDataUpdatedAt: initialError ? 0 : Date.now()");
+    expect(source).toContain(
+      "initialDataUpdatedAt: initialError ? 0 : Date.now()",
+    );
     expect(source).toContain("staleTime: 30_000");
     expect(source).not.toContain('refetchOnMount: "always"');
     expect(source).not.toContain("staleTime: 0");
@@ -117,7 +124,9 @@ describe("PortalHome", () => {
     const workspaceTitleSectionStart = source.indexOf(
       '<section\n          aria-labelledby="portal-workspace-title"',
     );
-    expect(source).toContain("grid gap-4 sm:grid-cols-2 lg:grid-cols-2");
+    expect(source).toContain(
+      "grid gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3",
+    );
     expect(source).toContain("bg-background");
     expect(workspaceTitleSectionStart).toBe(-1);
     expect(source).not.toContain("copy.intro");

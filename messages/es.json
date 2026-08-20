@@ -655,7 +655,8 @@
         "issues": {
           "portal_name_required": "Agrega un nombre al portal.",
           "section_required": "Agrega al menos una sección.",
-          "section_title_required": "Agrega un título a esta sección."
+          "section_title_required": "Agrega un título a esta sección.",
+          "section_content_required": "Agrega contenido a esta sección."
         }
       },
       "unpublishedTitle": "Cambios no publicados",
@@ -725,6 +726,7 @@
       "analyzeAndApply": "Analizar y agregar archivos"
     },
     "sections": {
+      "content": "Contenido de la sección",
       "add": "Agregar sección",
       "addTitle": "Añade una sección",
       "chooseDescription": "Elige el contenido que quieres mostrar en tu portal.",

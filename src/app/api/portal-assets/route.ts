@@ -8,6 +8,7 @@ import {
   validateAssetDeclaration,
 } from "@/lib/portal/asset-validation";
 import { sanitizeAssetName } from "@/lib/portal/export-manifest";
+import { PORTAL_ASSET_PREVIEW_TTL_SECONDS } from "@/lib/portal/server-assets";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -275,7 +276,7 @@ export async function POST(request: Request) {
       }
       const preview = await admin.storage
         .from("portal-assets")
-        .createSignedUrl(reserved.file_path, 300);
+        .createSignedUrl(reserved.file_path, PORTAL_ASSET_PREVIEW_TTL_SECONDS);
       if (preview.error || !preview.data.signedUrl) {
         return NextResponse.json(
           { error: "preview_authorization_failed" },
@@ -389,7 +390,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "asset_not_found" }, { status: 404 });
   const preview = await admin.storage
     .from("portal-assets")
-    .createSignedUrl(asset.file_path, 300);
+    .createSignedUrl(asset.file_path, PORTAL_ASSET_PREVIEW_TTL_SECONDS);
   if (preview.error || !preview.data.signedUrl) {
     return NextResponse.json(
       { error: "preview_authorization_failed" },

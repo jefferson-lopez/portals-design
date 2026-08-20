@@ -29,6 +29,11 @@ const PREVIEWABLE_FILE_EXTENSIONS = new Set([
   "webp",
 ]);
 
+// Preview URLs are returned in the rendered document and can remain in the
+// client router cache while the editor is open. Five minutes is too short for
+// that lifecycle, so keep the private signed URLs valid for one hour.
+export const PORTAL_ASSET_PREVIEW_TTL_SECONDS = 60 * 60;
+
 export async function fetchStorageEntry(
   entry: ExportEntry,
   remainingBytes: number,
@@ -67,7 +72,23 @@ export async function fetchStorageEntry(
   return { bytes, mime };
 }
 
-type PortalAssetAuthorization = { ownerId: string; portalId: string };
+type PortalAssetAuthorization = {
+  ownerId: string;
+  portalId: string;
+  slug: string;
+};
+
+function stableAssetPreviewUrl(
+  slug: string,
+  assetId: string | undefined,
+  storagePath: string | undefined,
+) {
+  const query = new URLSearchParams({ slug });
+  if (assetId) query.set("assetId", assetId);
+  else if (storagePath) query.set("path", storagePath);
+  else return null;
+  return `/api/portal-assets/preview?${query.toString()}`;
+}
 
 async function previewImage(
   image: PortalImageItem,
@@ -86,11 +107,21 @@ async function previewImage(
     )
   )
     return { ...image, image_url: "" };
+  const stableUrl = stableAssetPreviewUrl(
+    authorization.slug,
+    image.asset_id,
+    storage.path,
+  );
+  if (stableUrl) return { ...image, image_url: stableUrl };
   const supabaseUrl = getSupabaseEnv().url;
   const bucket = createAdminClient().storage.from(storage.bucket);
-  const { data, error } = await bucket.createSignedUrl(storage.path, 300, {
-    transform: { height: 1200, quality: 75, resize: "contain", width: 1600 },
-  });
+  const { data, error } = await bucket.createSignedUrl(
+    storage.path,
+    PORTAL_ASSET_PREVIEW_TTL_SECONDS,
+    {
+      transform: { height: 1200, quality: 75, resize: "contain", width: 1600 },
+    },
+  );
   const requiresOriginalFallback =
     shouldUseOriginalPreviewFallback(supabaseUrl);
   if (!requiresOriginalFallback && !error && data.signedUrl) {
@@ -100,7 +131,10 @@ async function previewImage(
   // Local Supabase installations may run without the image proxy. Preserve
   // private access semantics with a short-lived signed original instead of
   // hiding the image or leaking its persisted URL.
-  const fallback = await bucket.createSignedUrl(storage.path, 300);
+  const fallback = await bucket.createSignedUrl(
+    storage.path,
+    PORTAL_ASSET_PREVIEW_TTL_SECONDS,
+  );
   return {
     ...image,
     image_url: selectPreviewUrl(
@@ -142,13 +176,26 @@ async function previewFile(
   ) {
     return { ...file, file_url: hasDownloadableAsset ? "available" : "" };
   }
+  const stableUrl = stableAssetPreviewUrl(
+    authorization.slug,
+    file.asset_id,
+    storage.path,
+  );
+  if (stableUrl) return { ...file, file_url: stableUrl };
 
   const bucket = createAdminClient().storage.from(storage.bucket);
-  const { data, error } = await bucket.createSignedUrl(storage.path, 300, {
-    transform: { height: 600, quality: 70, resize: "contain", width: 600 },
-  });
+  const { data, error } = await bucket.createSignedUrl(
+    storage.path,
+    PORTAL_ASSET_PREVIEW_TTL_SECONDS,
+    {
+      transform: { height: 600, quality: 70, resize: "contain", width: 600 },
+    },
+  );
   const fallback = error
-    ? await bucket.createSignedUrl(storage.path, 300)
+    ? await bucket.createSignedUrl(
+        storage.path,
+        PORTAL_ASSET_PREVIEW_TTL_SECONDS,
+      )
     : null;
 
   return {
@@ -182,10 +229,16 @@ async function previewFont(
   ) {
     return { ...font, file_url: undefined };
   }
+  const stableUrl = stableAssetPreviewUrl(
+    authorization.slug,
+    font.asset_id,
+    storage.path,
+  );
+  if (stableUrl) return { ...font, file_url: stableUrl };
 
   const { data, error } = await createAdminClient()
     .storage.from(storage.bucket)
-    .createSignedUrl(storage.path, 300);
+    .createSignedUrl(storage.path, PORTAL_ASSET_PREVIEW_TTL_SECONDS);
 
   return {
     ...font,

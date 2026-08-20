@@ -41,6 +41,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { workspaceQueryKeys } from "@/lib/portal/workspace-read-models";
 import {
   Select,
   SelectContent,
@@ -150,6 +151,7 @@ export function PortalSettingsPage({
 }) {
   const t = useTranslations("PortalEditor.settings");
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { guardPassword } = usePortalPlan();
   const [visibility, setVisibility] = useState<PortalVisibility>(
     portal.visibility,
@@ -190,7 +192,14 @@ export function PortalSettingsPage({
         return;
       }
       toast.success(t("deleteSuccess"));
-      router.push("/home");
+      await queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.home(locale),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.favorites(locale),
+      });
+      router.replace("/home");
+      router.refresh();
     } catch {
       toast.error(t("deleteErrors.deletePortalFailed"));
     } finally {

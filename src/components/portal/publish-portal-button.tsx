@@ -86,7 +86,6 @@ export function PublishPortalButton({
         },
       ),
     onError: (error) => {
-      console.error("Portal publication failed", { error, portalId });
       setPublishError(null);
       if (
         !(error instanceof PortalPublishFailure) ||
