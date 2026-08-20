@@ -156,6 +156,7 @@ type ProposalInput = {
   plan: BillingPortalPlan;
   portal: Parameters<typeof createDefaultPortalDocument>[0];
   projectDescription: string;
+  generateColors?: boolean;
 };
 
 const irrelevant =
@@ -389,7 +390,7 @@ export function createAiPortalProposal(input: ProposalInput): AiPortalProposal {
         ),
       );
     })();
-  if (detectedColors.size)
+  if (detectedColors.size && input.generateColors !== false)
     (() => {
       const copy = sectionCopy("colors");
       sections.push(

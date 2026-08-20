@@ -55,6 +55,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useRouter } from "@/i18n/navigation";
@@ -94,6 +95,8 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [aiContext, setAiContext] = useState("");
+  const [generateColors, setGenerateColors] = useState(true);
   const [visibility, setVisibility] = useState<"private" | "public">("private");
   const [contentLanguage, setContentLanguage] = useState<"en" | "es">(
     locale === "es" ? "es" : "en",
@@ -199,6 +202,8 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
             autoApply: true,
             portalId: portal.id,
             projectDescription,
+            aiContext,
+            generateColors,
             requestId: proposalRequestId,
           }),
           headers: { "content-type": "application/json" },
@@ -376,6 +381,35 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
               <QuestionnaireDescription>
                 {t("filesDescription")}
               </QuestionnaireDescription>
+              <Field>
+                <FieldLabel htmlFor="creation-ai-context">
+                  {t("aiContext")}
+                </FieldLabel>
+                <Textarea
+                  id="creation-ai-context"
+                  onChange={(event) => setAiContext(event.target.value)}
+                  placeholder={t("aiContextPlaceholder")}
+                  rows={4}
+                  value={aiContext}
+                />
+                <FieldDescription>{t("aiContextDescription")}</FieldDescription>
+              </Field>
+              <Field className="flex-row items-center justify-between gap-4">
+                <div className="flex flex-col gap-1">
+                  <FieldLabel htmlFor="creation-generate-colors">
+                    {t("generateColors")}
+                  </FieldLabel>
+                  <FieldDescription>
+                    {t("generateColorsDescription")}
+                  </FieldDescription>
+                </div>
+                <Switch
+                  aria-label={t("generateColors")}
+                  checked={generateColors}
+                  id="creation-generate-colors"
+                  onCheckedChange={setGenerateColors}
+                />
+              </Field>
               <QuestionnaireInput
                 aria-label={t("files")}
                 className="sr-only"
@@ -519,6 +553,11 @@ export function PortalCreationQuestionnaire({ locale }: { locale: string }) {
                   {
                     key: t("projectDescription"),
                     value: description || "—",
+                  },
+                  { key: t("aiContext"), value: aiContext || "—" },
+                  {
+                    key: t("generateColors"),
+                    value: generateColors ? t("enabled") : t("disabled"),
                   },
                   {
                     key: t("language"),

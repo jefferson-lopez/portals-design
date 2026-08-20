@@ -193,6 +193,8 @@ export async function processAiProposalJob(
   const assets = payload.assets as AiAssetInput[];
   const operation = payload.operation as AiPortalOperation;
   const projectDescription = payload.projectDescription;
+  const aiContext = payload.aiContext;
+  const generateColors = payload.generateColors !== false;
   const plan = payload.plan;
   if (
     !Array.isArray(assets) ||
@@ -232,6 +234,8 @@ export async function processAiProposalJob(
       },
       operation,
       projectDescription,
+      aiContext: typeof aiContext === "string" ? aiContext : "",
+      generateColors,
       contentLanguage: portal.content_language === "es" ? "es" : "en",
     });
     if (!enhancement) throw new Error("ai_content_unavailable");
@@ -259,6 +263,7 @@ export async function processAiProposalJob(
       plan: plan as "free" | "starter" | "pro" | "premium",
       portal,
       projectDescription,
+      generateColors,
     });
     // Persist the proposal before the optional apply phase. This lets the
     // client show that analysis finished while the durable apply step keeps

@@ -181,11 +181,13 @@ export function ensureAiStructuredEnhancementCompleteness(
   enhancement: AiStructuredEnhancement,
   assets: AiAssetInput[],
   projectDescription: string,
+  generateColors = true,
 ): AiStructuredEnhancement {
   const required = requiredSectionAssets(
     assets,
     enhancement.quarantinedAssetIds,
   );
+  if (!generateColors) delete required.colors;
   const projectFallback =
     projectDescription.trim().slice(0, 500) || "Portal project";
   const projectCopy = {
@@ -428,6 +430,8 @@ export async function generateAiStructuredEnhancement({
   onProgress,
   operation = "generate",
   projectDescription,
+  aiContext = "",
+  generateColors = true,
   contentLanguage = "en",
 }: {
   assets: AiAssetInput[];
@@ -435,6 +439,8 @@ export async function generateAiStructuredEnhancement({
   onProgress?: (stage: "analyzing-assets" | "generating-copy") => Promise<void>;
   operation?: "generate" | "improve-project" | "refine-copy";
   projectDescription: string;
+  aiContext?: string;
+  generateColors?: boolean;
   contentLanguage?: "en" | "es";
 }): Promise<AiStructuredEnhancement | null> {
   if (!process.env.AI_GATEWAY_API_KEY) return null;
@@ -533,6 +539,12 @@ export async function generateAiStructuredEnhancement({
       "Based on the asset list, return exactly one non-empty sectionPlan entry for every required kind: image when there is one renderable image, gallery when there are multiple renderable images, fonts when there are fonts, and files when there are other files. Each required entry must include assetIds, a non-empty title, and a non-empty visitor-facing description.",
       "When there is one important image, prefer a sectionPlan kind of image so it is displayed large. Use gallery only for a collection of images.",
       "Mark administrative or financial files for quarantine.",
+      generateColors
+        ? "Generate a colors section when supplied metadata contains detected colors."
+        : "Do not generate a colors section or color insights for this request.",
+      aiContext.trim()
+        ? `Additional context from the user: ${aiContext.trim().slice(0, 2000)}`
+        : "No additional user context was provided.",
       operation === "refine-copy"
         ? `Rewrite every existing section and the project copy. Preserve each section id using sectionId. Existing document: ${JSON.stringify(existingDocument)}.`
         : operation === "improve-project" && existingDocument
@@ -562,6 +574,7 @@ export async function generateAiStructuredEnhancement({
           output,
           assets,
           projectDescription,
+          generateColors,
         )
       : null;
   } catch (error) {

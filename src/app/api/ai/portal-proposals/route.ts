@@ -40,6 +40,8 @@ export async function POST(request: Request) {
     operation?: AiPortalOperation;
     portalId?: string;
     projectDescription?: string;
+    aiContext?: string;
+    generateColors?: boolean;
     requestId?: string;
     autoApply?: boolean;
   } | null;
@@ -88,6 +90,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "plan_unavailable" }, { status: 503 });
   }
   const projectDescription = body.projectDescription.trim().slice(0, 2000);
+  const aiContext =
+    typeof body.aiContext === "string"
+      ? body.aiContext.trim().slice(0, 2000)
+      : "";
   const existingDocument = body.existingDocument
     ? normalizePortalDocument(body.existingDocument, portal)
     : undefined;
@@ -134,6 +140,8 @@ export async function POST(request: Request) {
         operation: body.operation,
         plan,
         projectDescription,
+        aiContext,
+        generateColors: body.generateColors !== false,
       } as never,
     });
     const { data: sessionData } = await supabase.auth.getSession();
