@@ -36,12 +36,14 @@ const enhancementSchema = z.object({
       title: z.string().max(120),
     }),
   ),
-  colorInsights: z.array(
-    z.object({
-      colorCode: z.string(),
-      name: z.string().max(80),
-    }),
-  ),
+  colorInsights: z
+    .array(
+      z.object({
+        colorCode: z.string(),
+        name: z.string().max(80),
+      }),
+    )
+    .max(5),
   sectionPlan: z.array(
     z.object({
       assetIds: z.array(z.string()),
@@ -315,6 +317,7 @@ export function classifyAiProviderError(error: unknown): string {
 
   if (
     message.startsWith("ai_visual_asset_fetch_failed:") ||
+    message.startsWith("ai_visual_asset_prepare_failed:") ||
     message === "ai_analysis_timeout" ||
     message === "ai_structure_timeout" ||
     message === "ai_copy_timeout"
@@ -364,11 +367,23 @@ export async function prepareAiVisualAsset(
   bytes: Uint8Array,
   mediaType: string,
 ): Promise<{ data: Uint8Array; mediaType: string }> {
-  if (bytes.byteLength <= AI_VISUAL_MAX_BYTES) {
+  // A file can be valid for the plan while still being too large to send
+  // directly to the model. Inspect dimensions as well as bytes so a highly
+  // compressed poster is bounded before it reaches the provider.
+  const image = sharp(bytes, {
+    failOn: "none",
+    limitInputPixels: false,
+  });
+  const metadata = await image.metadata();
+  const withinVisualBounds =
+    bytes.byteLength <= AI_VISUAL_MAX_BYTES &&
+    (metadata.width ?? 0) <= AI_VISUAL_MAX_DIMENSION &&
+    (metadata.height ?? 0) <= AI_VISUAL_MAX_DIMENSION;
+  if (withinVisualBounds) {
     return { data: bytes, mediaType };
   }
 
-  const preview = await sharp(bytes)
+  const preview = await image
     .rotate()
     .resize({
       fit: "inside",
@@ -602,10 +617,15 @@ export async function generateAiStructuredEnhancement({
                     `ai_visual_asset_fetch_failed:${response.status}`,
                   );
                 }
-                const prepared = await prepareAiVisualAsset(
-                  new Uint8Array(await response.arrayBuffer()),
-                  asset.mimeType,
-                );
+                let prepared: { data: Uint8Array; mediaType: string };
+                try {
+                  prepared = await prepareAiVisualAsset(
+                    new Uint8Array(await response.arrayBuffer()),
+                    asset.mimeType,
+                  );
+                } catch {
+                  throw new Error(`ai_visual_asset_prepare_failed:${asset.id}`);
+                }
                 return { type: "file" as const, ...prepared };
               }),
           );
@@ -693,7 +713,7 @@ export async function generateAiStructuredEnhancement({
           ]
         : []),
       generateColors
-        ? "Generate color insights only when supplied metadata contains detected colors."
+        ? "Generate at most 5 color insights, prioritizing the most important and representative colors from supplied metadata."
         : "Do not generate color insights.",
       `Project description: ${projectDescription}`,
       `Assets: ${JSON.stringify(assets)}`,

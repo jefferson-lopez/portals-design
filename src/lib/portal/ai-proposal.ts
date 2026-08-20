@@ -1,6 +1,7 @@
 import { AI_OPERATION_COSTS } from "@/lib/billing/ai-credits";
 import {
   type PortalPlan as BillingPortalPlan,
+  portalColorItemLimit,
   portalGalleryItemLimit,
   validatePortalPublication,
 } from "@/lib/billing/portal-policy";
@@ -168,6 +169,7 @@ const fileTypeByMime: Record<string, PortalFileType> = {
   "text/plain": "txt",
   "text/markdown": "md",
 };
+const AI_GENERATED_COLOR_LIMIT = 5;
 
 function sectionWithCopy(
   section: PortalSection,
@@ -363,6 +365,21 @@ export function createAiPortalProposal(input: ProposalInput): AiPortalProposal {
   });
 
   const sections: PortalSection[] = [];
+  const detectedColorByCode = new Map(
+    [...detectedColors].map((color) => [color.toLowerCase(), color]),
+  );
+  const prioritizedColors = [
+    ...(input.enhancement?.colorInsights ?? [])
+      .map((insight) =>
+        detectedColorByCode.get(insight.colorCode.toLowerCase()),
+      )
+      .filter((color): color is string => Boolean(color)),
+    ...detectedColors,
+  ];
+  const colorsForDocument = [...new Set(prioritizedColors)].slice(
+    0,
+    Math.min(AI_GENERATED_COLOR_LIMIT, portalColorItemLimit(input.plan)),
+  );
   const presentedImages = unifyImagePresentation(images);
   const primaryImageId = input.assets.find(
     (asset) => asset.isPrimary && isRenderableImageMimeType(asset.mimeType),
@@ -472,7 +489,7 @@ export function createAiPortalProposal(input: ProposalInput): AiPortalProposal {
         ),
       );
     })();
-  if (detectedColors.size && input.generateColors !== false)
+  if (colorsForDocument.length && input.generateColors !== false)
     (() => {
       const copy = sectionCopy("colors");
       sections.push(
@@ -480,7 +497,7 @@ export function createAiPortalProposal(input: ProposalInput): AiPortalProposal {
           {
             ...createPortalSection("colors", sections.length),
             content: {
-              colors: [...detectedColors].map((color, position) => ({
+              colors: colorsForDocument.map((color, position) => ({
                 color_code: color,
                 color_name: capitalizeFirstLetter(
                   input.enhancement?.colorInsights.find(
@@ -680,7 +697,7 @@ export function createAiPortalProposal(input: ProposalInput): AiPortalProposal {
     proposedDocument: document,
     includedAssets,
     quarantinedAssets,
-    detectedColors: [...detectedColors].map((color_code) => ({
+    detectedColors: colorsForDocument.map((color_code) => ({
       color_code,
       confidence: "high" as const,
     })),

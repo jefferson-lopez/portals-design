@@ -20,6 +20,11 @@ describe("AI SDK proposal adapter", () => {
     ).toBe("ai_visual_asset_fetch_failed:403");
     expect(
       classifyAiProviderError(
+        new Error("ai_visual_asset_prepare_failed:asset-1"),
+      ),
+    ).toBe("ai_visual_asset_prepare_failed:asset-1");
+    expect(
+      classifyAiProviderError(
         Object.assign(new Error("rate limited"), { status: 429 }),
       ),
     ).toBe("ai_provider_rate_limited");
@@ -121,6 +126,9 @@ describe("AI SDK proposal adapter", () => {
 
   it("bounds oversized visual payloads before sending them to the provider", () => {
     expect(source).toContain("AI_VISUAL_MAX_BYTES");
+    expect(source).toContain(".max(5)");
+    expect(source).toContain("metadata.width");
+    expect(source).toContain("limitInputPixels: false");
     expect(source).toContain("prepareAiVisualAsset");
     expect(source).toContain('mediaType: "image/webp"');
   });

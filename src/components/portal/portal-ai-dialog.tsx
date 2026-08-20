@@ -93,6 +93,7 @@ export function PortalAiDialog({
   const [proposal, setProposal] = useState<AiPortalProposal | null>(null);
   const [proposalError, setProposalError] = useState(false);
   const [applyError, setApplyError] = useState(false);
+  const [applyErrorCode, setApplyErrorCode] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const [operation, setOperation] = useState<
     "generate" | "improve-project" | "refine-copy"
@@ -148,6 +149,7 @@ export function PortalAiDialog({
       setProposal(null);
       setProposalError(false);
       setApplyError(false);
+      setApplyErrorCode(null);
       setQuarantineDecisions({});
       setOpen(true);
     };
@@ -168,6 +170,7 @@ export function PortalAiDialog({
     setAnalyzing(true);
     setProposalError(false);
     setApplyError(false);
+    setApplyErrorCode(null);
     const nextProposalRequestId = crypto.randomUUID();
     const creditRequestId = applyImmediately
       ? `${nextProposalRequestId}:apply`
@@ -303,6 +306,7 @@ export function PortalAiDialog({
       }
       if (applyImmediately) {
         const reason = error instanceof Error ? error.message : "";
+        setApplyErrorCode(reason || null);
         toast.error(
           reason === "ai_workflow_in_progress"
             ? t("alreadyInProgress")
@@ -661,7 +665,10 @@ export function PortalAiDialog({
               <p className="text-sm text-destructive">{t("proposalError")}</p>
             ) : null}
             {applyError ? (
-              <p className="text-sm text-destructive">{t("applyError")}</p>
+              <p className="text-sm text-destructive">
+                {t("applyError")}
+                {applyErrorCode ? ` Code: ${applyErrorCode}` : ""}
+              </p>
             ) : null}
           </FieldGroup>
           <SheetFooter>

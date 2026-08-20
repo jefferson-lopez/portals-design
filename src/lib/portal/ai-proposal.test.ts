@@ -31,6 +31,64 @@ const assets: AiAssetInput[] = [
 ];
 
 describe("AI portal proposal", () => {
+  it("caps generated colors at five prioritized colors", () => {
+    const colors = Array.from(
+      { length: 14 },
+      (_, index) => `#${String(index).padStart(6, "0")}`,
+    );
+    const proposal = createAiPortalProposal({
+      assets: [
+        {
+          ...assets[0],
+          detectedColors: colors,
+        },
+      ],
+      enhancement: {
+        assetInsights: [],
+        colorInsights: [{ colorCode: colors[13], name: "Priority" }],
+        copyPlan: [],
+        imageRecommendations: [],
+        projectCopy: { description: "Brand", name: "Brand" },
+        quarantinedAssetIds: [],
+        sectionPlan: [
+          {
+            assetIds: ["logo"],
+            description: "Logo",
+            kind: "image",
+            sectionId: "image",
+            title: "Logo",
+          },
+          {
+            assetIds: ["logo"],
+            description: "Colors",
+            kind: "colors",
+            sectionId: "colors",
+            title: "Colors",
+          },
+        ],
+      },
+      operation: "generate",
+      plan: "free",
+      portal: {
+        cover_url: null,
+        icon_url: null,
+        name: "Brand",
+        short_description: "Brand",
+        theme: "auto",
+      },
+      projectDescription: "Brand",
+    });
+
+    const colorSection = proposal.proposedDocument.sections.find(
+      (section) => section.type === "colors",
+    );
+    expect(colorSection?.content.colors).toHaveLength(5);
+    expect(colorSection?.content.colors?.[0]?.color_code).toBe(colors[13]);
+    expect(
+      proposal.warnings.some((warning) => warning.code === "plan_limit"),
+    ).toBe(false);
+  });
+
   it("splits galleries according to the active plan item limit", () => {
     const proposal = createAiPortalProposal({
       assets: Array.from({ length: 14 }, (_, index) => ({

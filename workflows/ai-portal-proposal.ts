@@ -20,6 +20,7 @@ function isTerminalAiError(message: string) {
     message === "ai_structure_timeout" ||
     message === "ai_copy_timeout" ||
     message.startsWith("ai_visual_asset_fetch_failed:") ||
+    message.startsWith("Portal plan limit exceeded:") ||
     message === "ai_content_unavailable" ||
     message === "ai_content_incomplete" ||
     message.startsWith("ai_section_copy_missing:")

@@ -124,6 +124,10 @@ export function portalGallerySectionLimit(plan: PortalPlan) {
   return PORTAL_PLANS[plan].sections.gallery?.sections ?? 0;
 }
 
+export function portalColorItemLimit(plan: PortalPlan) {
+  return PORTAL_PLANS[plan].sections.colors?.items ?? Number.POSITIVE_INFINITY;
+}
+
 export type PortalPolicyResult =
   | { ok: true }
   | { code: PortalPolicyCode; limit: number; ok: false; value: number };
