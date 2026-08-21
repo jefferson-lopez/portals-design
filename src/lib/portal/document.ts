@@ -193,6 +193,19 @@ function getId(prefix: string) {
   return `${prefix}_${crypto.randomUUID()}`;
 }
 
+export function uniqueForRender<T extends { id: string; position: number }>(
+  items: T[],
+  prefix: string,
+) {
+  const seen = new Set<string>();
+
+  return items.map((item, index) => {
+    const id = item.id && !seen.has(item.id) ? item.id : `${prefix}_${index}`;
+    seen.add(id);
+    return { ...item, id };
+  });
+}
+
 export function createDefaultPortalDocument(
   portal: Pick<
     Portal,

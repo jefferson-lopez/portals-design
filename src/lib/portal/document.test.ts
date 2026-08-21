@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { normalizePortalDocument } from "./document";
+import { normalizePortalDocument, uniqueForRender } from "./document";
 
 test("assigns unique ids to duplicate color items", () => {
   const document = normalizePortalDocument(
@@ -28,4 +28,16 @@ test("assigns unique ids to duplicate color items", () => {
   expect(
     document.sections[0]?.content.colors?.map((color) => color.id),
   ).toEqual(["color_202020", "color_202020_1"]);
+});
+
+test("preserves custom positions when preparing items for rendering", () => {
+  const items = uniqueForRender(
+    [
+      { id: "section-a", position: 7 },
+      { id: "section-b", position: 2 },
+    ],
+    "section",
+  );
+
+  expect(items.map((item) => item.position)).toEqual([7, 2]);
 });

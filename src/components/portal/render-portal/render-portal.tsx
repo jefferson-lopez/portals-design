@@ -29,11 +29,12 @@ import {
   type PortalDocument,
   type PortalSection,
   type PortalSectionType,
+  uniqueForRender,
 } from "@/lib/portal/document";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
 import {
-  portalExportHref,
   type PortalExportSource,
+  portalExportHref,
 } from "@/lib/portal/export-manifest";
 import { deleteManagedPortalAsset } from "@/lib/portal/portal-assets-client";
 import {
@@ -86,19 +87,6 @@ function removeAssetIds(ids: Iterable<string>, portalId: string) {
       // Server reconciliation remains the fallback if immediate cleanup fails.
     });
   }
-}
-
-function uniqueForRender<T extends { id: string; position: number }>(
-  items: T[],
-  prefix: string,
-) {
-  const seen = new Set<string>();
-
-  return items.map((item, index) => {
-    const id = item.id && !seen.has(item.id) ? item.id : `${prefix}_${index}`;
-    seen.add(id);
-    return { ...item, id, position: index };
-  });
 }
 
 function itemDownloadHref(slug: string, itemId: string) {
