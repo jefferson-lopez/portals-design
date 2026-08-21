@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Link } from "@/i18n/navigation";
 import type { SafePendingPortalAction } from "@/lib/billing/portal-plan-client";
+import { withStablePortalAssetPreviews } from "@/lib/portal/asset-preview-reference";
 import {
   ensurePortalAutosave,
   releasePortalAutosave,
@@ -502,8 +503,11 @@ export function RenderPortal({
 
   useEffect(() => {
     if (!editorPortalId) return;
-    hydrateDocument(editorPortalId, document);
-  }, [document, editorPortalId, hydrateDocument]);
+    hydrateDocument(
+      editorPortalId,
+      withStablePortalAssetPreviews(document, editor?.slug ?? ""),
+    );
+  }, [document, editor?.slug, editorPortalId, hydrateDocument]);
 
   useEffect(() => {
     if (!editorLocale || !editorPortalId) return;
@@ -657,7 +661,9 @@ export function RenderPortal({
   }, [editor?.focus]);
 
   const renderDocument = editor
-    ? orderDocumentItemsForRender(activeDocument)
+    ? orderDocumentItemsForRender(
+        withStablePortalAssetPreviews(activeDocument, editor.slug ?? ""),
+      )
     : activeDocument;
 
   const visibleSections = renderDocument.sections.filter((section) => {
