@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSupabaseEnv } from "@/lib/supabase/env";
+import { stablePortalAssetPreviewUrl } from "./asset-preview-reference";
 import type {
   PortalDocument,
   PortalFileItem,
@@ -105,23 +106,19 @@ type PortalAssetAuthorization = {
   slug: string;
 };
 
-function stableAssetPreviewUrl(
-  slug: string,
-  assetId: string | undefined,
-  storagePath: string | undefined,
-) {
-  const query = new URLSearchParams({ slug });
-  if (assetId) query.set("assetId", assetId);
-  else if (storagePath) query.set("path", storagePath);
-  else return null;
-  return `/api/portal-assets/preview?${query.toString()}`;
-}
-
 async function previewImage(
   image: PortalImageItem,
   authorization: PortalAssetAuthorization,
 ) {
   if (!image.visible) return { ...image, image_url: "" };
+  const canonicalUrl = stablePortalAssetPreviewUrl(
+    authorization.slug,
+    image.asset_id,
+    image.storage_path,
+  );
+  if (canonicalUrl) {
+    return { ...image, image_url: canonicalUrl };
+  }
   const storage = image.storage_path
     ? { bucket: "portal-assets" as const, path: image.storage_path }
     : resolvePreviewStorageReference(image.image_url);
@@ -134,7 +131,7 @@ async function previewImage(
     )
   )
     return { ...image, image_url: "" };
-  const stableUrl = stableAssetPreviewUrl(
+  const stableUrl = stablePortalAssetPreviewUrl(
     authorization.slug,
     image.asset_id,
     storage.path,
@@ -185,6 +182,14 @@ async function previewFile(
 ) {
   const hasDownloadableAsset = Boolean(file.file_url || file.storage_path);
   if (!file.visible) return { ...file, file_url: "" };
+  const canonicalUrl = stablePortalAssetPreviewUrl(
+    authorization.slug,
+    file.asset_id,
+    file.storage_path,
+  );
+  if (canonicalUrl && isPreviewableImageFile(file)) {
+    return { ...file, file_url: canonicalUrl };
+  }
   if (!isPreviewableImageFile(file)) {
     return { ...file, file_url: hasDownloadableAsset ? "available" : "" };
   }
@@ -204,7 +209,7 @@ async function previewFile(
   ) {
     return { ...file, file_url: hasDownloadableAsset ? "available" : "" };
   }
-  const stableUrl = stableAssetPreviewUrl(
+  const stableUrl = stablePortalAssetPreviewUrl(
     authorization.slug,
     file.asset_id,
     storage.path,
@@ -243,6 +248,14 @@ async function previewFont(
   authorization: PortalAssetAuthorization,
 ) {
   if (!font.visible) return { ...font, file_url: undefined };
+  const canonicalUrl = stablePortalAssetPreviewUrl(
+    authorization.slug,
+    font.asset_id,
+    font.storage_path,
+  );
+  if (canonicalUrl) {
+    return { ...font, file_url: canonicalUrl };
+  }
   const storage = font.storage_path
     ? { bucket: "portal-assets" as const, path: font.storage_path }
     : font.file_url
@@ -258,7 +271,7 @@ async function previewFont(
   ) {
     return { ...font, file_url: undefined };
   }
-  const stableUrl = stableAssetPreviewUrl(
+  const stableUrl = stablePortalAssetPreviewUrl(
     authorization.slug,
     font.asset_id,
     storage.path,

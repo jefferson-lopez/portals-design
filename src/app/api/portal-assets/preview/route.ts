@@ -1,35 +1,10 @@
 import { NextResponse } from "next/server";
+import { containsPortalAssetReference } from "@/lib/portal/asset-preview-reference";
 import { resolvePortalAccess } from "@/lib/portal/server-access";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Json } from "@/lib/supabase/database.types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function containsAssetReference(
-  value: Json | null | undefined,
-  assetId: string | null,
-  storagePath: string | null,
-): boolean {
-  if (typeof value === "string") {
-    return (
-      value === assetId ||
-      value === storagePath ||
-      Boolean(storagePath && value.includes(storagePath))
-    );
-  }
-  if (Array.isArray(value)) {
-    return value.some((item) =>
-      containsAssetReference(item, assetId, storagePath),
-    );
-  }
-  if (value && typeof value === "object") {
-    return Object.values(value).some((item) =>
-      containsAssetReference(item, assetId, storagePath),
-    );
-  }
-  return false;
-}
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
@@ -63,7 +38,7 @@ export async function GET(request: Request) {
     documentResult?.data?.document,
     access.publication?.snapshot,
     ...(blocksResult?.data ?? []),
-  ].some((document) => containsAssetReference(document, assetId, path));
+  ].some((document) => containsPortalAssetReference(document, assetId, path));
   if (!isReferenced) return new NextResponse("Not found", { status: 404 });
 
   let query = admin
