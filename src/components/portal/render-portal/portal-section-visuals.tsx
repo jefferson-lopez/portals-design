@@ -11,11 +11,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import type {
-  PortalColorItem,
-  PortalFileItem,
-  PortalImageItem,
-  PortalSection,
+import {
+  type PortalColorItem,
+  type PortalFileItem,
+  type PortalImageItem,
+  type PortalSection,
+  uniqueForRender,
 } from "@/lib/portal/document";
 import { cn } from "@/lib/utils";
 import { fontFaceFor, fontWeightMessageKey } from "./font-utils";
@@ -41,6 +42,12 @@ function ratioClass(image: PortalImageItem) {
   // Keep the editor and published viewer on the same frame. The server image
   // preview is normalized to a 4:3 contain frame as well.
   return "aspect-[4/3]";
+}
+
+export function orderedVisibleItems<T extends { id: string; position: number }>(
+  items: T[],
+) {
+  return uniqueForRender(items, "render");
 }
 
 export function PortalImageVisual({
@@ -134,8 +141,8 @@ function PortalGalleryVisual({
 }) {
   const isComparison =
     section.layout.mode === "comparison" || section.type === "image_comparison";
-  const images = (section.content.images ?? []).filter(
-    (image) => image.visible,
+  const images = orderedVisibleItems(
+    (section.content.images ?? []).filter((image) => image.visible),
   );
   const columns = isComparison
     ? 2
@@ -197,53 +204,53 @@ function PortalColorsVisual({
         !isStack && columns === 6 && "grid-cols-5 lg:grid-cols-6",
       )}
     >
-      {(section.content.colors ?? [])
-        .filter((color) => color.visible)
-        .map((color: PortalColorItem) => (
+      {orderedVisibleItems(
+        (section.content.colors ?? []).filter((color) => color.visible),
+      ).map((color: PortalColorItem) => (
+        <div
+          className={cn(
+            "group/item relative",
+            isStack && "flex items-center gap-3",
+          )}
+          key={color.id}
+        >
           <div
             className={cn(
-              "group/item relative",
-              isStack && "flex items-center gap-3",
+              "relative aspect-square rounded-lg border",
+              isStack ? "size-14 shrink-0" : "w-full",
             )}
-            key={color.id}
-          >
+            style={{ backgroundColor: color.color_code }}
+          />
+          {showColorName || showColorCode ? (
             <div
               className={cn(
-                "relative aspect-square rounded-lg border",
-                isStack ? "size-14 shrink-0" : "w-full",
+                "flex min-w-0 flex-col items-start justify-start gap-1 text-sm",
+                !isStack && "mt-3",
               )}
-              style={{ backgroundColor: color.color_code }}
-            />
-            {showColorName || showColorCode ? (
-              <div
-                className={cn(
-                  "flex min-w-0 flex-col items-start justify-start gap-1 text-sm",
-                  !isStack && "mt-3",
-                )}
-              >
-                {showColorName ? (
-                  <div className="max-w-full truncate font-medium">
-                    {color.color_name || t("color")}
-                  </div>
-                ) : null}
-                {showColorCode ? (
-                  <span
-                    className={cn(
-                      "max-w-full truncate text-muted-foreground",
-                      !showColorName && "text-primary",
-                    )}
-                  >
-                    {color.color_code}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-            <PortalItemActionButtonsOverlay
-              actions={actions?.color?.({ item: color, section })}
-              position="top-3-right"
-            />
-          </div>
-        ))}
+            >
+              {showColorName ? (
+                <div className="max-w-full truncate font-medium">
+                  {color.color_name || t("color")}
+                </div>
+              ) : null}
+              {showColorCode ? (
+                <span
+                  className={cn(
+                    "max-w-full truncate text-muted-foreground",
+                    !showColorName && "text-primary",
+                  )}
+                >
+                  {color.color_code}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+          <PortalItemActionButtonsOverlay
+            actions={actions?.color?.({ item: color, section })}
+            position="top-3-right"
+          />
+        </div>
+      ))}
     </div>
   );
 }
@@ -260,7 +267,7 @@ function PortalFontsVisual({
     const key = fontWeightMessageKey(weight);
     return key ? t(key) : t("weightFallback");
   };
-  const fonts = section.content.fonts ?? [];
+  const fonts = orderedVisibleItems(section.content.fonts ?? []);
   const fontFaces = fonts.map(fontFaceFor).filter(Boolean).join("\n");
 
   return (
@@ -312,30 +319,32 @@ function PortalFilesVisual({
         columns === 4 && "grid-cols-3 lg:grid-cols-4",
       )}
     >
-      {(section.content.files ?? [])
-        .filter((file: PortalFileItem) => file.visible)
-        .map((file) => (
-          <div
-            className="group/item relative rounded-xl hover:bg-muted"
-            key={file.id}
-          >
-            <div className="block">
-              <PortalFilePreview
-                fileName={file.display_name || file.file_name}
-                fileUrl={file.file_url}
-                type={
-                  file.file_type ??
-                  portalFileTypeFromName(file.file_name) ??
-                  undefined
-                }
-              />
-            </div>
-            <PortalItemActionButtonsOverlay
-              actions={actions?.file?.({ item: file, section })}
-              position="top-2-right"
+      {orderedVisibleItems(
+        (section.content.files ?? []).filter(
+          (file: PortalFileItem) => file.visible,
+        ),
+      ).map((file) => (
+        <div
+          className="group/item relative rounded-xl hover:bg-muted"
+          key={file.id}
+        >
+          <div className="block">
+            <PortalFilePreview
+              fileName={file.display_name || file.file_name}
+              fileUrl={file.file_url}
+              type={
+                file.file_type ??
+                portalFileTypeFromName(file.file_name) ??
+                undefined
+              }
             />
           </div>
-        ))}
+          <PortalItemActionButtonsOverlay
+            actions={actions?.file?.({ item: file, section })}
+            position="top-2-right"
+          />
+        </div>
+      ))}
     </div>
   );
 }

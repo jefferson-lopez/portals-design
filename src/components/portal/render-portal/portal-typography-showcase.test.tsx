@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { PortalFontItem } from "@/lib/portal/document";
+import { orderedVisibleItems } from "./portal-section-visuals";
 import {
   PortalTypographyShowcase,
   rememberTypographyFamilyPosition,
@@ -25,6 +26,22 @@ const fonts: PortalFontItem[] = [
     weight: 700,
   },
 ];
+
+test("renders asset items in their persisted position order", () => {
+  const items = orderedVisibleItems([
+    { id: "white-wordmark", position: 3 },
+    { id: "black-icon", position: 1 },
+    { id: "white-icon", position: 2 },
+    { id: "black-wordmark", position: 0 },
+  ]);
+
+  expect(items.map((item) => item.id)).toEqual([
+    "black-wordmark",
+    "black-icon",
+    "white-icon",
+    "white-wordmark",
+  ]);
+});
 
 describe("PortalTypographyShowcase", () => {
   test("keeps each family summary and its semantic scale together", () => {
