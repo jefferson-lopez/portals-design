@@ -199,11 +199,13 @@ export function uniqueForRender<T extends { id: string; position: number }>(
 ) {
   const seen = new Set<string>();
 
-  return items.map((item, index) => {
-    const id = item.id && !seen.has(item.id) ? item.id : `${prefix}_${index}`;
-    seen.add(id);
-    return { ...item, id };
-  });
+  return [...items]
+    .sort((left, right) => left.position - right.position)
+    .map((item, index) => {
+      const id = item.id && !seen.has(item.id) ? item.id : `${prefix}_${index}`;
+      seen.add(id);
+      return { ...item, id };
+    });
 }
 
 export function createDefaultPortalDocument(

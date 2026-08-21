@@ -33,11 +33,12 @@ test("assigns unique ids to duplicate color items", () => {
 test("preserves custom positions when preparing items for rendering", () => {
   const items = uniqueForRender(
     [
-      { id: "section-a", position: 7 },
-      { id: "section-b", position: 2 },
+      { id: "section-a", position: 1 },
+      { id: "section-b", position: 0 },
     ],
     "section",
   );
 
-  expect(items.map((item) => item.position)).toEqual([7, 2]);
+  expect(items.map((item) => item.id)).toEqual(["section-b", "section-a"]);
+  expect(items.map((item) => item.position)).toEqual([0, 1]);
 });
