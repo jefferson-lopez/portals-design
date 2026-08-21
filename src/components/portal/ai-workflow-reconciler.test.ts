@@ -37,7 +37,7 @@ describe("AiWorkflowReconciler", () => {
     );
   });
 
-  test("uses Supabase Realtime and keeps polling only as a slow fallback", () => {
+  test("uses Supabase Realtime without periodic polling", () => {
     expect(source).toContain("const tRef = useRef(t);");
     expect(source).toContain("const routerRef = useRef(router);");
     expect(source).toContain("const pathnameRef = useRef(pathname);");
@@ -45,9 +45,8 @@ describe("AiWorkflowReconciler", () => {
     expect(source).toContain('event: "*"');
     expect(source).toContain('table: "ai_workflow_jobs"');
     expect(source).toContain("removeChannel");
-    expect(source).toContain(
-      "window.setInterval(() => void reconcile(), 30000)",
-    );
+    expect(source).not.toContain("window.setInterval");
+    expect(source).not.toContain("window.clearInterval");
     expect(source).not.toContain(", router, t, upsertJob]");
   });
 

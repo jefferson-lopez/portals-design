@@ -291,10 +291,8 @@ export function AiWorkflowReconciler() {
         });
     };
     void setupRealtime();
-    const timer = window.setInterval(() => void reconcile(), 3000);
     return () => {
       disposed = true;
-      window.clearInterval(timer);
       window.removeEventListener(
         "portal-ai-workflow-reconcile",
         reconcileOnNavigation,
