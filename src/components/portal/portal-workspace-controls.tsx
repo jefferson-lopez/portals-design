@@ -1769,7 +1769,7 @@ function SortableGalleryItem({
   });
 
   return (
-    <div ref={ref}>
+    <div ref={ref} style={{ order: image.position }}>
       <ImageTile
         captionEditable={captionEditable}
         dragHandleRef={handleRef}

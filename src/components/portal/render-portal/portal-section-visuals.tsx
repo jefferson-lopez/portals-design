@@ -71,7 +71,7 @@ export function PortalImageVisual({
   if (!image.image_url.trim()) return null;
 
   return (
-    <figure className="flex flex-col gap-2">
+    <figure className="flex flex-col gap-2" style={{ order: image.position }}>
       <Dialog>
         <div
           className={cn(
