@@ -53,7 +53,7 @@ export function AiWorkflowReconciler() {
   const pathnameRef = useRef(pathname);
   const routerRef = useRef(router);
   const tRef = useRef(t);
-  const [cancelJob, setCancelJob] = useState<Job | null>(null);
+  const [cancelJobId, setCancelJobId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const previousStatusesRef = useRef(new Map<string, Job["status"]>());
   const appliedDocumentJobByPortalRef = useRef(new Map<string, string>());
@@ -183,7 +183,7 @@ export function AiWorkflowReconciler() {
             action: canCancel
               ? {
                   label: translate("aiCancelAction"),
-                  onClick: () => setCancelJob(job),
+                  onClick: () => setCancelJobId(job.id),
                 }
               : null,
             description: progressDescription(job),
@@ -264,6 +264,11 @@ export function AiWorkflowReconciler() {
       "portal-ai-workflow-reconcile",
       reconcileOnNavigation,
     );
+    const cancelFromSidebar = (event: Event) => {
+      const jobId = (event as CustomEvent<string>).detail;
+      if (jobId) setCancelJobId(jobId);
+    };
+    window.addEventListener("portal-ai-workflow-cancel", cancelFromSidebar);
     const supabase = createClient();
     let channel: ReturnType<typeof supabase.channel> | null = null;
     const setupRealtime = async () => {
@@ -294,6 +299,10 @@ export function AiWorkflowReconciler() {
         "portal-ai-workflow-reconcile",
         reconcileOnNavigation,
       );
+      window.removeEventListener(
+        "portal-ai-workflow-cancel",
+        cancelFromSidebar,
+      );
       if (channel) void supabase.removeChannel(channel);
     };
   }, [removeJob, updateDocument, upsertJob]);
@@ -313,14 +322,14 @@ export function AiWorkflowReconciler() {
   }, [pathname]);
 
   async function confirmCancel() {
-    if (!cancelJob) return;
+    if (!cancelJobId) return;
     setCancelling(true);
     try {
-      const response = await fetch(`/api/ai/jobs/${cancelJob.id}/cancel`, {
+      const response = await fetch(`/api/ai/jobs/${cancelJobId}/cancel`, {
         method: "POST",
       });
       if (!response.ok) throw new Error("cancel_failed");
-      setCancelJob(null);
+      setCancelJobId(null);
     } catch {
       toast.error(t("aiCancelFailed"));
     } finally {
@@ -331,9 +340,9 @@ export function AiWorkflowReconciler() {
   return (
     <Dialog
       onOpenChange={(open) => {
-        if (!open && !cancelling) setCancelJob(null);
+        if (!open && !cancelling) setCancelJobId(null);
       }}
-      open={Boolean(cancelJob)}
+      open={Boolean(cancelJobId)}
     >
       <DialogContent>
         <DialogHeader>
@@ -343,7 +352,7 @@ export function AiWorkflowReconciler() {
         <DialogFooter>
           <Button
             disabled={cancelling}
-            onClick={() => setCancelJob(null)}
+            onClick={() => setCancelJobId(null)}
             variant="outline"
           >
             {t("aiCancelNo")}

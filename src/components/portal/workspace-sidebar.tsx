@@ -10,6 +10,7 @@ import {
   IconSettingsFilled,
   IconSpiral,
   IconStarFilled,
+  IconX,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -45,6 +46,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
@@ -282,6 +284,7 @@ export function WorkspaceSidebar({
                 {activeAiJobs.map((job) => (
                   <SidebarMenuItem key={job.id}>
                     <SidebarMenuButton
+                      className="h-auto min-h-8 py-3"
                       render={<Link href={`/create/${job.portalId}`} />}
                     >
                       <IconLoader2 className="animate-spin" />
@@ -294,6 +297,22 @@ export function WorkspaceSidebar({
                         </span>
                       </span>
                     </SidebarMenuButton>
+                    <SidebarMenuAction
+                      aria-label={t("workspace.aiCancelAction")}
+                      className="top-1/2! -translate-y-1/2!"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        window.dispatchEvent(
+                          new CustomEvent("portal-ai-workflow-cancel", {
+                            detail: job.id,
+                          }),
+                        );
+                      }}
+                      title={t("workspace.aiCancelAction")}
+                    >
+                      <IconX />
+                    </SidebarMenuAction>
                   </SidebarMenuItem>
                 ))}
               </SidebarMenu>
