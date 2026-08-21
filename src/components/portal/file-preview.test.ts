@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalFileType } from "@/lib/portal/document";
 import {
+  filePreviewPresentationStyle,
   isPortalFilePreviewable,
   PORTAL_FILE_ACCEPT,
   PORTAL_IMAGE_ACCEPT,
@@ -49,5 +50,20 @@ describe("portal file picker formats", () => {
     expect(isPortalFilePreviewable("svg")).toBe(true);
     expect(isPortalFilePreviewable("pdf")).toBe(false);
     expect(portalFilePreviewObjectFit("svg")).toBe("object-contain");
+  });
+
+  test("applies configurable padding and transparent or colored backgrounds", () => {
+    expect(filePreviewPresentationStyle(20, "transparent")).toEqual({
+      backgroundColor: "transparent",
+      padding: 20,
+    });
+    expect(filePreviewPresentationStyle(8, "#ffffff")).toEqual({
+      backgroundColor: "#ffffff",
+      padding: 8,
+    });
+    expect(filePreviewPresentationStyle()).toEqual({
+      backgroundColor: "var(--secondary)",
+      padding: 0,
+    });
   });
 });

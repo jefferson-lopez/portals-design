@@ -80,6 +80,13 @@ export function PortalImageVisual({
             !image.visible && "opacity-50",
             isDragging && "opacity-70",
           )}
+          style={{
+            backgroundColor:
+              !image.background_color || image.background_color === "secondary"
+                ? "var(--secondary)"
+                : image.background_color,
+            padding: image.container_padding ?? 0,
+          }}
         >
           <DialogTrigger
             render={
@@ -330,6 +337,8 @@ function PortalFilesVisual({
         >
           <div className="block">
             <PortalFilePreview
+              backgroundColor={file.background_color}
+              containerPadding={file.container_padding}
               fileName={file.display_name || file.file_name}
               fileUrl={file.file_url}
               type={

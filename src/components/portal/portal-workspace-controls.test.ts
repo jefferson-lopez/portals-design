@@ -56,3 +56,18 @@ test("flushes discrete section configuration changes after scheduling them", () 
   );
   expect(renderSource).toContain("flushPortalAutosave(editor.portalId)");
 });
+
+test("uses the shared visual color picker and shadcn slider for image presentation", () => {
+  expect(source).toContain('import { Slider } from "@/components/ui/slider"');
+  expect(source).toContain("<VisualColorPicker");
+  expect(source).toContain('className="w-full justify-start rounded-md"');
+  expect(source).toContain("<Slider");
+  expect(source).not.toContain('type="color"');
+  expect(source).not.toContain('type="range"');
+  expect(source).toContain('"EyeDropper" in window');
+  expect(source).toContain("await eyeDropper.open()");
+  expect(source).toContain('t("pickFromScreen")');
+  expect(source).toContain('t("hexCode")');
+  expect(source).toContain("portalQuickColors(document)");
+  expect(source).toContain("quickColors.map((swatch)");
+});

@@ -29,6 +29,8 @@ export type PortalImageItem = {
   allow_download: boolean;
   alt_text: string;
   aspect_ratio: ImageAspectRatio;
+  background_color?: string;
+  container_padding?: number;
   display_name?: string;
   download_name?: string;
   fit: ImageFit;
@@ -110,6 +112,8 @@ export type PortalFileType =
 export type PortalFileItem = {
   asset_id?: string;
   allow_download: boolean;
+  background_color?: string;
+  container_padding?: number;
   description?: string;
   display_name?: string;
   download_name?: string;
@@ -181,6 +185,17 @@ function getBoolean(value: unknown, fallback = true) {
 function getNumber(value: unknown, fallback = 0) {
   return typeof value === "number" ? value : fallback;
 }
+function normalizeContainerPadding(value: unknown) {
+  return Math.min(25, Math.max(0, getNumber(value, 0)));
+}
+function normalizeBackgroundColor(value: unknown) {
+  const color = getString(value, "secondary");
+  return color === "secondary" ||
+    color === "transparent" ||
+    /^#[0-9a-f]{6}$/i.test(color)
+    ? color
+    : "secondary";
+}
 function normalizeFieldOrigins(value: unknown) {
   const record = asRecord(value);
   return Object.fromEntries(
@@ -230,6 +245,27 @@ export function orderDocumentItemsForRender(document: PortalDocument) {
       },
     })),
   };
+}
+
+export function portalQuickColors(document?: PortalDocument) {
+  if (!document) return [];
+  const isPickerColor = (value: string) =>
+    /^#[0-9a-f]{3,4}$/i.test(value) ||
+    /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(value) ||
+    /^(rgb|rgba|hsl|hsla|hsb|hsba)\(.+\)$/i.test(value);
+  const seen = new Set<string>();
+
+  return document.sections
+    .filter((section) => section.type === "colors")
+    .flatMap((section) => section.content.colors ?? [])
+    .map((color) => color.color_code.trim())
+    .filter((color) => {
+      const key = color.toLowerCase();
+      if (!isPickerColor(color) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 12);
 }
 
 export function createDefaultPortalDocument(
@@ -484,6 +520,8 @@ function normalizeImageItem(
     aspect_ratio: ["auto", "1/1", "4/3", "16/9", "21/9"].includes(aspectRatio)
       ? (aspectRatio as ImageAspectRatio)
       : "auto",
+    background_color: normalizeBackgroundColor(record.background_color),
+    container_padding: normalizeContainerPadding(record.container_padding),
     display_name: getString(record.display_name) || undefined,
     download_name: getString(record.download_name) || undefined,
     fit: ["cover", "contain", "fill", "auto"].includes(fit)
@@ -605,6 +643,8 @@ function normalizeFileItems(value: unknown): PortalFileItem[] {
       return {
         asset_id: getString(record.asset_id) || undefined,
         allow_download: getBoolean(record.allow_download, true),
+        background_color: normalizeBackgroundColor(record.background_color),
+        container_padding: normalizeContainerPadding(record.container_padding),
         description: getString(record.description),
         display_name: getString(record.display_name) || undefined,
         download_name: getString(record.download_name) || undefined,

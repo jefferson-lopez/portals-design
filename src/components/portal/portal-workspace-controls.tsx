@@ -7,6 +7,7 @@ import {
   IconAlertCircle,
   IconBubbleTextFilled,
   IconClipboardTypographyFilled,
+  IconColorPicker,
   IconDeviceFloppy,
   IconFilesFilled,
   IconGripVertical,
@@ -29,7 +30,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import type { ComponentProps, FormEvent, ReactElement, ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { parseColor } from "react-aria-components";
 import { toast } from "sonner";
 import {
@@ -103,6 +104,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -143,6 +145,7 @@ import {
   type PortalImageItem,
   type PortalSection,
   type PortalSectionType,
+  portalQuickColors,
   uniqueForRender,
 } from "@/lib/portal/document";
 import { flushThenExport } from "@/lib/portal/editor-export";
@@ -562,13 +565,67 @@ const colorSwatches = ["#F00", "#F90", "#0F0", "#08F", "#00F"];
 function VisualColorPicker({
   format,
   onChange,
+  paletteColors = [],
   value,
 }: {
   format: ColorFormat;
   onChange: (value: string) => void;
+  paletteColors?: string[];
   value: string;
 }) {
   const t = useTranslations("PortalEditor.colors");
+  const hexInputId = useId();
+  const [eyeDropperSupported, setEyeDropperSupported] = useState(false);
+  const [hexDraft, setHexDraft] = useState(() =>
+    normalizeHexInput(formatPickerColor(value, "hex"), 6),
+  );
+  const quickColors = paletteColors.length ? paletteColors : colorSwatches;
+
+  useEffect(() => {
+    setEyeDropperSupported("EyeDropper" in window);
+  }, []);
+
+  useEffect(() => {
+    setHexDraft(normalizeHexInput(formatPickerColor(value, "hex"), 6));
+  }, [value]);
+
+  function commitHexDraft() {
+    const normalized = normalizeHexInput(hexDraft, 6);
+    const complete =
+      normalized.length === 3
+        ? normalized
+            .split("")
+            .map((character) => `${character}${character}`)
+            .join("")
+        : normalized;
+    if (complete.length === 6) {
+      onChange(`#${complete}`);
+      return;
+    }
+    setHexDraft(normalizeHexInput(formatPickerColor(value, "hex"), 6));
+  }
+
+  async function pickFromScreen() {
+    const EyeDropperConstructor = (
+      window as Window & {
+        EyeDropper?: new () => {
+          open: () => Promise<{ sRGBHex: string }>;
+        };
+      }
+    ).EyeDropper;
+    if (!EyeDropperConstructor) return;
+
+    try {
+      const eyeDropper = new EyeDropperConstructor();
+      const result = await eyeDropper.open();
+      onChange(result.sRGBHex);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        console.error("Screen color selection failed", error);
+      }
+    }
+  }
+
   return (
     <ColorPicker
       value={value}
@@ -578,7 +635,7 @@ function VisualColorPicker({
         <PopoverTrigger
           render={
             <Button
-              className="w-full justify-start"
+              className="w-full justify-start rounded-md"
               type="button"
               variant="outline"
             />
@@ -606,12 +663,51 @@ function VisualColorPicker({
             </div>
 
             <ColorSwatchPicker className="w-[192px]">
-              {colorSwatches.map((swatch) => (
+              {quickColors.map((swatch) => (
                 <ColorSwatchPickerItem color={swatch} key={swatch}>
                   <ColorSwatch />
                 </ColorSwatchPickerItem>
               ))}
             </ColorSwatchPicker>
+            <Field>
+              <FieldLabel htmlFor={hexInputId}>{t("hexCode")}</FieldLabel>
+              <div className="flex h-9 items-center rounded-md border border-input bg-transparent shadow-xs focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50">
+                <span className="px-2.5 text-muted-foreground text-sm">#</span>
+                <Input
+                  className="border-none px-0 shadow-none focus-visible:ring-0"
+                  id={hexInputId}
+                  maxLength={6}
+                  onBlur={commitHexDraft}
+                  onChange={(event) => {
+                    const next = normalizeHexInput(
+                      event.currentTarget.value,
+                      6,
+                    );
+                    setHexDraft(next);
+                    if (next.length === 6) onChange(`#${next}`);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") return;
+                    event.preventDefault();
+                    commitHexDraft();
+                  }}
+                  placeholder="E5E5E5"
+                  value={hexDraft}
+                />
+              </div>
+            </Field>
+            {eyeDropperSupported ? (
+              <Button
+                className="w-full rounded-md"
+                onClick={() => void pickFromScreen()}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <IconColorPicker data-icon="inline-start" />
+                {t("pickFromScreen")}
+              </Button>
+            ) : null}
           </div>
         </PopoverContent>
       </Popover>
@@ -744,6 +840,117 @@ export function SectionTypeDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function FileContainerPresentationControls({
+  backgroundColor = "secondary",
+  containerPadding = 0,
+  controlId = "file-image-presentation",
+  labels,
+  onChange,
+  portalId,
+}: {
+  backgroundColor?: string;
+  containerPadding?: number;
+  controlId?: string;
+  labels: { background: string; padding: string; transparent: string };
+  onChange: (presentation: {
+    background_color: string;
+    container_padding: number;
+  }) => void;
+  portalId: string;
+}) {
+  const isTransparent = backgroundColor === "transparent";
+  const document = usePortalEditorStore(
+    (state) => state.documentsByPortalId[portalId],
+  );
+  const paletteColors = portalQuickColors(document);
+
+  return (
+    <>
+      <Field>
+        <FieldLabel htmlFor={`${controlId}-padding`}>
+          {labels.padding}: {containerPadding}px
+        </FieldLabel>
+        <Slider
+          aria-label={labels.padding}
+          id={`${controlId}-padding`}
+          max={25}
+          min={0}
+          onValueChange={(value) =>
+            onChange({
+              background_color: backgroundColor,
+              container_padding:
+                typeof value === "number" ? value : (value[0] ?? 0),
+            })
+          }
+          step={1}
+          value={[containerPadding]}
+        />
+      </Field>
+      <Field className="flex flex-row items-center justify-between gap-3">
+        <FieldLabel htmlFor={`${controlId}-transparent`}>
+          {labels.transparent}
+        </FieldLabel>
+        <Switch
+          checked={isTransparent}
+          id={`${controlId}-transparent`}
+          onCheckedChange={(checked) =>
+            onChange({
+              background_color: checked ? "transparent" : "secondary",
+              container_padding: containerPadding,
+            })
+          }
+        />
+      </Field>
+      {!isTransparent ? (
+        <Field>
+          <FieldLabel htmlFor={`${controlId}-background`}>
+            {labels.background}
+          </FieldLabel>
+          <VisualColorPicker
+            format="hex"
+            onChange={(value) =>
+              onChange({
+                background_color: value,
+                container_padding: containerPadding,
+              })
+            }
+            value={
+              backgroundColor === "secondary" ? "#E5E5E5" : backgroundColor
+            }
+            paletteColors={paletteColors}
+          />
+        </Field>
+      ) : null}
+    </>
+  );
+}
+
+function ImageContainerPresentationControls({
+  image,
+  onSave,
+  portalId,
+}: {
+  image: PortalImageItem;
+  onSave: (image: PortalImageItem) => void;
+  portalId: string;
+}) {
+  const t = useTranslations("PortalEditor.image");
+  return (
+    <FileContainerPresentationControls
+      backgroundColor={image.background_color}
+      containerPadding={image.container_padding}
+      controlId={image.id}
+      labels={{
+        background: t("background"),
+        padding: t("padding"),
+        transparent: t("transparentBackground"),
+      }}
+      onChange={(presentation) => onSave({ ...image, ...presentation })}
+      portalId={portalId}
+    />
   );
 }
 
@@ -901,6 +1108,11 @@ function ImageSettingsPopover({
               </Select>
             </Field>
           </div>
+          <ImageContainerPresentationControls
+            image={image}
+            onSave={updateImage}
+            portalId={portalId}
+          />
           <Field className="flex flex-row items-center justify-between gap-3">
             <FieldLabel htmlFor={`${image.id}-visible`}>
               {t("common.visible")}
@@ -985,6 +1197,13 @@ function ImageTile({
           !image.visible && "opacity-50",
           isDragging && "opacity-70",
         )}
+        style={{
+          backgroundColor:
+            !image.background_color || image.background_color === "secondary"
+              ? "var(--secondary)"
+              : image.background_color,
+          padding: image.container_padding ?? 0,
+        }}
       >
         {/* biome-ignore lint/performance/noImgElement: user uploaded Storage asset. */}
         <img
@@ -3077,7 +3296,9 @@ function SortableFileItem({
     >
       <div ref={handleRef}>
         <PortalFilePreview
+          backgroundColor={file.background_color}
           className="cursor-grab active:cursor-grabbing"
+          containerPadding={file.container_padding}
           fileName={file.display_name || file.file_name}
           fileUrl={file.file_url}
           type={
@@ -3117,7 +3338,9 @@ function FilesItemSettingsPopover({
   portalId: string;
 }) {
   const t = useTranslations("PortalEditor.files");
+  const imageT = useTranslations("PortalEditor.image");
   const [open, setOpen] = useState(false);
+  const isImageFile = file.file_type === "image" || file.file_type === "svg";
   return (
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger
@@ -3163,6 +3386,20 @@ function FilesItemSettingsPopover({
             placeholder={t("displayNamePlaceholder")}
           />
         </Field>
+        {isImageFile ? (
+          <FileContainerPresentationControls
+            backgroundColor={file.background_color}
+            containerPadding={file.container_padding}
+            labels={{
+              background: imageT("background"),
+              padding: imageT("padding"),
+              transparent: imageT("transparentBackground"),
+            }}
+            controlId={file.id}
+            onChange={(presentation) => onSave({ ...file, ...presentation })}
+            portalId={portalId}
+          />
+        ) : null}
         <Field>
           <FieldLabel>{t("downloadName")}</FieldLabel>
           <Input
@@ -3374,6 +3611,8 @@ function FilesEditor({
           {optimistic.pending.map(({ id, value }) => (
             <div aria-busy="true" className="relative animate-pulse" key={id}>
               <PortalFilePreview
+                backgroundColor={value.background_color}
+                containerPadding={value.container_padding}
                 fileName={value.file_name}
                 fileUrl={value.file_url}
                 type={value.file_type}

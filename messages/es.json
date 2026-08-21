@@ -813,6 +813,9 @@
       "downloadNamePlaceholder": "nombre-del-archivo",
       "fit": "Ajuste",
       "ratio": "Proporción",
+      "padding": "Padding interno",
+      "background": "Color de fondo",
+      "transparentBackground": "Fondo transparente",
       "fitOptions": {
         "cover": "Recortar",
         "contain": "Contener",
@@ -856,6 +859,8 @@
       },
       "picker": "Selector",
       "choose": "Elegir color",
+      "pickFromScreen": "Tomar color de la pantalla",
+      "hexCode": "Código hexadecimal",
       "code": "Código",
       "name": "Nombre",
       "namePlaceholder": "Ej. Primario, Acento, Fondo",

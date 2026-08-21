@@ -92,6 +92,17 @@ export function portalFilePreviewObjectFit(type?: PortalFileType) {
   return type === "svg" ? "object-contain" : "object-cover";
 }
 
+export function filePreviewPresentationStyle(
+  containerPadding = 0,
+  backgroundColor = "secondary",
+) {
+  return {
+    backgroundColor:
+      backgroundColor === "secondary" ? "var(--secondary)" : backgroundColor,
+    padding: containerPadding,
+  };
+}
+
 const PdfIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
     aria-hidden="true"
@@ -248,12 +259,16 @@ export function PortalFileTypeIcon({
 }
 
 export function PortalFilePreview({
+  backgroundColor,
   className,
+  containerPadding,
   fileName,
   fileUrl,
   type,
 }: {
+  backgroundColor?: string;
   className?: string;
+  containerPadding?: number;
   fileName: string;
   fileUrl?: string;
   type?: PortalFileType;
@@ -266,7 +281,14 @@ export function PortalFilePreview({
         className,
       )}
     >
-      <div className="flex min-h-0 flex-1 items-center justify-center">
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg"
+        style={
+          isPortalFilePreviewable(type)
+            ? filePreviewPresentationStyle(containerPadding, backgroundColor)
+            : undefined
+        }
+      >
         {isPortalFilePreviewable(type) && fileUrl ? (
           // biome-ignore lint/performance/noImgElement: user uploaded asset preview.
           <img

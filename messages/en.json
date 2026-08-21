@@ -813,6 +813,9 @@
       "downloadNamePlaceholder": "file-name",
       "fit": "Fit",
       "ratio": "Aspect ratio",
+      "padding": "Inner padding",
+      "background": "Background color",
+      "transparentBackground": "Transparent background",
       "fitOptions": {
         "cover": "Cover",
         "contain": "Contain",
@@ -856,6 +859,8 @@
       },
       "picker": "Picker",
       "choose": "Choose color",
+      "pickFromScreen": "Pick color from screen",
+      "hexCode": "Hex code",
       "code": "Code",
       "name": "Name",
       "namePlaceholder": "E.g. Primary, Accent, Background",
