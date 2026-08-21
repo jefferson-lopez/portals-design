@@ -26,6 +26,61 @@ test("server hydration never overwrites a newer dirty portal draft", () => {
   ).toBe("local D2");
 });
 
+test("hydrates nested assets in their persisted position order", () => {
+  const portalId = "ordered-hydration-test";
+  const store = usePortalEditorStore.getState();
+  const document: PortalDocument = {
+    portal: { description: "", name: "Portal", theme: "auto" },
+    sections: [
+      {
+        allow_download: true,
+        content: {
+          images: [
+            {
+              allow_download: true,
+              alt_text: "Second",
+              aspect_ratio: "auto",
+              fit: "cover",
+              id: "image-2",
+              image_url: "/second.png",
+              position: 1,
+              visible: true,
+            },
+            {
+              allow_download: true,
+              alt_text: "First",
+              aspect_ratio: "auto",
+              fit: "cover",
+              id: "image-1",
+              image_url: "/first.png",
+              position: 0,
+              visible: true,
+            },
+          ],
+        },
+        description: "",
+        id: "section-1",
+        layout: { columns: 3, mode: "grid" },
+        position: 0,
+        title: "Gallery",
+        type: "gallery",
+        visible: true,
+      },
+    ],
+    version: 1,
+  };
+
+  store.hydrateDocument(portalId, document);
+
+  expect(
+    usePortalEditorStore
+      .getState()
+      .documentsByPortalId[portalId].sections[0]?.content.images?.map(
+        (image) => image.id,
+      ),
+  ).toEqual(["image-1", "image-2"]);
+});
+
 test("initial unpublished state does not reset an existing local dirty flag", () => {
   const portalId = "dirty-test";
   const store = usePortalEditorStore.getState();

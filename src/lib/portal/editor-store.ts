@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import type { AutosaveStatus } from "@/lib/portal/autosave-queue";
-import type { PortalDocument } from "@/lib/portal/document";
+import {
+  orderDocumentItemsForRender,
+  type PortalDocument,
+} from "@/lib/portal/document";
 import {
   type PortalPublicationIssue,
   validatePortalPublicationReadiness,
@@ -69,7 +72,7 @@ export const usePortalEditorStore = create<PortalEditorState>((set) => ({
         },
         documentsByPortalId: {
           ...state.documentsByPortalId,
-          [portalId]: document,
+          [portalId]: orderDocumentItemsForRender(document),
         },
       };
     }),
