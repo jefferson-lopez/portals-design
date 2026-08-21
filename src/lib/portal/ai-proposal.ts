@@ -387,9 +387,14 @@ export function createAiPortalProposal(input: ProposalInput): AiPortalProposal {
   const presentedPrimaryImage = primaryImageId
     ? presentedImages.find((image) => image.asset_id === primaryImageId)
     : undefined;
+  const hasPlannedImageSection = Boolean(
+    input.enhancement?.sectionPlan.some((section) => section.kind === "image"),
+  );
   const presentedGalleryImages = presentedPrimaryImage
     ? presentedImages.filter((image) => image !== presentedPrimaryImage)
-    : presentedImages;
+    : images.length > 1 || !hasPlannedImageSection
+      ? presentedImages
+      : [];
   const plannedSection = (
     kind: "image" | "gallery" | "fonts" | "colors" | "files",
   ) => input.enhancement?.sectionPlan.find((section) => section.kind === kind);

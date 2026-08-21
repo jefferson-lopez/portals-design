@@ -165,6 +165,42 @@ function fallbackCopy(kind: AiSectionKind, projectDescription: string) {
   return copy[kind];
 }
 
+function contextualFallbackCopy(
+  kind: AiSectionKind,
+  projectDescription: string,
+  enhancement: AiStructuredEnhancement,
+  assetIds: string[],
+) {
+  const insight = enhancement.assetInsights.find((item) =>
+    assetIds.includes(item.assetId),
+  );
+  const languageSource = [
+    projectDescription,
+    enhancement.projectCopy.name,
+    enhancement.projectCopy.description,
+    insight?.description,
+  ].join(" ");
+  if (
+    kind === "image" &&
+    insight?.displayName.trim() &&
+    insight.description.trim()
+  )
+    return [
+      insight.displayName.trim().slice(0, 120),
+      insight.description.trim().slice(0, 500),
+    ];
+  return fallbackCopy(kind, languageSource);
+}
+
+function isGenericImageCopy(title: string, description: string) {
+  return (
+    /^(main image|imagen principal)$/i.test(title.trim()) ||
+    /^(the project's main image\.|imagen principal del proyecto\.)$/i.test(
+      description.trim(),
+    )
+  );
+}
+
 function requiredSectionAssets(
   assets: AiAssetInput[],
   quarantinedAssetIds: string[] = [],
@@ -229,13 +265,25 @@ export function ensureAiStructuredEnhancementCompleteness(
     const assetIds = required[kind];
     if (!assetIds?.length) continue;
     const existing = sectionPlan.find((section) => section.kind === kind);
-    const [title, description] = fallbackCopy(kind, projectDescription);
+    const [title, description] = contextualFallbackCopy(
+      kind,
+      projectDescription,
+      enhancement,
+      existing?.assetIds ?? assetIds,
+    );
     if (existing) {
       existing.assetIds = existing.assetIds.length
         ? existing.assetIds
         : assetIds;
-      existing.title = existing.title.trim() || title;
-      existing.description = existing.description.trim() || description;
+      const replaceGenericCopy =
+        kind === "image" &&
+        isGenericImageCopy(existing.title, existing.description);
+      existing.title =
+        !existing.title.trim() || replaceGenericCopy ? title : existing.title;
+      existing.description =
+        !existing.description.trim() || replaceGenericCopy
+          ? description
+          : existing.description;
       continue;
     }
     sectionPlan.push({
@@ -747,6 +795,10 @@ export async function generateAiStructuredEnhancement({
       "Generate only the project and visitor-facing copy for the validated portal structure below.",
       "Do not change section kinds, asset IDs, image order, quarantine decisions, or color insights.",
       "Return concise, specific copy. Never use instructions, design directions, export specifications, or placeholders.",
+      "Do not treat the project description as factual ground truth; it may be an incorrect user-entered label.",
+      "Use the analyzed asset insights and visual evidence as the source of truth, and correct it when it conflicts with the analyzed visual evidence.",
+      "Do not infer an unseen product or category from a user label; describe only what the analyzed evidence supports.",
+      "The project name and description must identify the visible subject or organization, not an assumed product.",
       "Return a human-readable displayName and lowercase hyphenated downloadName for every asset while preserving extensions.",
       "Write every generated name, title, description, and label in the requested portal language.",
       "Section titles must be no more than three words. Do not use a colon and do not repeat descriptions.",

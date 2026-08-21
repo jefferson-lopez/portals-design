@@ -170,6 +170,52 @@ describe("AI portal proposal", () => {
     );
   });
 
+  it("does not duplicate a single image into a gallery", () => {
+    const proposal = createAiPortalProposal({
+      assets: [assets[0]],
+      enhancement: {
+        assetInsights: [],
+        colorInsights: [],
+        copyPlan: [],
+        imageRecommendations: [],
+        projectCopy: { description: "Brand identity", name: "Acme" },
+        quarantinedAssetIds: [],
+        sectionPlan: [
+          {
+            assetIds: ["logo"],
+            description: "Main logo.",
+            kind: "image",
+            sectionId: "image",
+            title: "Main logo",
+          },
+          {
+            assetIds: ["logo"],
+            description: "Project images.",
+            kind: "gallery",
+            sectionId: "gallery",
+            title: "Project images",
+          },
+        ],
+      },
+      operation: "generate",
+      plan: "free",
+      portal: {
+        cover_url: null,
+        icon_url: null,
+        name: "Acme",
+        short_description: "Brand identity",
+        theme: "auto",
+      },
+      projectDescription: "Brand identity",
+    });
+
+    expect(proposal.proposedDocument.sections).toHaveLength(1);
+    expect(proposal.proposedDocument.sections[0]).toMatchObject({
+      content: { image: { asset_id: "logo" } },
+      type: "image",
+    });
+  });
+
   it("follows the planned asset order after the primary image", () => {
     const proposal = createAiPortalProposal({
       assets: [assets[0], assets[1]],

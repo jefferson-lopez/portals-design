@@ -61,6 +61,18 @@ describe("AI SDK proposal adapter", () => {
     expect(source).not.toContain("AI_ANALYSIS_GLOBAL_TIMEOUT_MS");
   });
 
+  it("makes visual evidence authoritative for generated copy", () => {
+    expect(source).toContain(
+      "Do not treat the project description as factual ground truth",
+    );
+    expect(source).toContain(
+      "correct it when it conflicts with the analyzed visual evidence",
+    );
+    expect(source).toContain(
+      "Do not infer an unseen product or category from a user label",
+    );
+  });
+
   it("chunks every visual asset while preserving logos and order", () => {
     const assets = [
       ...Array.from({ length: 20 }, (_, index) => ({
@@ -166,6 +178,49 @@ describe("AI SDK proposal adapter", () => {
         }),
       ]),
     );
+  });
+
+  it("replaces generic image section copy with analyzed asset context", () => {
+    const result = ensureAiStructuredEnhancementCompleteness(
+      {
+        assetInsights: [
+          {
+            assetId: "visual-asset",
+            altText: "Visual asset.",
+            contentType: "image",
+            description:
+              "Visual asset analyzed from the supplied image content.",
+            displayName: "Analyzed visual asset",
+            downloadName: "analyzed-visual-asset.png",
+            usage: "Visual presentation asset.",
+          },
+        ],
+        colorInsights: [],
+        copyPlan: [],
+        imageRecommendations: [],
+        projectCopy: {
+          description: "Federación Venezolana de Fútbol",
+          name: "Federación Venezolana de Fútbol",
+        },
+        quarantinedAssetIds: [],
+        sectionPlan: [
+          {
+            assetIds: ["visual-asset"],
+            description: "The project's main image.",
+            kind: "image",
+            sectionId: "image",
+            title: "Main image",
+          },
+        ],
+      },
+      [{ id: "visual-asset", name: "visual.png", mimeType: "image/png" }],
+      "Visual presentation",
+    );
+
+    expect(result.sectionPlan[0]).toMatchObject({
+      description: "Visual asset analyzed from the supplied image content.",
+      title: "Analyzed visual asset",
+    });
   });
 
   it("keeps complete AI copy unchanged", () => {
