@@ -1071,6 +1071,10 @@ export async function updatePortalDocument(formData: FormData) {
   const locale = getString(formData, "locale") || "en";
   const portalId = getString(formData, "portal_id");
   const documentJson = getString(formData, "document_json");
+  const expectedRevisionValue = getString(formData, "expected_revision");
+  const expectedRevision = expectedRevisionValue
+    ? Number(expectedRevisionValue)
+    : null;
   const supabase = await requireAuthenticatedUser(locale);
 
   const { data: portal } = await supabase
@@ -1088,17 +1092,31 @@ export async function updatePortalDocument(formData: FormData) {
   const parsed = parseJsonObject(documentJson);
   const normalizedDocument = normalizePortalDocument(parsed, portal);
 
-  const { error } = await supabase.rpc("upsert_portal_document", {
-    portal_document: portalDocumentToJson(normalizedDocument),
-    target_portal_id: portalId,
-  });
+  const { data, error } = (await supabase.rpc(
+    "upsert_portal_document_if_revision" as never,
+    {
+      expected_revision: expectedRevision,
+      portal_document: portalDocumentToJson(normalizedDocument),
+      target_portal_id: portalId,
+    } as never,
+  )) as unknown as {
+    data: { revision: number } | null;
+    error: { message: string } | null;
+  };
 
   if (error) {
+    if (error.message.includes("portal_document_conflict")) {
+      return { kind: "conflict" as const };
+    }
     actionFailure(error.message);
+  }
+  if (!data) {
+    actionFailure("Portal document was not saved");
   }
 
   revalidatePath(`/${locale}/create/${portalId}`);
   revalidatePath(`/${locale}/home`);
+  return { kind: "saved" as const, revision: data.revision };
 }
 
 export async function deletePortalBlock(formData: FormData) {

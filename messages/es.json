@@ -598,6 +598,9 @@
       "saving": "Guardando cambios…",
       "error": "No se pudieron guardar los cambios",
       "errorDescription": "Tus últimos cambios siguen disponibles. Vuelve a intentar guardarlos antes de publicar.",
+      "conflict": "Este portal cambió en otro lugar",
+      "conflictDescription": "Tu última edición local está preservada. Carga la versión guardada y reintenta solo si deseas aplicar tu edición sobre ella.",
+      "conflictRetry": "Reintentar última edición",
       "retry": "Reintentar guardado"
     },
     "upload": {

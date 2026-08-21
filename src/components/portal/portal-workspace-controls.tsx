@@ -1055,7 +1055,6 @@ function AddImageTile({
   category = "image",
   maxFiles,
   onAdd,
-  order,
   ownerKey,
   portalId,
 }: {
@@ -1064,7 +1063,6 @@ function AddImageTile({
   label?: string;
   maxFiles?: number;
   onAdd: (image: PortalImageItem) => void;
-  order?: number;
   ownerKey: string;
   portalId: string;
 }) {
@@ -1188,7 +1186,6 @@ function AddImageTile({
             ratioClass,
           )}
           onClick={() => inputRef.current?.click()}
-          style={order === undefined ? undefined : { order }}
           type="button"
         >
           <IconPlus />
@@ -1772,7 +1769,7 @@ function SortableGalleryItem({
   });
 
   return (
-    <div ref={ref} style={{ order: image.position }}>
+    <div ref={ref}>
       <ImageTile
         captionEditable={captionEditable}
         dragHandleRef={handleRef}
@@ -1874,11 +1871,6 @@ function GalleryEditor({
     ? images[0]?.aspect_ratio
     : null;
   const addImageAspectRatio = sharedAspectRatio ?? "auto";
-  const addTileOrder =
-    images.reduce(
-      (maxPosition, image) => Math.max(maxPosition, image.position),
-      -1,
-    ) + 1;
   const imageLimitReached =
     status === "ready" &&
     Number.isFinite(maxImages) &&
@@ -1933,7 +1925,6 @@ function GalleryEditor({
               maxFiles={maxImages - images.length}
               ownerKey={section.id}
               portalId={portalId}
-              order={addTileOrder}
               onAdd={(image) => {
                 const nextImages = [
                   ...imagesRef.current,
@@ -3912,7 +3903,9 @@ export function SectionOrderPopover({
     const candidate = update(current);
     if (!guardDocumentChange(current, candidate, retry)) return;
     const updated = updateDraft(portalId, () => candidate);
-    if (updated) schedulePortalAutosave(portalId, updated);
+    if (updated) {
+      schedulePortalAutosave(portalId, updated);
+    }
   }
 
   function addSection(type: Exclude<PortalSectionType, "empty">) {
@@ -4605,11 +4598,13 @@ export function UnpublishedChangesIndicator({
   const actionLabel =
     autosave.status === "saving"
       ? autosaveT("saving")
-      : autosave.status === "error"
-        ? autosaveT("error")
-        : hasPublicationFailure
-          ? t("publication.action")
-          : t("unpublishedAction");
+      : autosave.status === "conflict"
+        ? autosaveT("conflict")
+        : autosave.status === "error"
+          ? autosaveT("error")
+          : hasPublicationFailure
+            ? t("publication.action")
+            : t("unpublishedAction");
 
   return (
     <AnimatePresence initial={false}>
@@ -4648,7 +4643,9 @@ export function UnpublishedChangesIndicator({
             >
               {autosave.status === "saving" ? (
                 <IconLoader2 className="animate-spin" />
-              ) : autosave.status === "error" || hasPublicationFailure ? (
+              ) : autosave.status === "error" ||
+                autosave.status === "conflict" ||
+                hasPublicationFailure ? (
                 <IconAlertCircle />
               ) : (
                 <IconInfoCircle />

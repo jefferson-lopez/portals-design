@@ -1,7 +1,9 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useCallback, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { updatePortalDocument } from "@/app/[locale]/_actions/portals";
 import {
   PORTAL_PLAN_RETRY_EVENT,
@@ -19,8 +21,11 @@ import { Link } from "@/i18n/navigation";
 import type { SafePendingPortalAction } from "@/lib/billing/portal-plan-client";
 import { withStablePortalAssetPreviews } from "@/lib/portal/asset-preview-reference";
 import {
+  acknowledgePortalAutosaveConflict,
   ensurePortalAutosave,
+  flushPortalAutosave,
   releasePortalAutosave,
+  retryPortalAutosaveConflict,
   schedulePortalAutosave,
 } from "@/lib/portal/autosave-coordinator";
 import { AutosaveQueue } from "@/lib/portal/autosave-queue";
@@ -38,6 +43,10 @@ import {
   portalExportHref,
 } from "@/lib/portal/export-manifest";
 import { deleteManagedPortalAsset } from "@/lib/portal/portal-assets-client";
+import {
+  PortalDocumentConflictError,
+  persistPortalDocumentAtLatestRevision,
+} from "@/lib/portal/revisioned-autosave";
 import {
   focusPortalSectionTitle,
   scrollToPortalSection,
@@ -437,6 +446,7 @@ export function RenderPortal({
   visibility,
 }: RenderPortalProps) {
   const t = useTranslations();
+  const router = useRouter();
   const storeDocument = usePortalEditorStore((state) =>
     editor ? state.documentsByPortalId[editor.portalId] : undefined,
   );
@@ -448,6 +458,9 @@ export function RenderPortal({
   );
   const resetAutosaveState = usePortalEditorStore(
     (state) => state.resetAutosaveState,
+  );
+  const markDocumentPersisted = usePortalEditorStore(
+    (state) => state.markDocumentPersisted,
   );
   const updateStoreDocument = usePortalEditorStore(
     (state) => state.updateDocument,
@@ -502,14 +515,6 @@ export function RenderPortal({
   );
 
   useEffect(() => {
-    if (!editorPortalId) return;
-    hydrateDocument(
-      editorPortalId,
-      withStablePortalAssetPreviews(document, editor?.slug ?? ""),
-    );
-  }, [document, editor?.slug, editorPortalId, hydrateDocument]);
-
-  useEffect(() => {
     if (!editorLocale || !editorPortalId) return;
     ensurePortalAutosave(editorPortalId, ({ hasPredecessor }) => {
       if (!hasPredecessor) resetAutosaveState(editorPortalId);
@@ -528,13 +533,60 @@ export function RenderPortal({
           });
         },
         save: async (nextDocument) => {
-          const fd = new FormData();
-          fd.set("locale", editorLocale);
-          fd.set("portal_id", editorPortalId);
-          fd.set("document_json", JSON.stringify(nextDocument));
-          await updatePortalDocument(fd);
-          flushPersistedAssetDeletions(editorPortalId, nextDocument);
+          await persistPortalDocumentAtLatestRevision({
+            acknowledge: (revision) => {
+              markDocumentPersisted(editorPortalId, revision);
+              flushPersistedAssetDeletions(editorPortalId, nextDocument);
+            },
+            document: nextDocument,
+            getExpectedRevision: () =>
+              usePortalEditorStore.getState().documentServerRevisionByPortalId[
+                editorPortalId
+              ] ?? null,
+            persist: async (value, expectedRevision) => {
+              const fd = new FormData();
+              fd.set("locale", editorLocale);
+              fd.set("portal_id", editorPortalId);
+              fd.set("document_json", JSON.stringify(value));
+              if (expectedRevision !== null) {
+                fd.set("expected_revision", String(expectedRevision));
+              }
+              return await updatePortalDocument(fd);
+            },
+            reconcileConflict: () => {
+              toast.warning(t("PortalEditor.autosave.conflict"), {
+                action: {
+                  label: t("PortalEditor.autosave.conflictRetry"),
+                  onClick: () => {
+                    const recovery =
+                      retryPortalAutosaveConflict<PortalDocument>(
+                        editorPortalId,
+                      );
+                    if (!recovery) {
+                      router.refresh();
+                      return;
+                    }
+                    updateStoreDocument(editorPortalId, () => recovery);
+                    void flushPortalAutosave(editorPortalId)
+                      .then(() =>
+                        toast.dismiss(
+                          `portal-autosave-conflict:${editorPortalId}`,
+                        ),
+                      )
+                      .catch(() => {
+                        // A repeated conflict keeps the recovery action visible.
+                      });
+                  },
+                },
+                description: t("PortalEditor.autosave.conflictDescription"),
+                duration: Number.POSITIVE_INFINITY,
+                id: `portal-autosave-conflict:${editorPortalId}`,
+              });
+              setTimeout(() => router.refresh(), 0);
+            },
+          });
         },
+        shouldRetry: (error) => !(error instanceof PortalDocumentConflictError),
       });
     });
     return () => releasePortalAutosave(editorPortalId);
@@ -543,14 +595,53 @@ export function RenderPortal({
     editorPortalId,
     flushPersistedAssetDeletions,
     resetAutosaveState,
+    markDocumentPersisted,
+    router,
     setAutosaveState,
+    t,
+    updateStoreDocument,
+  ]);
+
+  useEffect(() => {
+    if (!editorPortalId) return;
+    const stateBeforeHydration = usePortalEditorStore.getState();
+    const priorServerRevision =
+      stateBeforeHydration.documentServerRevisionByPortalId[editorPortalId];
+    hydrateDocument(
+      editorPortalId,
+      withStablePortalAssetPreviews(document, editor?.slug ?? ""),
+      editor?.documentRevision,
+      editor?.hasUnpublishedChanges,
+    );
+    if (
+      stateBeforeHydration.autosaveByPortalId[editorPortalId]?.status ===
+        "conflict" &&
+      editor?.documentRevision != null &&
+      (priorServerRevision === undefined ||
+        editor.documentRevision > priorServerRevision) &&
+      usePortalEditorStore.getState().documentServerRevisionByPortalId[
+        editorPortalId
+      ] === editor.documentRevision
+    ) {
+      acknowledgePortalAutosaveConflict(editorPortalId);
+    }
+  }, [
+    document,
+    editor?.documentRevision,
+    editor?.hasUnpublishedChanges,
+    editor?.slug,
+    editorPortalId,
+    hydrateDocument,
   ]);
 
   const activeDocument = editor ? (storeDocument ?? document) : document;
 
   function changeEditableDocument(
     update: (current: PortalDocument) => PortalDocument,
-    retry?: SafePendingPortalAction,
+    options: {
+      flush?: boolean;
+      retry?: SafePendingPortalAction;
+    } = {},
   ) {
     if (!editor) return;
     const current =
@@ -561,7 +652,7 @@ export function RenderPortal({
     const candidateAssets = portalAssetIds(candidate);
     if (
       portalPlan &&
-      !portalPlan.guardDocumentChange(current, candidate, retry)
+      !portalPlan.guardDocumentChange(current, candidate, options.retry)
     ) {
       removeAssetIds(
         [...candidateAssets].filter((assetId) => !currentAssets.has(assetId)),
@@ -577,6 +668,11 @@ export function RenderPortal({
         candidateAssets,
       );
       schedulePortalAutosave(editor.portalId, next);
+      if (options.flush) {
+        void flushPortalAutosave(editor.portalId).catch(() => {
+          // Autosave retains the failed snapshot and exposes its retry UI.
+        });
+      }
     }
   }
 
@@ -589,12 +685,15 @@ export function RenderPortal({
 
   function updateEditableSection(nextSection: PortalSection) {
     if (!editor) return;
-    changeEditableDocument((current) => ({
-      ...current,
-      sections: current.sections.map((section) =>
-        section.id === nextSection.id ? nextSection : section,
-      ),
-    }));
+    changeEditableDocument(
+      (current) => ({
+        ...current,
+        sections: current.sections.map((section) =>
+          section.id === nextSection.id ? nextSection : section,
+        ),
+      }),
+      { flush: true },
+    );
   }
 
   function updateEditableSectionHeading(
@@ -632,7 +731,7 @@ export function RenderPortal({
           sections: [...current.sections, section],
         };
       },
-      { kind: "add-section", type },
+      { retry: { kind: "add-section", type } },
     );
   }
 

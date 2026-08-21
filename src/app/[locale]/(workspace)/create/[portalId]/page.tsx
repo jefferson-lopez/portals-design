@@ -15,9 +15,9 @@ import { RenderPortal } from "@/components/portal/render-portal";
 import { WorkspaceProjectRegistration } from "@/components/portal/workspace-sidebar";
 import {
   normalizePortalDocument,
-  portalDocumentToJson,
   type PortalDocument,
   portalBlocksToDocument,
+  portalDocumentToJson,
 } from "@/lib/portal/document";
 import { prepareDocumentForRendering } from "@/lib/portal/server-assets";
 import {
@@ -37,6 +37,7 @@ type PortalWorkspace = {
   portal: Portal;
   blocks: PortalBlock[];
   document: PortalDocument;
+  documentRevision: number | null;
   hasUnpublishedChanges: boolean;
   paidPriceCents: number | null;
   connectStatus: ReturnType<typeof normalizeConnectStatusSummary>;
@@ -177,7 +178,7 @@ async function getWorkspace(
       .order("created_at", { ascending: true }),
     supabase
       .from("portal_documents")
-      .select("document")
+      .select("document,revision")
       .eq("portal_id", portalId)
       .maybeSingle(),
     portal.published_publication_id
@@ -218,6 +219,7 @@ async function getWorkspace(
   return {
     blocks: blocks ?? [],
     document,
+    documentRevision: portalDocumentRow?.revision ?? null,
     hasUnpublishedChanges,
     paidPriceCents: paidOffer?.price_cents ?? null,
     connectStatus: normalizeConnectStatusSummary(connectSummary),
@@ -236,6 +238,7 @@ export default async function CreatePortalPage({
   const {
     connectStatus,
     document,
+    documentRevision,
     hasUnpublishedChanges,
     paidPriceCents,
     portal,
@@ -279,7 +282,14 @@ export default async function CreatePortalPage({
         className="min-h-0"
         document={document}
         editable
-        editor={{ focus, locale, portalId: portal.id, slug: portal.slug }}
+        editor={{
+          documentRevision,
+          focus,
+          hasUnpublishedChanges,
+          locale,
+          portalId: portal.id,
+          slug: portal.slug,
+        }}
       />
     </PortalPlanProvider>
   );

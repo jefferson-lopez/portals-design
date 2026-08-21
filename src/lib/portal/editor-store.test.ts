@@ -26,6 +26,104 @@ test("server hydration never overwrites a newer dirty portal draft", () => {
   ).toBe("local D2");
 });
 
+test("server hydration replaces a stale settled draft from a previous editor mount", () => {
+  const portalId = "settled-remount-test";
+  const store = usePortalEditorStore.getState();
+
+  store.hydrateDocument(portalId, portalDocument("stale client draft"));
+  store.setHasUnpublishedChanges(portalId, true);
+  store.setAutosaveState(portalId, { error: null, status: "saved" });
+  store.hydrateDocument(portalId, portalDocument("authoritative server draft"));
+
+  expect(
+    usePortalEditorStore.getState().documentsByPortalId[portalId].portal.name,
+  ).toBe("authoritative server draft");
+});
+
+test("a deferred stale RSC payload cannot overwrite a newer persisted local revision", () => {
+  const portalId = "deferred-rsc-test";
+  const store = usePortalEditorStore.getState();
+
+  store.hydrateDocument(portalId, portalDocument("D1"), 1);
+  store.updateDocument(portalId, () => portalDocument("D2"));
+  store.markDocumentPersisted(portalId, 2);
+  store.hydrateDocument(portalId, portalDocument("stale D1"), 1);
+
+  expect(
+    usePortalEditorStore.getState().documentsByPortalId[portalId].portal.name,
+  ).toBe("D2");
+});
+
+test("a newer server revision is accepted after local autosave settles", () => {
+  const portalId = "newer-server-revision-test";
+  const store = usePortalEditorStore.getState();
+
+  store.hydrateDocument(portalId, portalDocument("D1"), 1);
+  store.markDocumentPersisted(portalId, 2);
+  store.hydrateDocument(portalId, portalDocument("D3 from another device"), 3);
+
+  expect(
+    usePortalEditorStore.getState().documentsByPortalId[portalId].portal.name,
+  ).toBe("D3 from another device");
+});
+
+test("monotonic revisions distinguish writes that share a PostgreSQL millisecond", () => {
+  const portalId = "same-millisecond-revision-test";
+  const store = usePortalEditorStore.getState();
+
+  store.hydrateDocument(portalId, portalDocument("D1"), 41);
+  store.markDocumentPersisted(portalId, 42);
+  store.hydrateDocument(portalId, portalDocument("stale D1"), 41);
+
+  expect(
+    usePortalEditorStore.getState().documentsByPortalId[portalId].portal.name,
+  ).toBe("D1");
+  expect(
+    usePortalEditorStore.getState().documentServerRevisionByPortalId[portalId],
+  ).toBe(42);
+});
+
+test("hydrates a backfilled revision zero instead of treating it as missing", () => {
+  const portalId = "backfilled-zero-revision-test";
+  const store = usePortalEditorStore.getState();
+
+  store.hydrateDocument(portalId, portalDocument("existing legacy row"), 0);
+
+  expect(
+    usePortalEditorStore.getState().documentServerRevisionByPortalId[portalId],
+  ).toBe(0);
+});
+
+test("a rejected stale document hydration cannot apply its publication flag", () => {
+  const portalId = "coupled-publication-hydration-test";
+  const store = usePortalEditorStore.getState();
+
+  store.hydrateDocument(portalId, portalDocument("D2"), 2, true);
+  store.hydrateDocument(portalId, portalDocument("stale D1"), 1, false);
+
+  const state = usePortalEditorStore.getState();
+  expect(state.documentsByPortalId[portalId].portal.name).toBe("D2");
+  expect(state.hasUnpublishedChangesByPortalId[portalId]).toBe(true);
+});
+
+test("accepted same-revision hydration produces an observable server ack", () => {
+  const portalId = "same-revision-hydration-ack-test";
+  const store = usePortalEditorStore.getState();
+
+  store.hydrateDocument(portalId, portalDocument("server R2"), 2);
+  const firstGeneration =
+    usePortalEditorStore.getState().serverHydrationGenerationByPortalId[
+      portalId
+    ];
+  store.hydrateDocument(portalId, portalDocument("server R2"), 2);
+
+  expect(
+    usePortalEditorStore.getState().serverHydrationGenerationByPortalId[
+      portalId
+    ],
+  ).toBe((firstGeneration ?? 0) + 1);
+});
+
 test("hydrates nested assets in their persisted position order", () => {
   const portalId = "ordered-hydration-test";
   const store = usePortalEditorStore.getState();
@@ -81,11 +179,38 @@ test("hydrates nested assets in their persisted position order", () => {
   ).toEqual(["image-1", "image-2"]);
 });
 
-test("initial unpublished state does not reset an existing local dirty flag", () => {
+test("initial unpublished state does not reset a local change still being saved", () => {
   const portalId = "dirty-test";
   const store = usePortalEditorStore.getState();
   store.setHasUnpublishedChanges(portalId, true);
+  store.setAutosaveState(portalId, { error: null, status: "saving" });
   store.initializeHasUnpublishedChanges(portalId, false);
+  expect(
+    usePortalEditorStore.getState().hasUnpublishedChangesByPortalId[portalId],
+  ).toBe(true);
+});
+
+test("an accepted settled hydration applies its authoritative publication state", () => {
+  const portalId = "publication-remount-test";
+  const store = usePortalEditorStore.getState();
+
+  store.setHasUnpublishedChanges(portalId, true);
+  store.setAutosaveState(portalId, { error: null, status: "saved" });
+  store.hydrateDocument(portalId, portalDocument("authoritative"), 1, false);
+
+  expect(
+    usePortalEditorStore.getState().hasUnpublishedChangesByPortalId[portalId],
+  ).toBe(false);
+});
+
+test("server publication state cannot clear a change that is still saving", () => {
+  const portalId = "publication-saving-test";
+  const store = usePortalEditorStore.getState();
+
+  store.setHasUnpublishedChanges(portalId, true);
+  store.setAutosaveState(portalId, { error: null, status: "saving" });
+  store.initializeHasUnpublishedChanges(portalId, false);
+
   expect(
     usePortalEditorStore.getState().hasUnpublishedChangesByPortalId[portalId],
   ).toBe(true);

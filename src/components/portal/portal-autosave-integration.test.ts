@@ -34,3 +34,11 @@ test("the existing unpublished indicator owns autosave feedback without a badge"
     "if (!hasPredecessor) resetAutosaveState(editorPortalId)",
   );
 });
+
+test("the autosave generation is acquired before server hydration evaluates stale status", () => {
+  const acquireIndex = rendererSource.indexOf("ensurePortalAutosave(");
+  const hydrateIndex = rendererSource.indexOf("hydrateDocument(");
+
+  expect(acquireIndex).toBeGreaterThan(-1);
+  expect(hydrateIndex).toBeGreaterThan(acquireIndex);
+});

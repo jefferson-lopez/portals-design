@@ -2,9 +2,11 @@ import type { AutosaveHandoff } from "@/lib/portal/autosave-queue";
 
 type PortalAutosaveHandle<T> = {
   acceptHandoff?: (handoff: AutosaveHandoff<T>) => void;
+  acknowledgeNonRetryableError?: () => boolean;
   completePredecessor?: (handoff?: AutosaveHandoff<T>) => void;
   dispose?: () => Promise<AutosaveHandoff<T> | undefined>;
   flush: () => Promise<void>;
+  retryRecovery?: () => T | false;
   schedule: (value: T) => void;
 };
 
@@ -23,6 +25,7 @@ function serializeBehind<T>(
   predecessor: Promise<AutosaveHandoff<unknown> | undefined>,
 ): PortalAutosaveHandle<T> {
   let active = false;
+  let acknowledgeRequested = false;
   let hasStagedValue = false;
   let stagedValue: T | undefined;
   const ready = predecessor.then((handoff) => {
@@ -31,7 +34,11 @@ function serializeBehind<T>(
       hasStagedValue = false;
       const value = stagedValue as T;
       stagedValue = undefined;
-      handle.schedule(value);
+      if (handoff?.nonRetryable && handle.acceptHandoff) {
+        handle.acceptHandoff({ ...handoff, value } as AutosaveHandoff<T>);
+      } else {
+        handle.schedule(value);
+      }
     } else {
       const typedHandoff = handoff as AutosaveHandoff<T> | undefined;
       if (handle.completePredecessor) {
@@ -41,9 +48,20 @@ function serializeBehind<T>(
         else handle.schedule(typedHandoff.value);
       }
     }
+    if (acknowledgeRequested) {
+      acknowledgeRequested = false;
+      handle.acknowledgeNonRetryableError?.();
+    }
   });
 
   return {
+    acknowledgeNonRetryableError: () => {
+      if (!active) {
+        acknowledgeRequested = true;
+        return true;
+      }
+      return handle.acknowledgeNonRetryableError?.() ?? false;
+    },
     dispose: async () => {
       await ready;
       return await handle.dispose?.();
@@ -52,6 +70,7 @@ function serializeBehind<T>(
       await ready;
       await handle.flush();
     },
+    retryRecovery: () => handle.retryRecovery?.() ?? false,
     schedule: (value) => {
       if (active) {
         handle.schedule(value);
@@ -139,4 +158,16 @@ export async function flushPortalAutosave(portalId: string) {
     throw new Error("Portal autosave is not ready");
   }
   await record.handle.flush();
+}
+
+export function acknowledgePortalAutosaveConflict(portalId: string) {
+  const record = records.get(portalId);
+  if (!record || record.state !== "active") return false;
+  return record.handle.acknowledgeNonRetryableError?.() ?? false;
+}
+
+export function retryPortalAutosaveConflict<T>(portalId: string) {
+  const record = records.get(portalId);
+  if (!record || record.state !== "active") return false;
+  return (record.handle.retryRecovery?.() as T | false | undefined) ?? false;
 }

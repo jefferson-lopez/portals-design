@@ -18,18 +18,26 @@ export type PortalEditorState = {
   autosaveByPortalId: Record<string, PortalAutosaveState>;
   documentRevisionByPortalId: Record<string, number>;
   documentsByPortalId: Record<string, PortalDocument>;
+  documentServerRevisionByPortalId: Record<string, number>;
   hasUnpublishedChangesByPortalId: Record<string, boolean>;
   lastPublishedPortalId: string | null;
   publishError: string | null;
   publishingPortalId: string | null;
   publicationIssuesByPortalId: Record<string, PortalPublicationIssue[]>;
   publicationPopoverOpenByPortalId: Record<string, boolean>;
-  hydrateDocument: (portalId: string, document: PortalDocument) => void;
+  serverHydrationGenerationByPortalId: Record<string, number>;
+  hydrateDocument: (
+    portalId: string,
+    document: PortalDocument,
+    serverRevision?: number | null,
+    hasUnpublishedChanges?: boolean,
+  ) => void;
   initializeHasUnpublishedChanges: (
     portalId: string,
     hasChanges: boolean,
   ) => void;
   markPublishedIfRevision: (portalId: string, revision: number) => boolean;
+  markDocumentPersisted: (portalId: string, serverRevision: number) => void;
   resetAutosaveState: (portalId: string) => void;
   setAutosaveState: (portalId: string, state: PortalAutosaveState) => void;
   setHasUnpublishedChanges: (portalId: string, hasChanges: boolean) => void;
@@ -51,17 +59,30 @@ export const usePortalEditorStore = create<PortalEditorState>((set) => ({
   autosaveByPortalId: {},
   documentRevisionByPortalId: {},
   documentsByPortalId: {},
+  documentServerRevisionByPortalId: {},
   hasUnpublishedChangesByPortalId: {},
   lastPublishedPortalId: null,
   publishError: null,
   publishingPortalId: null,
   publicationIssuesByPortalId: {},
   publicationPopoverOpenByPortalId: {},
-  hydrateDocument: (portalId, document) =>
+  serverHydrationGenerationByPortalId: {},
+  hydrateDocument: (
+    portalId,
+    document,
+    serverRevision,
+    hasUnpublishedChanges,
+  ) =>
     set((state) => {
+      const autosaveStatus = state.autosaveByPortalId[portalId]?.status;
+      const currentServerRevision =
+        state.documentServerRevisionByPortalId[portalId];
       if (
-        state.hasUnpublishedChangesByPortalId[portalId] &&
-        state.documentsByPortalId[portalId]
+        state.documentsByPortalId[portalId] &&
+        (autosaveStatus === "saving" ||
+          autosaveStatus === "error" ||
+          (currentServerRevision !== undefined &&
+            (serverRevision == null || serverRevision < currentServerRevision)))
       ) {
         return state;
       }
@@ -73,6 +94,38 @@ export const usePortalEditorStore = create<PortalEditorState>((set) => ({
         documentsByPortalId: {
           ...state.documentsByPortalId,
           [portalId]: orderDocumentItemsForRender(document),
+        },
+        documentServerRevisionByPortalId:
+          serverRevision !== undefined && serverRevision !== null
+            ? {
+                ...state.documentServerRevisionByPortalId,
+                [portalId]: serverRevision,
+              }
+            : state.documentServerRevisionByPortalId,
+        hasUnpublishedChangesByPortalId:
+          hasUnpublishedChanges === undefined
+            ? state.hasUnpublishedChangesByPortalId
+            : {
+                ...state.hasUnpublishedChangesByPortalId,
+                [portalId]: hasUnpublishedChanges,
+              },
+        serverHydrationGenerationByPortalId: {
+          ...state.serverHydrationGenerationByPortalId,
+          [portalId]:
+            (state.serverHydrationGenerationByPortalId[portalId] ?? 0) + 1,
+        },
+      };
+    }),
+  markDocumentPersisted: (portalId, serverRevision) =>
+    set((state) => {
+      const current = state.documentServerRevisionByPortalId[portalId];
+      if (current !== undefined && current >= serverRevision) {
+        return state;
+      }
+      return {
+        documentServerRevisionByPortalId: {
+          ...state.documentServerRevisionByPortalId,
+          [portalId]: serverRevision,
         },
       };
     }),
@@ -94,7 +147,9 @@ export const usePortalEditorStore = create<PortalEditorState>((set) => ({
   },
   initializeHasUnpublishedChanges: (portalId, hasChanges) =>
     set((state) => {
-      if (portalId in state.hasUnpublishedChangesByPortalId) return state;
+      if (portalId in state.hasUnpublishedChangesByPortalId) {
+        return state;
+      }
       return {
         hasUnpublishedChangesByPortalId: {
           ...state.hasUnpublishedChangesByPortalId,

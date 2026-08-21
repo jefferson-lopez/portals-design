@@ -13,6 +13,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { usePathname, useRouter } from "@/i18n/navigation";
+import {
+  canRefreshCompletedDocumentJob,
+  hasAuthoritativeDocumentAck,
+  type PendingDocumentJobRefresh,
+} from "@/lib/portal/ai-job-reconciliation";
 import type {
   AiWorkflowProgress,
   AiWorkflowProgressDetail,
@@ -57,9 +62,11 @@ export function AiWorkflowReconciler() {
   const [cancelling, setCancelling] = useState(false);
   const previousStatusesRef = useRef(new Map<string, Job["status"]>());
   const appliedDocumentJobByPortalRef = useRef(new Map<string, string>());
+  const pendingDocumentJobRefreshByPortalRef = useRef(
+    new Map<string, PendingDocumentJobRefresh>(),
+  );
   const upsertJob = useAiWorkflowStore((state) => state.upsertJob);
   const removeJob = useAiWorkflowStore((state) => state.removeJob);
-  const updateDocument = usePortalEditorStore((state) => state.updateDocument);
   pathnameRef.current = pathname;
   routerRef.current = router;
   tRef.current = t;
@@ -68,6 +75,8 @@ export function AiWorkflowReconciler() {
     let disposed = false;
     const previousStatuses = previousStatusesRef.current;
     const appliedDocumentJobByPortal = appliedDocumentJobByPortalRef.current;
+    const pendingDocumentJobRefreshByPortal =
+      pendingDocumentJobRefreshByPortalRef.current;
     const currentPortalId = () =>
       pathnameRef.current.match(/\/create\/([^/]+)/)?.[1] ?? null;
     const translate = (...args: Parameters<typeof t>) => tRef.current(...args);
@@ -244,15 +253,46 @@ export function AiWorkflowReconciler() {
             isLatestDocumentJob &&
             appliedDocumentJobByPortal.get(job.portal_id) !== job.id
           ) {
-            appliedDocumentJobByPortal.set(job.portal_id, job.id);
             if (activePortalId === job.portal_id) {
-              const completedDocument = job.result.document;
-              const updated = updateDocument(
+              const editorState = usePortalEditorStore.getState();
+              const autosave = editorState.autosaveByPortalId[job.portal_id];
+              if (!canRefreshCompletedDocumentJob(autosave)) {
+                continue;
+              }
+              const pending = pendingDocumentJobRefreshByPortal.get(
                 job.portal_id,
-                () => completedDocument as PortalDocument,
               );
-              if (!updated) routerRef.current.refresh();
+              const currentHydrationGeneration =
+                editorState.serverHydrationGenerationByPortalId[job.portal_id];
+              const currentRevision =
+                editorState.documentServerRevisionByPortalId[job.portal_id];
+              if (
+                pending?.jobId === job.id &&
+                hasAuthoritativeDocumentAck(
+                  pending,
+                  currentHydrationGeneration,
+                  currentRevision,
+                )
+              ) {
+                pendingDocumentJobRefreshByPortal.delete(job.portal_id);
+                appliedDocumentJobByPortal.set(job.portal_id, job.id);
+                removeJob(job.id);
+                continue;
+              }
+              // AI apply RPCs persist before the job is completed. Refresh the
+              // authoritative draft instead of replaying an old job result
+              // into Zustand on every page load.
+              if (pending?.jobId !== job.id) {
+                pendingDocumentJobRefreshByPortal.set(job.portal_id, {
+                  baselineHydrationGeneration: currentHydrationGeneration,
+                  baselineRevision: currentRevision,
+                  jobId: job.id,
+                });
+              }
+              routerRef.current.refresh();
+              continue;
             }
+            continue;
           }
           removeJob(job.id);
         }
@@ -269,6 +309,23 @@ export function AiWorkflowReconciler() {
       if (jobId) setCancelJobId(jobId);
     };
     window.addEventListener("portal-ai-workflow-cancel", cancelFromSidebar);
+    const unsubscribeEditor = usePortalEditorStore.subscribe(
+      (state, previous) => {
+        const activePortalId = currentPortalId();
+        if (!activePortalId) return;
+        const autosave = state.autosaveByPortalId[activePortalId];
+        const previousAutosave = previous.autosaveByPortalId[activePortalId];
+        const wasBlocked =
+          previousAutosave?.status === "saving" ||
+          previousAutosave?.status === "error";
+        const isSettled = canRefreshCompletedDocumentJob(autosave);
+        const hydrationAcknowledged =
+          state.serverHydrationGenerationByPortalId[activePortalId] !==
+          previous.serverHydrationGenerationByPortalId[activePortalId];
+        if ((wasBlocked && isSettled) || hydrationAcknowledged)
+          void reconcile();
+      },
+    );
     const supabase = createClient();
     let channel: ReturnType<typeof supabase.channel> | null = null;
     const setupRealtime = async () => {
@@ -301,9 +358,10 @@ export function AiWorkflowReconciler() {
         "portal-ai-workflow-cancel",
         cancelFromSidebar,
       );
+      unsubscribeEditor();
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [removeJob, updateDocument, upsertJob]);
+  }, [removeJob, upsertJob]);
 
   useEffect(() => {
     const currentPortalId = pathname.match(/\/create\/([^/]+)/)?.[1] ?? null;

@@ -82,7 +82,14 @@ export type RenderPortalProps = {
   contentClassName?: string;
   document: PortalDocument;
   editable?: boolean;
-  editor?: { focus?: string; locale: string; portalId: string; slug?: string };
+  editor?: {
+    documentRevision?: number | null;
+    focus?: string;
+    hasUnpublishedChanges?: boolean;
+    locale: string;
+    portalId: string;
+    slug?: string;
+  };
   sidebar?: ReactNode;
   visibility?: PortalRenderVisibility;
 };

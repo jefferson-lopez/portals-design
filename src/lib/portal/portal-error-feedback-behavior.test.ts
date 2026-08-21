@@ -18,6 +18,9 @@ const {
 const { PortalPublishFailure, publishPortalAfterAutosave } = await import(
   "./publish-flow"
 );
+const { AutosaveQueue } = await import("./autosave-queue");
+const { PortalDocumentConflictError, persistPortalDocumentAtLatestRevision } =
+  await import("./revisioned-autosave");
 
 beforeEach(() => {
   toastDismiss.mockClear();
@@ -61,6 +64,43 @@ describe("portal error toasts", () => {
 });
 
 describe("publication stages", () => {
+  test("does not publish or report success when autosave discovers a remote conflict", async () => {
+    const publish = mock(async () => 42);
+    const showSuccess = mock(() => {});
+    const queue = new AutosaveQueue<string>({
+      delay: 10_000,
+      save: async (document) => {
+        await persistPortalDocumentAtLatestRevision({
+          acknowledge: () => {},
+          document,
+          getExpectedRevision: () => 1,
+          persist: async () => ({ kind: "conflict" as const }),
+          reconcileConflict: () => {},
+        });
+      },
+      shouldRetry: (error) => !(error instanceof PortalDocumentConflictError),
+    });
+    queue.schedule("local D2");
+
+    await expect(
+      publishPortalAfterAutosave(
+        () => queue.flush(),
+        async () => {
+          const result = await publish();
+          showSuccess();
+          return result;
+        },
+      ),
+    ).rejects.toMatchObject({ stage: "autosave" });
+
+    expect(publish).not.toHaveBeenCalled();
+    expect(showSuccess).not.toHaveBeenCalled();
+    await expect(
+      publishPortalAfterAutosave(() => queue.flush(), publish),
+    ).rejects.toMatchObject({ stage: "autosave" });
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   test("does not run publication when autosave flush fails", async () => {
     const autosaveError = new Error("autosave_failed");
     const publish = mock(async () => 42);

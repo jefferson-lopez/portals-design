@@ -1,11 +1,16 @@
-export type AutosaveStatus = "idle" | "saving" | "saved" | "error";
-export type AutosaveHandoff<T> = { error: unknown; value: T };
+export type AutosaveStatus = "idle" | "saving" | "saved" | "error" | "conflict";
+export type AutosaveHandoff<T> = {
+  error: unknown;
+  nonRetryable?: boolean;
+  value: T;
+};
 
 type AutosaveQueueOptions<T> = {
   delay: number;
   maxFlushPasses?: number;
   onStatusChange?: (status: AutosaveStatus, error?: unknown) => void;
   save: (value: T) => Promise<void>;
+  shouldRetry?: (error: unknown) => boolean;
 };
 
 /**
@@ -17,11 +22,15 @@ export class AutosaveQueue<T> {
   readonly #maxFlushPasses: number;
   readonly #onStatusChange?: AutosaveQueueOptions<T>["onStatusChange"];
   readonly #save: AutosaveQueueOptions<T>["save"];
+  readonly #shouldRetry: NonNullable<AutosaveQueueOptions<T>["shouldRetry"]>;
   #disposed = false;
+  #conflictAcknowledged = false;
   #dueAt = 0;
   #inFlight: Promise<void> | null = null;
   #pending: T | undefined;
+  #recovery: T | undefined;
   #status: AutosaveStatus = "idle";
+  #terminalError: unknown;
   #timer: ReturnType<typeof setTimeout> | null = null;
 
   constructor({
@@ -29,11 +38,13 @@ export class AutosaveQueue<T> {
     maxFlushPasses = 50,
     onStatusChange,
     save,
+    shouldRetry = () => true,
   }: AutosaveQueueOptions<T>) {
     this.#delay = delay;
     this.#maxFlushPasses = maxFlushPasses;
     this.#onStatusChange = onStatusChange;
     this.#save = save;
+    this.#shouldRetry = shouldRetry;
   }
 
   get status() {
@@ -42,14 +53,29 @@ export class AutosaveQueue<T> {
 
   schedule(value: T) {
     if (this.#disposed) return;
+    if (this.#terminalError !== undefined) {
+      this.#recovery = value;
+      return;
+    }
     this.#pending = value;
     this.#dueAt = Date.now() + this.#delay;
     this.#setStatus("saving");
     this.#arm(this.#delay);
   }
 
-  acceptHandoff({ error, value }: AutosaveHandoff<T>) {
-    if (this.#disposed || this.#pending !== undefined) return;
+  acceptHandoff({ error, nonRetryable, value }: AutosaveHandoff<T>) {
+    if (
+      this.#disposed ||
+      this.#terminalError !== undefined ||
+      this.#pending !== undefined
+    )
+      return;
+    if (nonRetryable) {
+      this.#recovery = value;
+      this.#terminalError = error;
+      this.#setStatus("conflict");
+      return;
+    }
     this.#pending = value;
     this.#setStatus("error", error);
   }
@@ -66,6 +92,7 @@ export class AutosaveQueue<T> {
 
   async flush() {
     if (this.#disposed) return;
+    if (this.#terminalError !== undefined) throw this.#terminalError;
     let passes = 0;
     while (!this.#disposed) {
       this.#clearTimer();
@@ -79,7 +106,30 @@ export class AutosaveQueue<T> {
       const operation = this.#inFlight ?? this.#drain();
       passes += 1;
       await operation;
+      if (this.#terminalError !== undefined) throw this.#terminalError;
     }
+  }
+
+  acknowledgeNonRetryableError() {
+    if (this.#terminalError === undefined) return false;
+    this.#conflictAcknowledged = true;
+    return true;
+  }
+
+  retryRecovery() {
+    if (
+      this.#terminalError === undefined ||
+      !this.#conflictAcknowledged ||
+      this.#recovery === undefined
+    ) {
+      return false;
+    }
+    const recovery = this.#recovery;
+    this.#recovery = undefined;
+    this.#terminalError = undefined;
+    this.#conflictAcknowledged = false;
+    this.schedule(recovery);
+    return recovery;
   }
 
   async dispose(): Promise<AutosaveHandoff<T> | undefined> {
@@ -99,6 +149,18 @@ export class AutosaveQueue<T> {
       } catch (error) {
         finalError = error;
       }
+    }
+    if (this.#recovery !== undefined) {
+      const value = this.#recovery;
+      this.#recovery = undefined;
+      return {
+        error:
+          this.#terminalError ??
+          finalError ??
+          new Error("Autosave conflict requires reconciliation"),
+        nonRetryable: true,
+        value,
+      };
     }
     if (this.#pending === undefined) return;
     const value = this.#pending;
@@ -141,11 +203,21 @@ export class AutosaveQueue<T> {
         await this.#save(value);
         this.#setStatus(this.#pending === undefined ? "saved" : "saving");
       } catch (error) {
-        if (this.#pending === undefined) {
+        const retryable = this.#shouldRetry(error);
+        if (!retryable) {
+          this.#recovery = this.#pending ?? value;
+          this.#pending = undefined;
+          this.#terminalError = error;
+          this.#conflictAcknowledged = false;
+        }
+        if (retryable && this.#pending === undefined) {
           this.#pending = value;
           restoredFailedSnapshot = true;
         }
-        this.#setStatus("error", error);
+        this.#setStatus(
+          retryable ? "error" : "conflict",
+          retryable ? error : undefined,
+        );
         throw error;
       } finally {
         this.#inFlight = null;

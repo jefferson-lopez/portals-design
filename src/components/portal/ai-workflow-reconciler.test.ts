@@ -17,12 +17,13 @@ const sidebarSource = await Bun.file(
 ).text();
 
 describe("AiWorkflowReconciler", () => {
-  test("persists completed document jobs across router refreshes", () => {
+  test("refreshes the persisted server document instead of replaying completed jobs locally", () => {
     expect(source).toContain("useRef");
     expect(source).toContain("appliedDocumentJobByPortalRef");
     expect(source).toContain("previousStatusesRef");
-    expect(source).toContain("updateDocument(");
-    expect(source).toContain("job.result.document");
+    expect(source).not.toContain("updateDocument(");
+    expect(source).toContain("routerRef.current.refresh()");
+    expect(source).toContain("job.result?.document");
     expect(source).toContain("aiCreatingProjectTitle");
     expect(source).toContain("aiImproveWithAiTitle");
     expect(source).toContain("aiAddWithAiTitle");
@@ -35,6 +36,8 @@ describe("AiWorkflowReconciler", () => {
     expect(source).not.toContain(
       'const previousStatuses = new Map<string, Job["status"]>();',
     );
+    expect(source).toContain("canRefreshCompletedDocumentJob(autosave)");
+    expect(source).toContain("usePortalEditorStore.subscribe");
   });
 
   test("uses Supabase Realtime without periodic polling", () => {

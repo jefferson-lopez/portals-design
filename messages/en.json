@@ -598,6 +598,9 @@
       "saving": "Saving changes…",
       "error": "Changes could not be saved",
       "errorDescription": "Your latest changes are still available. Retry saving before publishing.",
+      "conflict": "This portal changed elsewhere",
+      "conflictDescription": "Your latest local edit is preserved. Load the saved version, then retry only if you want to apply your edit over it.",
+      "conflictRetry": "Retry latest edit",
       "retry": "Retry saving"
     },
     "upload": {

@@ -114,6 +114,44 @@ describe("AutosaveQueue", () => {
     expect(queue.status).toBe("saved");
   });
 
+  test("a conflict preserves the newest blocked successor for explicit recovery", async () => {
+    class Conflict extends Error {}
+    let attempts = 0;
+    let releaseFirst!: () => void;
+    const saved: string[] = [];
+    const queue = new AutosaveQueue<string>({
+      delay: 10_000,
+      save: async (value) => {
+        attempts += 1;
+        if (attempts === 1) {
+          await new Promise<void>((resolve) => {
+            releaseFirst = resolve;
+          });
+          throw new Conflict("remote document won");
+        }
+        saved.push(value);
+      },
+      shouldRetry: (error) => !(error instanceof Conflict),
+    });
+
+    queue.schedule("stale D2");
+    const firstFlush = queue.flush();
+    await Promise.resolve();
+    queue.schedule("newest D3");
+    releaseFirst();
+    await expect(firstFlush).rejects.toBeInstanceOf(Conflict);
+    await expect(queue.flush()).rejects.toBeInstanceOf(Conflict);
+
+    expect(attempts).toBe(1);
+    expect(queue.status).toBe("conflict");
+
+    queue.acknowledgeNonRetryableError();
+    expect(queue.retryRecovery()).toBe("newest D3");
+    await queue.flush();
+    expect(saved).toEqual(["newest D3"]);
+    expect(queue.status).toBe("saved");
+  });
+
   test("dispose flushes pending work without notifying an unmounted consumer", async () => {
     const statuses: AutosaveStatus[] = [];
     const saved: string[] = [];
@@ -192,5 +230,25 @@ describe("AutosaveQueue", () => {
 
     expect(handoff?.value).toBe("latest");
     expect(handoff?.error).toBeInstanceOf(Error);
+  });
+
+  test("dispose hands off an explicitly blocked conflict recovery draft", async () => {
+    class Conflict extends Error {}
+    const queue = new AutosaveQueue<string>({
+      delay: 10_000,
+      save: async () => {
+        throw new Conflict("remote won");
+      },
+      shouldRetry: (error) => !(error instanceof Conflict),
+    });
+    queue.schedule("recovery D3");
+    await expect(queue.flush()).rejects.toBeInstanceOf(Conflict);
+
+    const handoff = await queue.dispose();
+
+    expect(handoff).toMatchObject({
+      nonRetryable: true,
+      value: "recovery D3",
+    });
   });
 });

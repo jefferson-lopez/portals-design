@@ -1,8 +1,10 @@
 import { expect, test } from "bun:test";
 import {
+  acknowledgePortalAutosaveConflict,
   ensurePortalAutosave,
   flushPortalAutosave,
   releasePortalAutosave,
+  retryPortalAutosaveConflict,
   schedulePortalAutosave,
 } from "./autosave-coordinator";
 import { AutosaveQueue } from "./autosave-queue";
@@ -236,4 +238,37 @@ test("retains a failed handoff when remount happens after disposal completed", a
 
   expect(persisted).toEqual(["latest"]);
   releasePortalAutosave("completed-handoff-test");
+});
+
+test("stages an authoritative ack that arrives before a conflict handoff", async () => {
+  const oldHandle = {
+    dispose: async () => ({
+      error: new Error("remote won"),
+      nonRetryable: true as const,
+      value: "recovery D3",
+    }),
+    flush: async () => {},
+    schedule: (_value: string) => {},
+  };
+  const successor = new AutosaveQueue<string>({
+    delay: 10_000,
+    save: async () => {},
+  });
+
+  ensurePortalAutosave("early-conflict-ack-test", () => oldHandle);
+  releasePortalAutosave("early-conflict-ack-test");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  ensurePortalAutosave("early-conflict-ack-test", () => successor);
+
+  expect(acknowledgePortalAutosaveConflict("early-conflict-ack-test")).toBe(
+    true,
+  );
+  await Promise.resolve();
+  await Promise.resolve();
+
+  expect(successor.status).toBe("conflict");
+  expect(retryPortalAutosaveConflict<string>("early-conflict-ack-test")).toBe(
+    "recovery D3",
+  );
+  releasePortalAutosave("early-conflict-ack-test");
 });

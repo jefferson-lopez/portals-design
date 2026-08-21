@@ -563,6 +563,7 @@ export type Database = {
           document: Json;
           id: string;
           portal_id: string;
+          revision: number;
           updated_at: string;
         };
         Insert: {
@@ -570,6 +571,7 @@ export type Database = {
           document?: Json;
           id?: string;
           portal_id: string;
+          revision?: number;
           updated_at?: string;
         };
         Update: {
@@ -577,6 +579,7 @@ export type Database = {
           document?: Json;
           id?: string;
           portal_id?: string;
+          revision?: number;
           updated_at?: string;
         };
         Relationships: [

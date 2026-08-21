@@ -9,6 +9,9 @@ const pageSource = await Bun.file(
     import.meta.url,
   ),
 ).text();
+const renderSource = await Bun.file(
+  new URL("./render-portal/render-portal.tsx", import.meta.url),
+).text();
 
 test("preserves locale and portal intent when opening Connect from create", () => {
   expect(source).toContain("function ConnectStripeButton({");
@@ -27,10 +30,29 @@ test("renders a small centered loader inside each pending asset", () => {
   expect(pageSource).not.toContain("PortalUploadLoadingOverlay");
 });
 
-test("places the gallery add tile after positioned images", () => {
-  expect(source).toContain("const addTileOrder =");
-  expect(source).toContain("order={addTileOrder}");
-  expect(source).toContain(
-    "style={order === undefined ? undefined : { order }}",
+test("renders the canonical gallery array order without a second CSS order", () => {
+  expect(source).not.toContain("style={{ order: image.position }}");
+  expect(source).not.toContain("const addTileOrder =");
+  expect(source).not.toContain("order={addTileOrder}");
+  expect(source).not.toContain("{ order }");
+});
+
+test("flushes discrete section configuration changes after scheduling them", () => {
+  const updateSectionStart = renderSource.indexOf(
+    "function updateEditableSection(nextSection: PortalSection)",
   );
+  const updateSectionEnd = renderSource.indexOf(
+    "function updateEditableSectionHeading(",
+    updateSectionStart,
+  );
+  const updateSectionSource = renderSource.slice(
+    updateSectionStart,
+    updateSectionEnd,
+  );
+
+  expect(updateSectionSource).toContain("flush: true");
+  expect(renderSource).toContain(
+    "schedulePortalAutosave(editor.portalId, next)",
+  );
+  expect(renderSource).toContain("flushPortalAutosave(editor.portalId)");
 });
