@@ -26,3 +26,11 @@ test("renders a small centered loader inside each pending asset", () => {
   expect(source).not.toContain('from "react-dom"');
   expect(pageSource).not.toContain("PortalUploadLoadingOverlay");
 });
+
+test("places the gallery add tile after positioned images", () => {
+  expect(source).toContain("const addTileOrder =");
+  expect(source).toContain("order={addTileOrder}");
+  expect(source).toContain(
+    "style={order === undefined ? undefined : { order }}",
+  );
+});

@@ -1055,6 +1055,7 @@ function AddImageTile({
   category = "image",
   maxFiles,
   onAdd,
+  order,
   ownerKey,
   portalId,
 }: {
@@ -1063,6 +1064,7 @@ function AddImageTile({
   label?: string;
   maxFiles?: number;
   onAdd: (image: PortalImageItem) => void;
+  order?: number;
   ownerKey: string;
   portalId: string;
 }) {
@@ -1186,6 +1188,7 @@ function AddImageTile({
             ratioClass,
           )}
           onClick={() => inputRef.current?.click()}
+          style={order === undefined ? undefined : { order }}
           type="button"
         >
           <IconPlus />
@@ -1871,6 +1874,11 @@ function GalleryEditor({
     ? images[0]?.aspect_ratio
     : null;
   const addImageAspectRatio = sharedAspectRatio ?? "auto";
+  const addTileOrder =
+    images.reduce(
+      (maxPosition, image) => Math.max(maxPosition, image.position),
+      -1,
+    ) + 1;
   const imageLimitReached =
     status === "ready" &&
     Number.isFinite(maxImages) &&
@@ -1925,6 +1933,7 @@ function GalleryEditor({
               maxFiles={maxImages - images.length}
               ownerKey={section.id}
               portalId={portalId}
+              order={addTileOrder}
               onAdd={(image) => {
                 const nextImages = [
                   ...imagesRef.current,
