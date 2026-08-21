@@ -1,0 +1,64 @@
+diff --git a/index.cjs b/index.cjs
+index 6e9a135cb4befd50ca834d40c1af90bd13a8c94f..2e5f56c645a1859537166f2f5608dd33cd60cfdf 100644
+--- a/index.cjs
++++ b/index.cjs
+@@ -189,13 +189,21 @@ function DragDropProvider(_a2) {
+ }
+ function useStableInstance(create) {
+   const ref = react.useRef(null);
++  const destroyTimer = react.useRef(null);
+   if (!ref.current) {
+     ref.current = create();
+   }
+-  react.useInsertionEffect(() => {
++  react.useEffect(() => {
++    if (destroyTimer.current) {
++      clearTimeout(destroyTimer.current);
++      destroyTimer.current = null;
++    }
+     return () => {
+-      var _a2;
+-      return (_a2 = ref.current) == null ? void 0 : _a2.destroy();
++      destroyTimer.current = setTimeout(() => {
++        var _a2;
++        (_a2 = ref.current) == null ? void 0 : _a2.destroy();
++        destroyTimer.current = null;
++      }, 0);
+     };
+   }, []);
+   return ref.current;
+diff --git a/index.js b/index.js
+index 9eca374aed9eb50fc08b92d72aba7d7092463faf..cec603474a63875ffe468af1c6d3e90814efe163 100644
+--- a/index.js
++++ b/index.js
+@@ -1,4 +1,4 @@
+-import { createContext, memo, forwardRef, useState, useRef, useMemo, startTransition, useImperativeHandle, useEffect, useInsertionEffect, useContext, useCallback, createElement } from 'react';
++import { createContext, memo, forwardRef, useState, useRef, useMemo, startTransition, useImperativeHandle, useEffect, useContext, useCallback, createElement } from 'react';
+ import { DragDropManager, resolveCustomizable, defaultPreset, Draggable, Feedback, Droppable } from '@dnd-kit/dom';
+ export { KeyboardSensor, PointerSensor } from '@dnd-kit/dom';
+ import { useIsomorphicLayoutEffect, useLatest, useOnValueChange, useDeepSignal, useOnElementChange, useComputed } from '@dnd-kit/react/hooks';
+@@ -188,13 +188,21 @@ function DragDropProvider(_a2) {
+ }
+ function useStableInstance(create) {
+   const ref = useRef(null);
++  const destroyTimer = useRef(null);
+   if (!ref.current) {
+     ref.current = create();
+   }
+-  useInsertionEffect(() => {
++  useEffect(() => {
++    if (destroyTimer.current) {
++      clearTimeout(destroyTimer.current);
++      destroyTimer.current = null;
++    }
+     return () => {
+-      var _a2;
+-      return (_a2 = ref.current) == null ? void 0 : _a2.destroy();
++      destroyTimer.current = setTimeout(() => {
++        var _a2;
++        (_a2 = ref.current) == null ? void 0 : _a2.destroy();
++        destroyTimer.current = null;
++      }, 0);
+     };
+   }, []);
+   return ref.current;

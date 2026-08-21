@@ -1,5 +1,7 @@
 "use client";
 
+import { isSortableOperation } from "@dnd-kit/dom/sortable";
+import { DragDropProvider, type DragEndEvent } from "@dnd-kit/react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { type ReactNode, useCallback, useEffect, useRef } from "react";
@@ -32,6 +34,7 @@ import { AutosaveQueue } from "@/lib/portal/autosave-queue";
 import {
   createPortalSection,
   hasPublicSectionContent,
+  moveImageBetweenPortalSections,
   orderDocumentItemsForRender,
   type PortalDocument,
   type PortalSection,
@@ -696,6 +699,64 @@ export function RenderPortal({
     );
   }
 
+  function moveEditableImage(event: DragEndEvent) {
+    if (!isSortableOperation(event.operation)) return;
+    const { source, target } = event.operation;
+    if (
+      !editor ||
+      event.canceled ||
+      !target ||
+      !source ||
+      source.initialGroup == null ||
+      target.group == null ||
+      typeof target.index !== "number"
+    ) {
+      return;
+    }
+
+    const targetSectionId = String(target.group);
+    const targetSection = activeDocument.sections.find(
+      (section) => section.id === targetSectionId,
+    );
+    if (
+      !targetSection ||
+      (targetSection.type !== "gallery" &&
+        targetSection.type !== "image_comparison")
+    ) {
+      return;
+    }
+    const maxTargetImages =
+      targetSection.type === "image_comparison" ||
+      targetSection.layout.mode === "comparison"
+        ? 2
+        : portalPlan?.status === "ready"
+          ? (portalPlan.snapshot.policy.sections.gallery?.items ??
+            Number.POSITIVE_INFINITY)
+          : Number.POSITIVE_INFINITY;
+    const isCrossSectionMove = String(source.initialGroup) !== targetSectionId;
+    if (
+      isCrossSectionMove &&
+      (targetSection.content.images?.length ?? 0) >= maxTargetImages
+    ) {
+      if (targetSection.type === "gallery") {
+        portalPlan?.requestUpgrade("gallery_items");
+      }
+      return;
+    }
+
+    changeEditableDocument(
+      (current) =>
+        moveImageBetweenPortalSections(current, {
+          imageId: String(source.id),
+          maxTargetImages,
+          sourceSectionId: String(source.initialGroup),
+          targetIndex: target.index,
+          targetSectionId,
+        }),
+      { flush: true },
+    );
+  }
+
   function updateEditableSectionHeading(
     sectionId: string,
     patch: Partial<Pick<PortalSection, "description" | "title">>,
@@ -811,47 +872,49 @@ export function RenderPortal({
           editable={editable}
           onPortalChange={saveEditablePortal}
         />
-        <div className="flex flex-col gap-30 pt-10">
-          {visibleSections.map((section) => (
-            <section
-              className="group/section relative flex scroll-mt-8 flex-col gap-4 p-0"
-              id={section.id}
-              key={section.id}
-            >
-              <PortalSectionHeading
-                actions={compactActions(renderActions?.section?.(section))}
-                controls={
-                  editor ? (
-                    <SectionActionToolbar
-                      onRemove={() => removeEditableSection(section.id)}
-                      portalId={editor.portalId}
-                      section={section}
-                      updateSection={updateEditableSection}
-                    />
-                  ) : null
-                }
-                editable={editable}
-                onSectionTitleChange={(patch) =>
-                  updateEditableSectionHeading(section.id, patch)
-                }
-                section={section}
-              />
-              {editor ? (
-                <SectionContentEditor
-                  portalId={editor.portalId}
-                  portalSlug={editor.slug ?? ""}
-                  section={section}
-                  updateSection={updateEditableSection}
-                />
-              ) : (
-                <PortalSectionVisual
-                  actions={renderActions}
+        <DragDropProvider onDragEnd={moveEditableImage}>
+          <div className="flex flex-col gap-30 pt-10">
+            {visibleSections.map((section) => (
+              <section
+                className="group/section relative flex scroll-mt-8 flex-col gap-4 p-0"
+                id={section.id}
+                key={section.id}
+              >
+                <PortalSectionHeading
+                  actions={compactActions(renderActions?.section?.(section))}
+                  controls={
+                    editor ? (
+                      <SectionActionToolbar
+                        onRemove={() => removeEditableSection(section.id)}
+                        portalId={editor.portalId}
+                        section={section}
+                        updateSection={updateEditableSection}
+                      />
+                    ) : null
+                  }
+                  editable={editable}
+                  onSectionTitleChange={(patch) =>
+                    updateEditableSectionHeading(section.id, patch)
+                  }
                   section={section}
                 />
-              )}
-            </section>
-          ))}
-        </div>
+                {editor ? (
+                  <SectionContentEditor
+                    portalId={editor.portalId}
+                    portalSlug={editor.slug ?? ""}
+                    section={section}
+                    updateSection={updateEditableSection}
+                  />
+                ) : (
+                  <PortalSectionVisual
+                    actions={renderActions}
+                    section={section}
+                  />
+                )}
+              </section>
+            ))}
+          </div>
+        </DragDropProvider>
         {editor ? (
           <div className="mx-auto mt-10">
             <SectionTypeDialog

@@ -1,5 +1,6 @@
 "use client";
 
+import { OptimisticSortingPlugin } from "@dnd-kit/dom/sortable";
 import { move } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/react";
 import { useSortable } from "@dnd-kit/react/sortable";
@@ -132,6 +133,7 @@ import {
   schedulePortalAutosave,
 } from "@/lib/portal/autosave-coordinator";
 import {
+  applySectionImagePresentation,
   createImageItem,
   createPortalSection,
   defaultContentForType,
@@ -1410,7 +1412,7 @@ function AddImageTile({
       {availableSlots === 0 ? null : (
         <button
           className={cn(
-            "flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            "flex w-full cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
             ratioClass,
           )}
           onClick={() => inputRef.current?.click()}
@@ -1437,11 +1439,13 @@ function AddImageTile({
 function GalleryLayoutControls({
   images,
   onImagesChange,
+  portalId,
   section,
   updateSection,
 }: {
   images: PortalImageItem[];
   onImagesChange: (images: PortalImageItem[]) => void;
+  portalId: string;
   section: PortalSection;
   updateSection: (section: PortalSection) => void;
 }) {
@@ -1474,6 +1478,26 @@ function GalleryLayoutControls({
     section.layout.mode === "comparison" || section.type === "image_comparison"
       ? "comparison"
       : "grid";
+  function updateGlobalPresentation(presentation: {
+    background_color: string;
+    container_padding: number;
+  }) {
+    const nextImages = images.map((image) =>
+      markImageFieldManual(
+        markImageFieldManual({ ...image, ...presentation }, "background_color"),
+        "container_padding",
+      ),
+    );
+    updateSection({
+      ...section,
+      content: { ...section.content, images: reindexUnique(nextImages, "img") },
+      layout: {
+        ...section.layout,
+        imageBackgroundColor: presentation.background_color,
+        imageContainerPadding: presentation.container_padding,
+      },
+    });
+  }
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -1619,6 +1643,20 @@ function GalleryLayoutControls({
           </SelectContent>
         </Select>
       </Field>
+      <div className="contents sm:[&>*]:col-span-2">
+        <FileContainerPresentationControls
+          backgroundColor={section.layout.imageBackgroundColor}
+          containerPadding={section.layout.imageContainerPadding}
+          controlId={`${section.id}-global-image-presentation`}
+          labels={{
+            background: t("gallery.globalBackground"),
+            padding: t("gallery.globalPadding"),
+            transparent: t("image.transparentBackground"),
+          }}
+          onChange={updateGlobalPresentation}
+          portalId={portalId}
+        />
+      </div>
     </div>
   );
 }
@@ -1669,6 +1707,7 @@ function GallerySettingsPopover({
         <GalleryLayoutControls
           images={images}
           onImagesChange={saveImages}
+          portalId={portalId}
           section={section}
           updateSection={updateSection}
         />
@@ -1958,9 +1997,11 @@ function ImageEditor({
     );
   }
   return (
-    <ImageTile
+    <SortableGalleryItem
       captionEditable
       image={image}
+      index={0}
+      sectionId={section.id}
       onRemove={() => {
         updateSection({ ...section, content: { image: null } });
       }}
@@ -1981,6 +2022,7 @@ function SortableGalleryItem({
   onSave,
   portalId,
   portalSlug,
+  sectionId,
 }: {
   captionEditable?: boolean;
   image: PortalImageItem;
@@ -1989,11 +2031,14 @@ function SortableGalleryItem({
   onSave: (image: PortalImageItem) => void;
   portalId: string;
   portalSlug: string;
+  sectionId: string;
 }) {
   const { handleRef, isDragging, ref } = useSortable({
-    group: "gallery",
+    group: sectionId,
     id: image.id,
     index,
+    plugins: (defaults) =>
+      defaults.filter((plugin) => plugin !== OptimisticSortingPlugin),
   });
 
   return (
@@ -2008,6 +2053,37 @@ function SortableGalleryItem({
         portalId={portalId}
         portalSlug={portalSlug}
       />
+    </div>
+  );
+}
+
+function GalleryDropTarget({
+  children,
+  index,
+  sectionId,
+}: {
+  children: ReactNode;
+  index: number;
+  sectionId: string;
+}) {
+  const { isDropTarget, ref } = useSortable({
+    disabled: { draggable: true },
+    group: sectionId,
+    id: `gallery-drop-${sectionId}`,
+    index,
+    plugins: (defaults) =>
+      defaults.filter((plugin) => plugin !== OptimisticSortingPlugin),
+  });
+
+  return (
+    <div
+      className={cn(
+        "order-last grid w-full",
+        isDropTarget && "rounded-xl ring-2 ring-primary",
+      )}
+      ref={ref}
+    >
+      {children}
     </div>
   );
 }
@@ -2105,48 +2181,37 @@ function GalleryEditor({
     images.length >= maxImages;
   return (
     <div className="flex flex-col gap-4">
-      <DragDropProvider
-        onDragEnd={(event) => {
-          if (event.canceled || !event.operation.target) {
-            return;
-          }
-
-          const nextImages = move(images, event);
-
-          if (nextImages !== images) {
-            saveImages(nextImages);
-          }
-        }}
+      <div
+        className={cn(
+          "grid gap-4",
+          columns === 2 && "grid-cols-2",
+          columns === 3 && "grid-cols-2 lg:grid-cols-3",
+          columns === 4 && "grid-cols-3 lg:grid-cols-4",
+        )}
       >
-        <div
-          className={cn(
-            "grid gap-4",
-            columns === 2 && "grid-cols-2",
-            columns === 3 && "grid-cols-2 lg:grid-cols-3",
-            columns === 4 && "grid-cols-3 lg:grid-cols-4",
-          )}
-        >
-          {images.map((image, index) => (
-            <SortableGalleryItem
-              captionEditable={isComparison}
-              image={image}
-              index={index}
-              key={image.id}
-              portalId={portalId}
-              portalSlug={portalSlug}
-              onRemove={() => {
-                saveImages(images.filter((item) => item.id !== image.id));
-              }}
-              onSave={(nextImage) =>
-                saveImages(
-                  images.map((item) =>
-                    item.id === nextImage.id ? nextImage : item,
-                  ),
-                )
-              }
-            />
-          ))}
-          {images.length < maxImages ? (
+        {images.map((image, index) => (
+          <SortableGalleryItem
+            captionEditable={isComparison}
+            image={image}
+            index={index}
+            key={image.id}
+            portalId={portalId}
+            portalSlug={portalSlug}
+            sectionId={section.id}
+            onRemove={() => {
+              saveImages(images.filter((item) => item.id !== image.id));
+            }}
+            onSave={(nextImage) =>
+              saveImages(
+                images.map((item) =>
+                  item.id === nextImage.id ? nextImage : item,
+                ),
+              )
+            }
+          />
+        ))}
+        {images.length < maxImages ? (
+          <GalleryDropTarget index={images.length} sectionId={section.id}>
             <AddImageTile
               aspectRatio={addImageAspectRatio}
               category="gallery"
@@ -2156,28 +2221,31 @@ function GalleryEditor({
               onAdd={(image) => {
                 const nextImages = [
                   ...imagesRef.current,
-                  {
-                    ...image,
-                    aspect_ratio: addImageAspectRatio,
-                    position: imagesRef.current.length,
-                  },
+                  applySectionImagePresentation(
+                    {
+                      ...image,
+                      aspect_ratio: addImageAspectRatio,
+                      position: imagesRef.current.length,
+                    },
+                    sectionRef.current.layout,
+                  ),
                 ];
                 imagesRef.current = nextImages;
                 saveImages(nextImages);
               }}
             />
-          ) : imageLimitReached && !isComparison ? (
-            <button
-              aria-label={t("limitReached")}
-              className="flex aspect-square items-center justify-center rounded-xl border border-dashed text-muted-foreground"
-              onClick={() => requestUpgrade("gallery_items")}
-              type="button"
-            >
-              <span className="text-center text-sm">{t("limitReached")}</span>
-            </button>
-          ) : null}
-        </div>
-      </DragDropProvider>
+          </GalleryDropTarget>
+        ) : imageLimitReached && !isComparison ? (
+          <button
+            aria-label={t("limitReached")}
+            className="flex aspect-square items-center justify-center rounded-xl border border-dashed text-muted-foreground"
+            onClick={() => requestUpgrade("gallery_items")}
+            type="button"
+          >
+            <span className="text-center text-sm">{t("limitReached")}</span>
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -13,6 +13,7 @@
   "dependencies": {
     "@ai-sdk/openai": "^4.0.42",
     "@base-ui/react": "^1.6.0",
+    "@dnd-kit/dom": "^0.5.0",
     "@dnd-kit/helpers": "^0.5.0",
     "@dnd-kit/react": "^0.5.0",
     "@paper-design/shaders-react": "^0.0.77",
@@ -61,5 +62,8 @@
   "trustedDependencies": [
     "sharp",
     "unrs-resolver"
-  ]
+  ],
+  "patchedDependencies": {
+    "@dnd-kit/react@0.5.0": "patches/@dnd-kit%2Freact@0.5.0.patch"
+  }
 }

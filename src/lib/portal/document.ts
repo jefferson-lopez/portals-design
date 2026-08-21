@@ -18,6 +18,8 @@ export type SectionLayout = {
   align?: "left" | "center" | "right";
   columns?: 1 | 2 | 3 | 4 | 5 | 6;
   gap?: "sm" | "md" | "lg";
+  imageBackgroundColor?: string;
+  imageContainerPadding?: number;
   mode?: "grid" | "stack" | "single" | "cards" | "palette" | "comparison";
   showColorCode?: boolean;
   showColorName?: boolean;
@@ -223,6 +225,117 @@ export function uniqueForRender<T extends { id: string; position: number }>(
       seen.add(id);
       return { ...item, id };
     });
+}
+
+export function applySectionImagePresentation(
+  image: PortalImageItem,
+  layout: SectionLayout,
+) {
+  const backgroundColor = layout.imageBackgroundColor;
+  const containerPadding = layout.imageContainerPadding;
+  if (backgroundColor === undefined && containerPadding === undefined) {
+    return image;
+  }
+  return {
+    ...image,
+    ...(backgroundColor === undefined
+      ? {}
+      : { background_color: backgroundColor }),
+    ...(containerPadding === undefined
+      ? {}
+      : { container_padding: containerPadding }),
+    field_origins: {
+      ...image.field_origins,
+      ...(backgroundColor === undefined
+        ? {}
+        : { background_color: "manual" as const }),
+      ...(containerPadding === undefined
+        ? {}
+        : { container_padding: "manual" as const }),
+    },
+  };
+}
+
+export function moveImageBetweenPortalSections(
+  document: PortalDocument,
+  {
+    imageId,
+    maxTargetImages = Number.POSITIVE_INFINITY,
+    sourceSectionId,
+    targetIndex,
+    targetSectionId,
+  }: {
+    imageId: string;
+    maxTargetImages?: number;
+    sourceSectionId: string;
+    targetIndex: number;
+    targetSectionId: string;
+  },
+) {
+  const source = document.sections.find(
+    (section) => section.id === sourceSectionId,
+  );
+  const target = document.sections.find(
+    (section) => section.id === targetSectionId,
+  );
+  if (!source || !target) return document;
+  if (target.type !== "gallery" && target.type !== "image_comparison") {
+    return document;
+  }
+
+  const sourceImages =
+    source.type === "image"
+      ? source.content.image
+        ? [source.content.image]
+        : []
+      : source.type === "gallery" || source.type === "image_comparison"
+        ? (source.content.images ?? [])
+        : [];
+  const sourceIndex = sourceImages.findIndex((item) => item.id === imageId);
+  if (sourceIndex === -1) return document;
+
+  const targetImages = target.content.images ?? [];
+  const sameSection = source.id === target.id;
+  if (!sameSection && targetImages.length >= maxTargetImages) return document;
+
+  let movedImage = sourceImages[sourceIndex];
+  if (!movedImage) return document;
+  if (!sameSection) {
+    movedImage = applySectionImagePresentation(movedImage, target.layout);
+  }
+  const nextSourceImages = sourceImages.filter((item) => item.id !== imageId);
+  const destination = sameSection ? nextSourceImages : targetImages;
+  const insertionIndex = Math.min(Math.max(0, targetIndex), destination.length);
+  const nextTargetImages = [
+    ...destination.slice(0, insertionIndex),
+    movedImage,
+    ...destination.slice(insertionIndex),
+  ].map((item, position) => ({ ...item, position }));
+
+  return {
+    ...document,
+    sections: document.sections.map((section) => {
+      if (section.id === target.id) {
+        return {
+          ...section,
+          content: { ...section.content, images: nextTargetImages },
+        };
+      }
+      if (section.id !== source.id) return section;
+      return source.type === "image"
+        ? { ...section, content: { ...section.content, image: null } }
+        : {
+            ...section,
+            content: {
+              ...section.content,
+              images: nextSourceImages.map((item, position) => ({
+                ...item,
+                position,
+              })),
+            },
+          };
+    }),
+  };
 }
 
 export function orderDocumentItemsForRender(document: PortalDocument) {
@@ -461,6 +574,14 @@ function normalizeLayout(
     gap: ["sm", "md", "lg"].includes(getString(record.gap))
       ? (record.gap as SectionLayout["gap"])
       : defaults.gap,
+    imageBackgroundColor:
+      record.imageBackgroundColor === undefined
+        ? defaults.imageBackgroundColor
+        : normalizeBackgroundColor(record.imageBackgroundColor),
+    imageContainerPadding:
+      record.imageContainerPadding === undefined
+        ? defaults.imageContainerPadding
+        : normalizeContainerPadding(record.imageContainerPadding),
     mode: normalizedMode,
     showColorCode: getBoolean(
       record.showColorCode,

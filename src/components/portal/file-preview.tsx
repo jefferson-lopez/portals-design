@@ -282,7 +282,7 @@ export function PortalFilePreview({
       )}
     >
       <div
-        className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg"
+        className="flex min-h-0 flex-1 items-center justify-center overflow-hidden"
         style={
           isPortalFilePreviewable(type)
             ? filePreviewPresentationStyle(containerPadding, backgroundColor)
@@ -293,10 +293,7 @@ export function PortalFilePreview({
           // biome-ignore lint/performance/noImgElement: user uploaded asset preview.
           <img
             alt={fileName}
-            className={cn(
-              "size-full rounded-lg",
-              portalFilePreviewObjectFit(type),
-            )}
+            className={cn("size-full", portalFilePreviewObjectFit(type))}
             src={fileUrl}
           />
         ) : (

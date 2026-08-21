@@ -834,6 +834,8 @@
       "grid": "Cuadrícula",
       "comparison": "Comparación",
       "globalFit": "Ajuste global",
+      "globalBackground": "Fondo global",
+      "globalPadding": "Padding global",
       "globalRatio": "Proporción global",
       "limitReached": "Límite de imágenes alcanzado"
     },

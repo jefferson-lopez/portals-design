@@ -834,6 +834,8 @@
       "grid": "Grid",
       "comparison": "Comparison",
       "globalFit": "Global fit",
+      "globalBackground": "Global background",
+      "globalPadding": "Global padding",
       "globalRatio": "Global aspect ratio",
       "limitReached": "Image limit reached"
     },
