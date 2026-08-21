@@ -1,16 +1,25 @@
+import { IconX } from "@tabler/icons-react";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import {
   PortalFilePreview,
   portalFileTypeFromName,
 } from "@/components/portal/file-preview";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
+  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   type PortalColorItem,
   type PortalFileItem,
@@ -44,6 +53,24 @@ function ratioClass(image: PortalImageItem) {
   return "aspect-[4/3]";
 }
 
+export function imageVisibleDescription(image: PortalImageItem) {
+  return image.alt_text.trim() || null;
+}
+
+export function imageDisplayName(image: PortalImageItem) {
+  return image.display_name?.trim() || null;
+}
+
+export function imagePresentationStyle(image: PortalImageItem) {
+  return {
+    backgroundColor:
+      !image.background_color || image.background_color === "secondary"
+        ? "var(--secondary)"
+        : image.background_color,
+    padding: image.container_padding ?? 0,
+  };
+}
+
 export function orderedVisibleItems<T extends { id: string; position: number }>(
   items: T[],
 ) {
@@ -66,7 +93,10 @@ export function PortalImageVisual({
   showDefaultCaption?: boolean;
 }) {
   const t = useTranslations("PortalViewer.actions");
-  const alt = image.alt_text || image.display_name || t("imageFallback");
+  const commonT = useTranslations("Common");
+  const description = imageVisibleDescription(image);
+  const displayName = imageDisplayName(image);
+  const alt = description || displayName || t("imageFallback");
 
   if (!image.image_url.trim()) return null;
 
@@ -80,46 +110,74 @@ export function PortalImageVisual({
             !image.visible && "opacity-50",
             isDragging && "opacity-70",
           )}
-          style={{
-            backgroundColor:
-              !image.background_color || image.background_color === "secondary"
-                ? "var(--secondary)"
-                : image.background_color,
-            padding: image.container_padding ?? 0,
-          }}
+          style={imagePresentationStyle(image)}
         >
-          <DialogTrigger
-            render={
-              <button
-                aria-label={t("openImage", { name: alt })}
-                className="block size-full cursor-zoom-in text-left"
-                type="button"
+          <Tooltip>
+            <DialogTrigger
+              render={
+                <TooltipTrigger
+                  render={
+                    <button
+                      aria-label={t("openImage", { name: alt })}
+                      className="block size-full cursor-zoom-in text-left"
+                      type="button"
+                    />
+                  }
+                />
+              }
+            >
+              {/* biome-ignore lint/performance/noImgElement: user uploaded Storage asset. */}
+              <img
+                alt={alt}
+                className={cn(
+                  "size-full",
+                  imageFitClass(image),
+                  dragHandleRef && "cursor-grab active:cursor-grabbing",
+                )}
+                ref={dragHandleRef}
+                src={image.image_url}
               />
-            }
-          >
-            {/* biome-ignore lint/performance/noImgElement: user uploaded Storage asset. */}
-            <img
-              alt={alt}
-              className={cn(
-                "size-full",
-                imageFitClass(image),
-                dragHandleRef && "cursor-grab active:cursor-grabbing",
-              )}
-              ref={dragHandleRef}
-              src={image.image_url}
-            />
-          </DialogTrigger>
+            </DialogTrigger>
+            {displayName ? (
+              <TooltipContent>{displayName}</TooltipContent>
+            ) : null}
+          </Tooltip>
           <PortalItemActionButtonsOverlay
             actions={actions}
             position="top-3-right"
           />
         </div>
-        <DialogContent className="max-w-[min(96vw,1200px)] gap-4 p-2">
-          <DialogTitle className="sr-only">{alt}</DialogTitle>
+        <DialogContent
+          className="max-w-[min(96vw,1200px)] gap-4 p-2"
+          showCloseButton={false}
+        >
+          <DialogHeader className="grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-2">
+            <span aria-hidden="true" />
+            <DialogTitle
+              className={cn("truncate text-center", !displayName && "sr-only")}
+            >
+              {displayName || alt}
+            </DialogTitle>
+            <DialogClose
+              render={
+                <Button
+                  aria-label={commonT("close")}
+                  className="justify-self-end"
+                  size="icon"
+                  variant="ghost"
+                />
+              }
+            >
+              <IconX />
+            </DialogClose>
+          </DialogHeader>
           <DialogDescription className="sr-only">
             {t("imageViewerDescription")}
           </DialogDescription>
-          <div className="flex max-h-[78vh] min-h-[40vh] items-center justify-center overflow-auto rounded-lg bg-black/5 p-2">
+          <div
+            className="flex max-h-[78vh] min-h-[40vh] items-center justify-center overflow-auto rounded-lg"
+            style={imagePresentationStyle(image)}
+          >
             {/* biome-ignore lint/performance/noImgElement: user uploaded Storage asset. */}
             <img
               alt={alt}
@@ -130,9 +188,9 @@ export function PortalImageVisual({
         </DialogContent>
       </Dialog>
       {caption ??
-        (showDefaultCaption && image.display_name ? (
+        (showDefaultCaption && description ? (
           <figcaption className="text-muted-foreground text-sm">
-            {image.display_name}
+            {description}
           </figcaption>
         ) : null)}
     </figure>
@@ -169,13 +227,6 @@ function PortalGalleryVisual({
       {images.map((image) => (
         <PortalImageVisual
           actions={actions?.image?.({ item: image, section })}
-          caption={
-            isComparison && (image.display_name || image.alt_text) ? (
-              <figcaption className="text-muted-foreground text-sm">
-                {image.display_name || image.alt_text}
-              </figcaption>
-            ) : null
-          }
           image={image}
           key={image.id}
           showDefaultCaption={isComparison}
@@ -368,17 +419,19 @@ export function PortalSectionVisual({
   if (section.type === "text") return null;
 
   if (section.type === "image") {
-    return section.content.image ? (
+    const image = section.content.image;
+    const description = image ? imageVisibleDescription(image) : null;
+    return image ? (
       <PortalImageVisual
-        actions={actions?.image?.({ item: section.content.image, section })}
+        actions={actions?.image?.({ item: image, section })}
         caption={
-          section.content.image.alt_text ? (
+          description ? (
             <figcaption className="text-muted-foreground text-sm">
-              {section.content.image.alt_text}
+              {description}
             </figcaption>
           ) : null
         }
-        image={section.content.image}
+        image={image}
       />
     ) : null;
   }
