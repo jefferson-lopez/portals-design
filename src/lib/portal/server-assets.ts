@@ -26,6 +26,7 @@ const PREVIEWABLE_FILE_EXTENSIONS = new Set([
   "jpeg",
   "jpg",
   "png",
+  "svg",
   "webp",
 ]);
 

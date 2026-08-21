@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { PortalFileType } from "@/lib/portal/document";
 import {
+  isPortalFilePreviewable,
   PORTAL_FILE_ACCEPT,
   PORTAL_IMAGE_ACCEPT,
   portalFileTypeFromName,
@@ -41,5 +42,10 @@ describe("portal file picker formats", () => {
     expect(PORTAL_FILE_ACCEPT.split(",")).toContain(".svg");
     expect(PORTAL_FILE_ACCEPT.split(",")).toContain(".tif");
     expect(PORTAL_FILE_ACCEPT.split(",")).toContain(".tiff");
+  });
+
+  test("previews SVG files with their actual artwork", () => {
+    expect(isPortalFilePreviewable("svg")).toBe(true);
+    expect(isPortalFilePreviewable("pdf")).toBe(false);
   });
 });

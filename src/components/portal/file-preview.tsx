@@ -84,6 +84,10 @@ export function portalFileTypeLabel(
   return fallback.file;
 }
 
+export function isPortalFilePreviewable(type?: PortalFileType) {
+  return type === "image" || type === "svg";
+}
+
 const PdfIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
     aria-hidden="true"
@@ -259,7 +263,7 @@ export function PortalFilePreview({
       )}
     >
       <div className="flex min-h-0 flex-1 items-center justify-center">
-        {type === "image" && fileUrl ? (
+        {isPortalFilePreviewable(type) && fileUrl ? (
           // biome-ignore lint/performance/noImgElement: user uploaded asset preview.
           <img
             alt={fileName}
