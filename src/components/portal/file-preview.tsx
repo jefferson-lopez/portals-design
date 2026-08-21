@@ -88,6 +88,10 @@ export function isPortalFilePreviewable(type?: PortalFileType) {
   return type === "image" || type === "svg";
 }
 
+export function portalFilePreviewObjectFit(type?: PortalFileType) {
+  return type === "svg" ? "object-contain" : "object-cover";
+}
+
 const PdfIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
     aria-hidden="true"
@@ -267,7 +271,10 @@ export function PortalFilePreview({
           // biome-ignore lint/performance/noImgElement: user uploaded asset preview.
           <img
             alt={fileName}
-            className="size-full rounded-lg object-cover"
+            className={cn(
+              "size-full rounded-lg",
+              portalFilePreviewObjectFit(type),
+            )}
             src={fileUrl}
           />
         ) : (

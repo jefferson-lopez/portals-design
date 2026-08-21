@@ -4,6 +4,7 @@ import {
   isPortalFilePreviewable,
   PORTAL_FILE_ACCEPT,
   PORTAL_IMAGE_ACCEPT,
+  portalFilePreviewObjectFit,
   portalFileTypeFromName,
 } from "./file-preview";
 
@@ -47,5 +48,6 @@ describe("portal file picker formats", () => {
   test("previews SVG files with their actual artwork", () => {
     expect(isPortalFilePreviewable("svg")).toBe(true);
     expect(isPortalFilePreviewable("pdf")).toBe(false);
+    expect(portalFilePreviewObjectFit("svg")).toBe("object-contain");
   });
 });
