@@ -391,7 +391,15 @@ describe("AI portal proposal", () => {
         ],
         colorInsights: [],
         copyPlan: [],
-        imageRecommendations: [],
+        imageRecommendations: [
+          {
+            aspectRatio: "auto",
+            assetId: "photo",
+            backgroundColor: "#202020",
+            containerPadding: 12,
+            fit: "contain",
+          },
+        ],
         projectCopy: {
           description: "Colección de stickers ilustrados.",
           name: "Colección de stickers",
@@ -427,6 +435,8 @@ describe("AI portal proposal", () => {
     });
     expect(proposal.proposedDocument.sections[0]?.content.image).toMatchObject({
       alt_text: "Ilustración principal de stickers.",
+      background_color: "#202020",
+      container_padding: 12,
       display_name: "Ilustración principal",
     });
   });
@@ -451,7 +461,14 @@ describe("AI portal proposal", () => {
                   allow_download: true,
                   alt_text: "manual",
                   aspect_ratio: "1/1",
-                  field_origins: { aspect_ratio: "manual", fit: "manual" },
+                  background_color: "#111111",
+                  container_padding: 5,
+                  field_origins: {
+                    aspect_ratio: "manual",
+                    background_color: "manual",
+                    container_padding: "manual",
+                    fit: "manual",
+                  },
                   fit: "cover",
                   id: "logo",
                   image_url: "portal-asset:logo",
@@ -485,6 +502,11 @@ describe("AI portal proposal", () => {
 
     expect(
       proposal.proposedDocument.sections[0]?.content.images?.[0],
-    ).toMatchObject({ aspect_ratio: "1/1", fit: "cover" });
+    ).toMatchObject({
+      aspect_ratio: "1/1",
+      background_color: "#111111",
+      container_padding: 5,
+      fit: "cover",
+    });
   });
 });

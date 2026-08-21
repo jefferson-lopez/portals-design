@@ -24,7 +24,9 @@ export type AssetAnalysisInput = {
 
 export type ImageAnalysis = {
   assetId: string;
+  backgroundColor: string;
   contentType: "logo" | "mockup" | "photograph" | "illustration" | "image";
+  containerPadding: number;
   orientation: "portrait" | "landscape" | "square" | "unknown";
   aspectRatio: ImageAspectRatio;
   fit: ImageFit;
@@ -104,6 +106,7 @@ export function analyzeImageAsset(asset: AssetAnalysisInput): ImageAnalysis {
   const dimensions = ratio(asset.width, asset.height);
   return {
     assetId: asset.id,
+    backgroundColor: isLogo ? "secondary" : "transparent",
     contentType: isLogo
       ? "logo"
       : isMockup
@@ -111,6 +114,7 @@ export function analyzeImageAsset(asset: AssetAnalysisInput): ImageAnalysis {
         : /illustration|sketch|vector/.test(filename)
           ? "illustration"
           : "photograph",
+    containerPadding: isLogo ? 16 : 0,
     fit: isLogo || isMockup ? "contain" : "cover",
     ...dimensions,
   };
@@ -122,6 +126,14 @@ export function applyAiImageAnalysis(
 ): PortalImageItem {
   return {
     ...image,
+    background_color:
+      image.field_origins?.background_color === "manual"
+        ? image.background_color
+        : analysis.backgroundColor,
+    container_padding:
+      image.field_origins?.container_padding === "manual"
+        ? image.container_padding
+        : analysis.containerPadding,
     fit: image.field_origins?.fit === "manual" ? image.fit : analysis.fit,
     aspect_ratio:
       image.field_origins?.aspect_ratio === "manual"
@@ -130,6 +142,8 @@ export function applyAiImageAnalysis(
     field_origins: {
       ...image.field_origins,
       alt_text: image.field_origins?.alt_text ?? "ai",
+      background_color: image.field_origins?.background_color ?? "ai",
+      container_padding: image.field_origins?.container_padding ?? "ai",
       fit: image.field_origins?.fit ?? "ai",
       aspect_ratio: image.field_origins?.aspect_ratio ?? "ai",
     },
@@ -142,6 +156,8 @@ export function markImageFieldManual(
     | "fit"
     | "aspect_ratio"
     | "alt_text"
+    | "background_color"
+    | "container_padding"
     | "display_name"
     | "download_name"
     | "visible",

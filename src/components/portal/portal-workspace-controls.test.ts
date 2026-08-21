@@ -70,4 +70,7 @@ test("uses the shared visual color picker and shadcn slider for image presentati
   expect(source).toContain('t("hexCode")');
   expect(source).toContain("portalQuickColors(document)");
   expect(source).toContain("quickColors.map((swatch)");
+  expect(source).toContain(
+    "file.file_type ?? portalFileTypeFromName(file.file_name)",
+  );
 });

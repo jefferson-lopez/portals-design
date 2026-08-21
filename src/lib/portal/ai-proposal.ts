@@ -282,16 +282,21 @@ export function createAiPortalProposal(input: ProposalInput): AiPortalProposal {
             ? existingImage.download_name
             : image.download_name,
       };
+      const recommendation = input.enhancement?.imageRecommendations.find(
+        (item) => item.assetId === asset.id,
+      );
       images.push(
-        applyAiImageAnalysis(
-          {
-            ...imageWithAiName,
-            ...(input.enhancement?.imageRecommendations.find(
-              (item) => item.assetId === asset.id,
-            ) ?? {}),
-          },
-          analyzeImageAsset(asset),
-        ),
+        applyAiImageAnalysis(imageWithAiName, {
+          ...analyzeImageAsset(asset),
+          ...(recommendation
+            ? {
+                aspectRatio: recommendation.aspectRatio,
+                backgroundColor: recommendation.backgroundColor,
+                containerPadding: recommendation.containerPadding,
+                fit: recommendation.fit,
+              }
+            : {}),
+        }),
       );
     } else if (fontMime.test(asset.mimeType)) {
       const fontName = asset.name.replace(/\.[^.]+$/, "") || asset.id;

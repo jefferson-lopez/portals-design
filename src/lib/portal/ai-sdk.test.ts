@@ -73,6 +73,17 @@ describe("AI SDK proposal adapter", () => {
     );
   });
 
+  it("asks visual analysis to choose accessible image backgrounds and padding", () => {
+    expect(source).toContain("backgroundColor");
+    expect(source).toContain("containerPadding");
+    expect(source).toContain(
+      "Use transparent edges, light artwork, and dominant colors",
+    );
+    expect(source).toContain(
+      "Choose a contrasting background for transparent or light artwork",
+    );
+  });
+
   it("chunks every visual asset while preserving logos and order", () => {
     const assets = [
       ...Array.from({ length: 20 }, (_, index) => ({

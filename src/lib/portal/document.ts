@@ -46,6 +46,8 @@ export type PortalImageItem = {
       | "fit"
       | "aspect_ratio"
       | "alt_text"
+      | "background_color"
+      | "container_padding"
       | "display_name"
       | "download_name"
       | "visible",

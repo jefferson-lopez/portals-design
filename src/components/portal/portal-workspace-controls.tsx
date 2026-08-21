@@ -948,7 +948,16 @@ function ImageContainerPresentationControls({
         padding: t("padding"),
         transparent: t("transparentBackground"),
       }}
-      onChange={(presentation) => onSave({ ...image, ...presentation })}
+      onChange={(presentation) => {
+        let nextImage: PortalImageItem = { ...image, ...presentation };
+        if (presentation.background_color !== image.background_color) {
+          nextImage = markImageFieldManual(nextImage, "background_color");
+        }
+        if (presentation.container_padding !== image.container_padding) {
+          nextImage = markImageFieldManual(nextImage, "container_padding");
+        }
+        onSave(nextImage);
+      }}
       portalId={portalId}
     />
   );
@@ -3340,7 +3349,8 @@ function FilesItemSettingsPopover({
   const t = useTranslations("PortalEditor.files");
   const imageT = useTranslations("PortalEditor.image");
   const [open, setOpen] = useState(false);
-  const isImageFile = file.file_type === "image" || file.file_type === "svg";
+  const fileType = file.file_type ?? portalFileTypeFromName(file.file_name);
+  const isImageFile = fileType === "image" || fileType === "svg";
   return (
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger

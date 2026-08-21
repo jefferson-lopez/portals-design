@@ -125,12 +125,20 @@ function applySectionImprovement(
         return {
           ...image,
           alt_text: next.altText,
+          background_color:
+            image.field_origins?.background_color === "manual"
+              ? image.background_color
+              : next.backgroundColor,
           aspect_ratio: constrainImageAspectRatio(
             image.width,
             image.height,
             next.aspectRatio,
           ),
           display_name: next.displayName,
+          container_padding:
+            image.field_origins?.container_padding === "manual"
+              ? image.container_padding
+              : next.containerPadding,
           download_name: normalizeAssetDownloadName(
             next.downloadName,
             sourceNameFromStoragePath(image.storage_path),
@@ -138,6 +146,14 @@ function applySectionImprovement(
           field_origins: {
             ...image.field_origins,
             alt_text: "ai" as const,
+            background_color:
+              image.field_origins?.background_color === "manual"
+                ? ("manual" as const)
+                : ("ai" as const),
+            container_padding:
+              image.field_origins?.container_padding === "manual"
+                ? ("manual" as const)
+                : ("ai" as const),
             aspect_ratio: "ai" as const,
             display_name: "ai" as const,
             download_name: "ai" as const,

@@ -20,7 +20,9 @@ const asset: AssetAnalysisInput = {
 describe("portal AI asset analysis", () => {
   it("detects transparent logos and recommends contain", () => {
     expect(analyzeImageAsset(asset)).toMatchObject({
+      backgroundColor: "secondary",
       contentType: "logo",
+      containerPadding: 16,
       fit: "contain",
       aspectRatio: "21/9",
       orientation: "landscape",
@@ -33,13 +35,19 @@ describe("portal AI asset analysis", () => {
       fit: "cover" as const,
       aspect_ratio: "1/1" as const,
       field_origins: {
+        background_color: "manual" as const,
+        container_padding: "manual" as const,
         fit: "manual" as const,
         aspect_ratio: "manual" as const,
       },
+      background_color: "#111111",
+      container_padding: 4,
     };
     const next = applyAiImageAnalysis(image, analyzeImageAsset(asset));
     expect(next.fit).toBe("cover");
     expect(next.aspect_ratio).toBe("1/1");
+    expect(next.background_color).toBe("#111111");
+    expect(next.container_padding).toBe(4);
   });
 
   it("does not allow a non-square image to become a square", () => {

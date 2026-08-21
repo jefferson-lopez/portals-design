@@ -57,6 +57,12 @@ const enhancementSchema = z.object({
     z.object({
       aspectRatio: z.enum(["auto", "1/1", "4/3", "16/9", "21/9"]),
       assetId: z.string(),
+      backgroundColor: z.union([
+        z.literal("secondary"),
+        z.literal("transparent"),
+        z.string().regex(/^#[0-9a-f]{6}$/i),
+      ]),
+      containerPadding: z.number().int().min(0).max(25),
       fit: z.enum(["cover", "contain", "fill", "auto"]),
     }),
   ),
@@ -123,6 +129,12 @@ const sectionImprovementSchema = z.object({
     z.object({
       altText: z.string().max(380),
       aspectRatio: z.enum(["auto", "1/1", "4/3", "16/9", "21/9"]),
+      backgroundColor: z.union([
+        z.literal("secondary"),
+        z.literal("transparent"),
+        z.string().regex(/^#[0-9a-f]{6}$/i),
+      ]),
+      containerPadding: z.number().int().min(0).max(25),
       displayName: z.string().max(160),
       downloadName: z.string().max(120),
       fit: z.enum(["cover", "contain", "fill", "auto"]),
@@ -476,6 +488,7 @@ export async function generateAiSectionImprovement(
                 "Do not write a design brief, instructions, production requirements, export dimensions, layout directions, or imperatives.",
                 "Do not repeat source-file instructions as the section description.",
                 "Use each image's width and height in pixels, aspect ratio, transparency, and current context to choose fit and aspect ratio; do not invent dimensions.",
+                "Choose a contrasting background for transparent or light artwork, and choose padding from 0 to 25 pixels so logos and contained artwork have deliberate breathing room.",
                 "For every image, improve alt text, visible name, lowercase hyphenated download name with the original extension, fit, and aspect ratio.",
                 "When a section contains multiple images, choose the aspect ratio that appears most often from their dimensions and return that same ratio for every image; use fit per image to avoid harmful cropping.",
                 "For every file and font, improve its description or usage and both visible and download names while preserving the original extension.",
@@ -691,6 +704,7 @@ export async function generateAiStructuredEnhancement({
                       "Analyze the supplied asset inventory before any portal composition.",
                       "Return one assetInsight for every supplied asset id.",
                       "For visual assets, describe only what is visible.",
+                      "Use transparent edges, light artwork, and dominant colors to recommend backgroundColor and containerPadding for every visual asset. Prefer secondary for transparent white artwork, transparent for edge-to-edge photography, or a contrasting #RRGGBB color when visual evidence supports it.",
                       "Treat .ai, .eps, .psd, and other Adobe source files as downloadable originals, not as visual assets. Do not inspect or invent their binary contents; use only filename, MIME type, size, and supplied metadata.",
                       "For other non-visual files, use only the filename, MIME type, size, and supplied metadata. Do not invent contents that are not available.",
                       "Return detected colors only when they are present in supplied metadata.",
@@ -753,7 +767,7 @@ export async function generateAiStructuredEnhancement({
       "Create only the portal structure plan from the completed asset analysis.",
       "Do not write visitor-facing copy, project names, or section descriptions in this step.",
       "Return only valid asset IDs and preserve the analyzed facts.",
-      "Choose the required section kinds, asset membership, image order, aspect ratios, quarantine decisions, and color insights.",
+      "Choose the required section kinds, asset membership, image order, aspect ratios, image backgrounds and padding, quarantine decisions, and color insights.",
       "If an asset is explicitly marked as primary, place it in its own image section. Put all remaining images in one or more gallery sections.",
       ...(plan
         ? [
