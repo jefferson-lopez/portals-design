@@ -17,6 +17,7 @@ import {
   canRefreshCompletedDocumentJob,
   hasAuthoritativeDocumentAck,
   type PendingDocumentJobRefresh,
+  shouldRequestDocumentRefresh,
 } from "@/lib/portal/ai-job-reconciliation";
 import type {
   AiWorkflowProgress,
@@ -25,6 +26,7 @@ import type {
 import { useAiWorkflowStore } from "@/lib/portal/ai-workflow-store";
 import type { PortalDocument } from "@/lib/portal/document";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
+import { createTrailingReconciler } from "@/lib/request-reconciliation";
 import { createClient } from "@/lib/supabase/client";
 
 type Job = {
@@ -50,6 +52,24 @@ type Job = {
   error_code: string | null;
   updated_at: string;
 };
+
+type JobsResponse = { jobs?: Job[] } | null;
+let aiJobsRequestInFlight: Promise<JobsResponse> | null = null;
+
+function fetchAiJobs() {
+  if (aiJobsRequestInFlight) return aiJobsRequestInFlight;
+  const request = fetch("/api/ai/jobs", { cache: "no-store" })
+    .then(async (response) =>
+      response.ok
+        ? ((await response.json().catch(() => null)) as JobsResponse)
+        : null,
+    )
+    .catch(() => null);
+  aiJobsRequestInFlight = request.finally(() => {
+    aiJobsRequestInFlight = null;
+  });
+  return aiJobsRequestInFlight;
+}
 
 export function AiWorkflowReconciler() {
   const t = useTranslations("PortalEditor.workspace");
@@ -121,14 +141,9 @@ export function AiWorkflowReconciler() {
         code: job.error_code ?? "unknown",
       });
     };
-    const reconcile = async () => {
-      const response = await fetch("/api/ai/jobs", { cache: "no-store" }).catch(
-        () => null,
-      );
-      if (!response?.ok || disposed) return;
-      const body = (await response.json().catch(() => null)) as {
-        jobs?: Job[];
-      } | null;
+    const runReconciliation = async () => {
+      const body = await fetchAiJobs();
+      if (!body || disposed) return;
       const latestDocumentJobByPortal = new Map<string, Job>();
       for (const job of body?.jobs ?? []) {
         if (
@@ -282,14 +297,17 @@ export function AiWorkflowReconciler() {
               // AI apply RPCs persist before the job is completed. Refresh the
               // authoritative draft instead of replaying an old job result
               // into Zustand on every page load.
-              if (pending?.jobId !== job.id) {
+              if (
+                shouldRequestDocumentRefresh(pending, job.id, job.updated_at)
+              ) {
                 pendingDocumentJobRefreshByPortal.set(job.portal_id, {
                   baselineHydrationGeneration: currentHydrationGeneration,
                   baselineRevision: currentRevision,
                   jobId: job.id,
+                  jobVersion: job.updated_at,
                 });
+                routerRef.current.refresh();
               }
-              routerRef.current.refresh();
               continue;
             }
             continue;
@@ -298,6 +316,7 @@ export function AiWorkflowReconciler() {
         }
       }
     };
+    const reconcile = createTrailingReconciler(runReconciliation);
     void reconcile();
     const reconcileOnNavigation = () => void reconcile();
     window.addEventListener(

@@ -73,4 +73,31 @@ describe("portal plan client contracts", () => {
       Response.json(response)) as unknown as typeof fetch);
     expect(snapshot.policy.totalSections).toBe(Number.POSITIVE_INFINITY);
   });
+
+  test("coalesces concurrent plan reads for the same portal and fetcher", async () => {
+    const response = {
+      available: true,
+      canPurchase: true,
+      entitlementStatus: null,
+      plan: "free",
+      policy: PORTAL_PLANS.free,
+      storageUsedBytes: 0,
+    };
+    let resolveResponse!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      resolveResponse = resolve;
+    });
+    let calls = 0;
+    const fetcher = (async () => {
+      calls += 1;
+      return pending;
+    }) as unknown as typeof fetch;
+    const { fetchPortalPlan } = await import("./portal-plan-client");
+
+    const first = fetchPortalPlan("portal-1", fetcher);
+    const second = fetchPortalPlan("portal-1", fetcher);
+    expect(calls).toBe(1);
+    resolveResponse(Response.json(response));
+    expect(await first).toEqual(await second);
+  });
 });

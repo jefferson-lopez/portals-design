@@ -10,7 +10,16 @@ export type PendingDocumentJobRefresh = {
   baselineHydrationGeneration: number | undefined;
   baselineRevision: number | undefined;
   jobId: string;
+  jobVersion: string;
 };
+
+export function shouldRequestDocumentRefresh(
+  pending: PendingDocumentJobRefresh | undefined,
+  jobId: string,
+  jobVersion: string,
+) {
+  return pending?.jobId !== jobId || pending.jobVersion !== jobVersion;
+}
 
 export function hasAuthoritativeDocumentAck(
   pending: PendingDocumentJobRefresh,
@@ -23,6 +32,6 @@ export function hasAuthoritativeDocumentAck(
       currentHydrationGeneration > pending.baselineHydrationGeneration) &&
     currentRevision !== undefined &&
     (pending.baselineRevision === undefined ||
-      currentRevision > pending.baselineRevision)
+      currentRevision >= pending.baselineRevision)
   );
 }

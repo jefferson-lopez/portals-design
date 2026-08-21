@@ -95,10 +95,32 @@ export function storageUsageState(percent: number): StorageUsageState {
   return "empty";
 }
 
-export async function fetchPortalPlan(
+const planRequests = new WeakMap<
+  typeof fetch,
+  Map<string, Promise<PortalPlanSnapshot>>
+>();
+
+export function fetchPortalPlan(
   portalId: string,
   fetcher: typeof fetch = fetch,
 ) {
+  let byPortal = planRequests.get(fetcher);
+  if (!byPortal) {
+    byPortal = new Map();
+    planRequests.set(fetcher, byPortal);
+  }
+  const existing = byPortal.get(portalId);
+  if (existing) return existing;
+  const request = runPortalPlanRequest(portalId, fetcher);
+  byPortal.set(portalId, request);
+  const clear = () => {
+    if (byPortal?.get(portalId) === request) byPortal.delete(portalId);
+  };
+  void request.then(clear, clear);
+  return request;
+}
+
+async function runPortalPlanRequest(portalId: string, fetcher: typeof fetch) {
   const response = await fetcher(`/api/portals/${portalId}/plan`, {
     cache: "no-store",
   });

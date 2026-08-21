@@ -51,6 +51,9 @@ describe("AiWorkflowReconciler", () => {
     expect(source).not.toContain("window.setInterval");
     expect(source).not.toContain("window.clearInterval");
     expect(source).not.toContain(", router, t, upsertJob]");
+    expect(source).toContain("createTrailingReconciler");
+    expect(source).toContain("aiJobsRequestInFlight");
+    expect(source).toContain('if (status === "SUBSCRIBED") void reconcile()');
   });
 
   test("declares smooth scrolling for Next.js route transitions", () => {

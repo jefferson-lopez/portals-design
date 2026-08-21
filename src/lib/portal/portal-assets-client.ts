@@ -46,6 +46,13 @@ type ActiveReservation = {
 };
 
 const activeReservations = new Map<string, ActiveReservation>();
+const assetReconciliations = new WeakMap<
+  typeof fetch,
+  Map<
+    string,
+    Promise<{ assets: PersistedPortalAsset[]; discardedIds: string[] }>
+  >
+>();
 let pagehideListenerInstalled = false;
 
 function removeActiveReservation(assetId: string) {
@@ -281,13 +288,36 @@ export function releaseManagedPortalAsset(assetId: string | undefined) {
   if (assetId) removeActiveReservation(assetId);
 }
 
-export async function reconcilePersistedPortalAssets({
+export function reconcilePersistedPortalAssets({
   fetcher = fetch,
   portalId,
 }: {
   fetcher?: typeof fetch;
   portalId: string;
 }) {
+  let byPortal = assetReconciliations.get(fetcher);
+  if (!byPortal) {
+    byPortal = new Map();
+    assetReconciliations.set(fetcher, byPortal);
+  }
+  const existing = byPortal.get(portalId);
+  if (existing) return existing;
+  const reconciliation = runPersistedPortalAssetReconciliation(
+    fetcher,
+    portalId,
+  );
+  byPortal.set(portalId, reconciliation);
+  const clear = () => {
+    if (byPortal?.get(portalId) === reconciliation) byPortal.delete(portalId);
+  };
+  void reconciliation.then(clear, clear);
+  return reconciliation;
+}
+
+async function runPersistedPortalAssetReconciliation(
+  fetcher: typeof fetch,
+  portalId: string,
+) {
   const response = await fetcher(
     `/api/portal-assets?portalId=${encodeURIComponent(portalId)}`,
     { method: "GET" },

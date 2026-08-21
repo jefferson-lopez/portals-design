@@ -15,6 +15,30 @@ const baseAsset = {
 };
 
 describe("persisted portal asset reconciliation", () => {
+  test("coalesces concurrent reconciliation for the same portal and fetcher", async () => {
+    let resolveResponse!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      resolveResponse = resolve;
+    });
+    let calls = 0;
+    const fetcher = (async () => {
+      calls += 1;
+      return pending;
+    }) as unknown as typeof fetch;
+
+    const first = reconcilePersistedPortalAssets({
+      fetcher,
+      portalId: "portal-1",
+    });
+    const second = reconcilePersistedPortalAssets({
+      fetcher,
+      portalId: "portal-1",
+    });
+    expect(calls).toBe(1);
+    resolveResponse(Response.json({ assets: [] }));
+    expect(await first).toEqual(await second);
+  });
+
   test("finalizes a reserved asset whose bytes survived a reload", async () => {
     const calls: string[] = [];
     const fetcher: typeof fetch = (async (input, init) => {
