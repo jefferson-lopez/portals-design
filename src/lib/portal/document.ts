@@ -208,6 +208,30 @@ export function uniqueForRender<T extends { id: string; position: number }>(
     });
 }
 
+export function orderDocumentItemsForRender(document: PortalDocument) {
+  return {
+    ...document,
+    sections: uniqueForRender(document.sections, "sec").map((section) => ({
+      ...section,
+      content: {
+        ...section.content,
+        colors: section.content.colors
+          ? uniqueForRender(section.content.colors, "color")
+          : section.content.colors,
+        files: section.content.files
+          ? uniqueForRender(section.content.files, "file")
+          : section.content.files,
+        fonts: section.content.fonts
+          ? uniqueForRender(section.content.fonts, "font")
+          : section.content.fonts,
+        images: section.content.images
+          ? uniqueForRender(section.content.images, "img")
+          : section.content.images,
+      },
+    })),
+  };
+}
+
 export function createDefaultPortalDocument(
   portal: Pick<
     Portal,

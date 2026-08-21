@@ -26,10 +26,10 @@ import { AutosaveQueue } from "@/lib/portal/autosave-queue";
 import {
   createPortalSection,
   hasPublicSectionContent,
+  orderDocumentItemsForRender,
   type PortalDocument,
   type PortalSection,
   type PortalSectionType,
-  uniqueForRender,
 } from "@/lib/portal/document";
 import { usePortalEditorStore } from "@/lib/portal/editor-store";
 import {
@@ -657,10 +657,7 @@ export function RenderPortal({
   }, [editor?.focus]);
 
   const renderDocument = editor
-    ? {
-        ...activeDocument,
-        sections: uniqueForRender(activeDocument.sections, "sec"),
-      }
+    ? orderDocumentItemsForRender(activeDocument)
     : activeDocument;
 
   const visibleSections = renderDocument.sections.filter((section) => {

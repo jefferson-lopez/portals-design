@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
-import { normalizePortalDocument, uniqueForRender } from "./document";
+import {
+  normalizePortalDocument,
+  orderDocumentItemsForRender,
+  uniqueForRender,
+} from "./document";
 
 test("assigns unique ids to duplicate color items", () => {
   const document = normalizePortalDocument(
@@ -41,4 +45,34 @@ test("preserves custom positions when preparing items for rendering", () => {
 
   expect(items.map((item) => item.id)).toEqual(["section-b", "section-a"]);
   expect(items.map((item) => item.position)).toEqual([0, 1]);
+});
+
+test("orders nested editor assets before the first client render", () => {
+  const document = normalizePortalDocument(
+    {
+      sections: [
+        {
+          content: {
+            images: [
+              { id: "black-icon", image_url: "black", position: 1 },
+              { id: "white-icon", image_url: "white", position: 0 },
+            ],
+          },
+          type: "gallery",
+        },
+      ],
+    },
+    {
+      name: "Portal",
+      short_description: null,
+      cover_url: null,
+      icon_url: null,
+      theme: "auto",
+    },
+  );
+
+  const ordered = orderDocumentItemsForRender(document);
+  expect(ordered.sections[0]?.content.images?.map((image) => image.id)).toEqual(
+    ["white-icon", "black-icon"],
+  );
 });
