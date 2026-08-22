@@ -19,6 +19,7 @@ import {
   IconWorldFilled,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -29,12 +30,17 @@ import {
   togglePortalFavorite,
   updatePortalSettings,
 } from "@/app/[locale]/_actions/portals";
+import { PortalCardActionGroup } from "@/components/portal/portal-card-action-group";
+import {
+  PortalColorStack,
+  PortalFileTypeBadges,
+  PortalImageStack,
+} from "@/components/portal/portal-card-metadata";
 import { PortalWorkspaceToolbar } from "@/components/portal/portal-workspace-toolbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -80,6 +86,7 @@ import {
 import { storagePercent } from "@/lib/billing/portal-plan-client";
 import { getHomeErrorEvent } from "@/lib/portal/home-error-event";
 import { usePortalHomeStore } from "@/lib/portal/home-store";
+import { shouldOpenPortalCardFromKeyDown } from "@/lib/portal/portal-card-keyboard";
 import { workspaceQueryKeys } from "@/lib/portal/workspace-read-models";
 
 export type PortalHomeCopy = {
@@ -173,6 +180,12 @@ export type PortalHomeCopy = {
     };
     edit: string;
     lastEdited: string;
+    fileTypesLabel: string;
+    colorsLabel: string;
+    noFiles: string;
+    noColors: string;
+    imagesLabel: string;
+    noImages: string;
     view: string;
     usage: string;
     purchasedAt: string;
@@ -913,6 +926,7 @@ function PortalCard({
   locale: string;
   portal: HomePortal;
 }) {
+  const portalTranslations = useTranslations("Home.portal");
   const router = useRouter();
   const queryClient = useQueryClient();
   const favoriteMutation = useMutation({
@@ -1022,7 +1036,7 @@ function PortalCard({
       className="h-fit cursor-pointer bg-card/75 transition-colors hover:bg-card"
       onClick={openCard}
       onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
+        if (shouldOpenPortalCardFromKeyDown(event)) {
           event.preventDefault();
           openCard();
         }
@@ -1043,89 +1057,126 @@ function PortalCard({
           </Link>
         </CardDescription>
         {portal.isPurchased ? (
-          <CardAction className="flex items-center gap-1">
-            <Button
-              aria-label={
-                portal.isFavorite === true
-                  ? copy.portal.favorite.remove
-                  : copy.portal.favorite.add
-              }
-              aria-pressed={portal.isFavorite === true}
-              disabled={favoriteMutation.isPending}
-              onClick={(event) => {
-                event.stopPropagation();
-                favoriteMutation.mutate();
-              }}
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            >
-              {portal.isFavorite === true ? <IconStarFilled /> : <IconStar />}
-            </Button>
-            <Badge className="bg-amber-400/20 text-amber-700 dark:text-amber-300">
-              <IconCrownFilled className="size-4" />
-              {copy.portal.visibility.purchased}
-            </Badge>
-          </CardAction>
+          <PortalCardActionGroup
+            badge={
+              <Badge className="bg-amber-400/20 text-amber-700 dark:text-amber-300">
+                <IconCrownFilled className="size-4" />
+                {copy.portal.visibility.purchased}
+              </Badge>
+            }
+            favoriteAction={
+              <Button
+                aria-label={
+                  portal.isFavorite === true
+                    ? copy.portal.favorite.remove
+                    : copy.portal.favorite.add
+                }
+                aria-pressed={portal.isFavorite === true}
+                disabled={favoriteMutation.isPending}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  favoriteMutation.mutate();
+                }}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                {portal.isFavorite === true ? <IconStarFilled /> : <IconStar />}
+              </Button>
+            }
+          />
         ) : (
-          <CardAction className="flex items-center gap-1">
-            <Button
-              aria-label={
-                portal.isFavorite === true
-                  ? copy.portal.favorite.remove
-                  : copy.portal.favorite.add
-              }
-              aria-pressed={portal.isFavorite === true}
-              disabled={favoriteMutation.isPending}
-              onClick={(event) => {
-                event.stopPropagation();
-                favoriteMutation.mutate();
-              }}
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            >
-              {portal.isFavorite === true ? <IconStarFilled /> : <IconStar />}
-            </Button>
-            <Badge
-              className={
-                plan === "free"
-                  ? undefined
-                  : "bg-green-500/10 text-green-700 dark:text-green-300"
-              }
-              variant={plan === "free" ? "default" : "secondary"}
-            >
-              {copy.portal.plan[plan]}
-            </Badge>
-          </CardAction>
+          <PortalCardActionGroup
+            badge={
+              <Badge
+                className={
+                  plan === "free"
+                    ? undefined
+                    : "bg-green-500/10 text-green-700 dark:text-green-300"
+                }
+                variant={plan === "free" ? "default" : "secondary"}
+              >
+                {copy.portal.plan[plan]}
+              </Badge>
+            }
+            favoriteAction={
+              <Button
+                aria-label={
+                  portal.isFavorite === true
+                    ? copy.portal.favorite.remove
+                    : copy.portal.favorite.add
+                }
+                aria-pressed={portal.isFavorite === true}
+                disabled={favoriteMutation.isPending}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  favoriteMutation.mutate();
+                }}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              >
+                {portal.isFavorite === true ? <IconStarFilled /> : <IconStar />}
+              </Button>
+            }
+          />
         )}
       </CardHeader>
-      <CardContent className="flex flex-col items-start gap-2 pt-0 text-sm">
-        {portal.isPurchased ? (
-          <>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <IconCalendarFilled className="size-4" />
-              {copy.portal.purchasedAt} · {purchasedDate ?? "—"}
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <IconCalendarEventFilled className="size-4" />
-              {copy.portal.lastEdited} · {updatedDate}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center gap-2 text-primary">
-              <UsageCircle percent={usagePercent} />
-              <span>
-                {copy.portal.usage} {usagePercent}%
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              {visibility.icon}
-              <span>{copy.portal.visibility[visibility.label]}</span>
-            </div>
-          </>
-        )}
+      <CardContent className="grid grid-cols-1 gap-3 pt-0 text-sm sm:grid-cols-2">
+        <div className="flex min-w-0 flex-col items-start gap-2">
+          {portal.isPurchased ? (
+            <>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <IconCalendarFilled className="size-4" />
+                {copy.portal.purchasedAt} · {purchasedDate ?? "—"}
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <IconCalendarEventFilled className="size-4" />
+                {copy.portal.lastEdited} · {updatedDate}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 text-primary">
+                <UsageCircle percent={usagePercent} />
+                <span>
+                  {copy.portal.usage} {usagePercent}%
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                {visibility.icon}
+                <span>{copy.portal.visibility[visibility.label]}</span>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-col items-start gap-2">
+          <PortalFileTypeBadges
+            emptyLabel={copy.portal.noFiles}
+            fileCountLabel={portalTranslations("filesCount", {
+              count: portal.totalFileCount ?? 0,
+            })}
+            fileTypes={portal.fileTypes ?? []}
+            label={copy.portal.fileTypesLabel}
+            totalFileCount={portal.totalFileCount ?? 0}
+          />
+          <PortalColorStack
+            colors={portal.colors ?? []}
+            emptyLabel={copy.portal.noColors}
+            label={copy.portal.colorsLabel}
+          />
+        </div>
+        <div className="col-span-full min-w-0">
+          <PortalImageStack
+            emptyLabel={copy.portal.noImages}
+            imageCountLabel={portalTranslations("imagesCount", {
+              count: portal.totalImageCount ?? 0,
+            })}
+            images={portal.images ?? []}
+            label={copy.portal.imagesLabel}
+            totalImageCount={portal.totalImageCount ?? 0}
+          />
+        </div>
       </CardContent>
     </Card>
   );

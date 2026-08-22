@@ -181,7 +181,7 @@ export function PortalImageVisual({
             {/* biome-ignore lint/performance/noImgElement: user uploaded Storage asset. */}
             <img
               alt={alt}
-              className="block rounded-md max-h-[74vh] max-w-full object-contain"
+              className="block max-h-[74vh] max-w-full object-contain"
               src={image.image_url}
             />
           </div>

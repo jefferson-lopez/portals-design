@@ -231,7 +231,7 @@
       "primaryImage": "Primary image",
       "file": "File",
       "filesAdded": "{count, plural, =0 {No files added} one {# file added} other {# files added}}",
-      "filesCount": "{count, plural, one {# file} other {# files}}",
+      "filesCount": "+ {count, plural, one {# file} other {# files}}",
       "filesReviewEmpty": "No files added — the project will be created without file analysis."
     },
     "delete": {
@@ -266,6 +266,14 @@
       "edit": "Edit",
       "view": "View",
       "usage": "Usage",
+      "fileTypesLabel": "Available file types",
+      "filesCount": "+ {count, plural, one {# file} other {# files}}",
+      "colorsLabel": "Color palette",
+      "noFiles": "No files",
+      "noColors": "No colors",
+      "imagesLabel": "Portal images",
+      "imagesCount": "+ {count, plural, one {# image} other {# images}}",
+      "noImages": "No images",
       "purchasedAt": "Purchased",
       "plan": {
         "free": "Free",
@@ -353,6 +361,9 @@
     }
   },
   "PublicPortal": {
+    "header": {
+      "download": "Download portal"
+    },
     "loading": {
       "label": "Loading portal"
     },

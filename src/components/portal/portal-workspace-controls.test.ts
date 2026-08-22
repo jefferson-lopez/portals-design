@@ -74,3 +74,14 @@ test("uses the shared visual color picker and shadcn slider for image presentati
     "file.file_type ?? portalFileTypeFromName(file.file_name)",
   );
 });
+
+test("submits the controlled privacy selection explicitly", () => {
+  const privacyFormStart = source.indexOf("action={savePrivacySettings}");
+  const privacyFormEnd = source.indexOf("</SettingsTabForm>", privacyFormStart);
+  const privacyForm = source.slice(privacyFormStart, privacyFormEnd);
+
+  expect(privacyForm).toContain(
+    '<input\n                        name="visibility"\n                        type="hidden"\n                        value={visibility}\n                      />',
+  );
+  expect(privacyForm).not.toContain('items={visibilityItems}\n                        name="visibility"');
+});

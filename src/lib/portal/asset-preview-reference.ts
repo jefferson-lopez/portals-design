@@ -45,6 +45,20 @@ export function stablePortalAssetPreviewUrl(
   return `/api/portal-assets/preview?${query.toString()}`;
 }
 
+export function stablePortalImagePreviewUrl(slug: string, reference: string) {
+  if (reference.startsWith("portal-asset:")) {
+    const assetId = reference.slice("portal-asset:".length).trim();
+    return assetId ? stablePortalAssetPreviewUrl(slug, assetId) : null;
+  }
+  if (reference.startsWith("portal-asset-path:")) {
+    const storagePath = reference.slice("portal-asset-path:".length).trim();
+    return storagePath
+      ? stablePortalAssetPreviewUrl(slug, undefined, storagePath)
+      : null;
+  }
+  return reference;
+}
+
 function stableImagePreview(image: PortalImageItem, slug: string) {
   const url = stablePortalAssetPreviewUrl(
     slug,

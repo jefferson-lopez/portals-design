@@ -32,12 +32,20 @@ let grantsResult: { data: Array<{ portal_id: string }>; error: null } = {
   error: null,
 };
 const homeSummary = {
-  portals: [{
-    id: "portal-1", name: "Brand", slug: "brand",
-    updatedAt: "2026-07-24T00:00:00.000Z", visibility: "private",
-    hasPurchasedPlan: false, isPurchased: false, plan: "free",
-    storageUsedBytes: 0, canDelete: true,
-  }],
+  portals: [
+    {
+      id: "portal-1",
+      name: "Brand",
+      slug: "brand",
+      updatedAt: "2026-07-24T00:00:00.000Z",
+      visibility: "private",
+      hasPurchasedPlan: false,
+      isPurchased: false,
+      plan: "free",
+      storageUsedBytes: 0,
+      canDelete: true,
+    },
+  ],
 };
 
 const order = mock(async () => portalsResult);
@@ -102,12 +110,27 @@ describe("home portal access", () => {
 
     await expect(getHomePortals("en")).resolves.toEqual({
       error: null,
-      portals: [{
-        id: "portal-1", name: "Brand", slug: "brand",
-        updated_at: "2026-07-24T00:00:00.000Z", visibility: "private",
-        hasPurchasedPlan: false, isPurchased: false, plan: "free",
-        storageUsedBytes: 0, canDelete: true, isFavorite: false,
-      }],
+      portals: [
+        {
+          id: "portal-1",
+          name: "Brand",
+          slug: "brand",
+          updated_at: "2026-07-24T00:00:00.000Z",
+          visibility: "private",
+          hasPurchasedPlan: false,
+          isPurchased: false,
+          plan: "free",
+          storageUsedBytes: 0,
+          canDelete: true,
+          isFavorite: false,
+          purchasedAt: undefined,
+          colors: [],
+          fileTypes: [],
+          images: [],
+          totalFileCount: 0,
+          totalImageCount: 0,
+        },
+      ],
     });
     expect(from).not.toHaveBeenCalled();
   });

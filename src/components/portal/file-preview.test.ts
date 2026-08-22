@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import type { PortalFileType } from "@/lib/portal/document";
 import {
   filePreviewPresentationStyle,
   isPortalFilePreviewable,
   PORTAL_FILE_ACCEPT,
   PORTAL_IMAGE_ACCEPT,
+  PortalFileTypeIcon,
   portalFilePreviewObjectFit,
   portalFileTypeFromName,
 } from "./file-preview";
@@ -65,5 +68,25 @@ describe("portal file picker formats", () => {
       backgroundColor: "var(--secondary)",
       padding: 0,
     });
+  });
+
+  test("allows compact canonical file icons without changing the preview default", () => {
+    const compact = renderToStaticMarkup(
+      createElement(PortalFileTypeIcon, {
+        className: "size-5",
+        fallback: { file: "File", image: "Image" },
+        type: "ai",
+      }),
+    );
+    const standard = renderToStaticMarkup(
+      createElement(PortalFileTypeIcon, {
+        fallback: { file: "File", image: "Image" },
+        type: "psd",
+      }),
+    );
+
+    expect(compact).toContain('class="size-5"');
+    expect(compact).not.toContain("size-16");
+    expect(standard).toContain('class="size-16"');
   });
 });

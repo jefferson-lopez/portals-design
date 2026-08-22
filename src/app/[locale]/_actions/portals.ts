@@ -13,6 +13,13 @@ import {
   PAID_PORTAL_MIN_PRICE_CENTS,
 } from "@/lib/portal/paid-access";
 import {
+  normalizePortalCardColors,
+  normalizePortalCardFileCount,
+  normalizePortalCardFileTypes,
+  normalizePortalCardImageCount,
+  normalizePortalCardImages,
+} from "@/lib/portal/portal-card-metadata";
+import {
   createUniqueSlugCandidate,
   normalizeDesignerName,
   normalizeSlug,
@@ -57,6 +64,18 @@ export type HomePortal = Pick<
   storageUsedBytes?: number;
   canDelete?: boolean;
   isFavorite: boolean;
+  colors?: string[];
+  fileTypes?: Array<"ai" | "psd" | "eps" | "pdf">;
+  totalFileCount?: number;
+  totalImageCount?: number;
+  images?: Array<{
+    alt: string;
+    backgroundColor?: string;
+    containerPadding?: number;
+    height?: number;
+    url: string;
+    width?: number;
+  }>;
 };
 
 export type HomePortalsResult = {
@@ -134,6 +153,11 @@ export async function getHomePortals(
             : 0,
         canDelete: portal.canDelete !== false,
         isFavorite: portal.isFavorite === true,
+        colors: normalizePortalCardColors(portal.colors),
+        fileTypes: normalizePortalCardFileTypes(portal.fileTypes),
+        totalFileCount: normalizePortalCardFileCount(portal.totalFileCount),
+        totalImageCount: normalizePortalCardImageCount(portal.totalImageCount),
+        images: normalizePortalCardImages(portal.images, String(portal.slug)),
       })),
     };
   } catch (error) {

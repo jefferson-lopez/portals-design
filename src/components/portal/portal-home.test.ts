@@ -50,6 +50,15 @@ describe("PortalHome", () => {
       expect(messages.settings.title).toContain("{name}");
       expect(messages.portal.lastEdited).toBeString();
       expect(messages.portal.usage).toBeString();
+      expect(messages.portal.fileTypesLabel).toBeString();
+      expect(messages.portal.filesCount).toContain("{count, plural,");
+      expect(messages.portal.filesCount).toStartWith("+ ");
+      expect(messages.portal.colorsLabel).toBeString();
+      expect(messages.portal.noFiles).toBeString();
+      expect(messages.portal.noColors).toBeString();
+      expect(messages.portal.imagesLabel).toBeString();
+      expect(messages.portal.imagesCount).toStartWith("+ ");
+      expect(messages.portal.noImages).toBeString();
       expect(messages.portal.visibility.password).toBeString();
       expect(messages.empty.title).toBeString();
       expect(messages.backendDisabled.title).toBeString();
@@ -205,7 +214,7 @@ describe("PortalHome", () => {
     expect(portalCard).not.toContain("copy.portal.view");
     expect(portalCard).toContain("cursor-pointer");
     expect(portalCard).toContain('className="h-fit');
-    expect(portalCard).toContain("flex flex-col items-start");
+    expect(portalCard).toContain("flex min-w-0 flex-col items-start");
     expect(portalCard).toContain("storagePercent");
     expect(source).toContain("function UsageCircle");
     expect(source).toContain("text-chart-2");
@@ -227,6 +236,49 @@ describe("PortalHome", () => {
     expect(portalCard).toContain("bg-green-500/10");
     expect(portalCard).toContain("text-primary");
     expect(portalCard).toContain("text-muted-foreground");
+    expect(portalCard).toContain("PortalFileTypeBadges");
+    expect(portalCard).toContain("PortalColorStack");
+    expect(portalCard).toContain("portal.fileTypes");
+    expect(portalCard).toContain("portal.totalFileCount");
+    expect(portalCard).toContain("portal.totalImageCount");
+    expect(portalCard).toContain('portalTranslations("filesCount"');
+    expect(portalCard).toContain('portalTranslations("imagesCount"');
+    expect(portalCard).toContain("portal.colors");
+    expect(portalCard).toContain("copy.portal.fileTypesLabel");
+    expect(portalCard).toContain("copy.portal.colorsLabel");
+    expect(portalCard).toContain("copy.portal.noFiles");
+    expect(portalCard).toContain("copy.portal.noColors");
+    expect(portalCard).toContain("grid grid-cols-1");
+    expect(portalCard).toContain("sm:grid-cols-2");
+    expect(portalCard).toContain("PortalImageStack");
+    expect(portalCard).toContain("portal.images");
+  });
+
+  test("places the plan badge before the favorite action in both card variants", () => {
+    const portalCard = source.slice(
+      source.indexOf("function PortalCard"),
+      source.indexOf("export function PortalHome"),
+    );
+    const purchasedAction = portalCard.slice(
+      portalCard.indexOf("{portal.isPurchased ? ("),
+      portalCard.indexOf(
+        ") : (",
+        portalCard.indexOf("{portal.isPurchased ? ("),
+      ),
+    );
+    const ownedAction = portalCard.slice(
+      portalCard.indexOf(
+        ") : (",
+        portalCard.indexOf("{portal.isPurchased ? ("),
+      ),
+      portalCard.indexOf("</CardHeader>"),
+    );
+
+    for (const action of [purchasedAction, ownedAction]) {
+      expect(action.indexOf("<Badge")).toBeGreaterThan(-1);
+      expect(action.indexOf("<Button")).toBeGreaterThan(-1);
+      expect(action.indexOf("<Badge")).toBeLessThan(action.indexOf("<Button"));
+    }
   });
 
   test("keeps every workspace action pill-shaped or circular", () => {

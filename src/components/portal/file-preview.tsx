@@ -234,25 +234,33 @@ const MdIcon = (props: SVGProps<SVGSVGElement>) => (
 );
 
 export function PortalFileTypeIcon({
+  className,
   fallback,
   type,
 }: {
+  className?: string;
   fallback: { file: string; image: string };
   type?: PortalFileType;
 }) {
-  if (type === "pdf") return <PdfIcon className="size-16" />;
+  const iconClassName = cn("size-16", className);
+  if (type === "pdf") return <PdfIcon className={iconClassName} />;
   if (type === "ai" || type === "ait")
-    return <IllustratorIcon className="size-16" />;
-  if (type === "eps") return <EpsIcon className="size-16" />;
+    return <IllustratorIcon className={iconClassName} />;
+  if (type === "eps") return <EpsIcon className={iconClassName} />;
   if (type === "psd" || type === "psb")
-    return <PhotoshopIcon className="size-16" />;
-  if (type === "svg") return <SvgIcon className="size-16" />;
-  if (type === "md") return <MdIcon className="size-16" />;
-  if (type === "txt") return <IconFileText className="size-16" />;
+    return <PhotoshopIcon className={iconClassName} />;
+  if (type === "svg") return <SvgIcon className={iconClassName} />;
+  if (type === "md") return <MdIcon className={iconClassName} />;
+  if (type === "txt") return <IconFileText className={iconClassName} />;
   if (type === "image" || type === "tiff")
-    return <IconPhoto className="size-16" />;
+    return <IconPhoto className={iconClassName} />;
   return (
-    <span className="font-semibold text-muted-foreground text-xs uppercase">
+    <span
+      className={cn(
+        "font-semibold text-muted-foreground text-xs uppercase",
+        className,
+      )}
+    >
       {fallback.file}
     </span>
   );

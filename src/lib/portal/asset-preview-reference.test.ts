@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   containsPortalAssetReference,
   stablePortalAssetPreviewUrl,
+  stablePortalImagePreviewUrl,
   withStablePortalAssetPreviews,
 } from "./asset-preview-reference";
 
@@ -29,6 +30,23 @@ describe("portal asset preview references", () => {
   test("builds a stable preview URL from an asset id", () => {
     expect(stablePortalAssetPreviewUrl("my portal", "asset-1")).toBe(
       "/api/portal-assets/preview?slug=my+portal&assetId=asset-1",
+    );
+  });
+
+  test("resolves canonical image pseudo URLs through the authorized preview route", () => {
+    expect(stablePortalImagePreviewUrl("brand", "portal-asset:asset-1")).toBe(
+      "/api/portal-assets/preview?slug=brand&assetId=asset-1",
+    );
+    expect(
+      stablePortalImagePreviewUrl(
+        "brand",
+        "portal-asset-path:owner/portal/image.png",
+      ),
+    ).toBe(
+      "/api/portal-assets/preview?slug=brand&path=owner%2Fportal%2Fimage.png",
+    );
+    expect(stablePortalImagePreviewUrl("brand", "https://cdn.test/a.png")).toBe(
+      "https://cdn.test/a.png",
     );
   });
 

@@ -5,6 +5,7 @@ import { PaidPreview } from "@/components/portal/paid-preview";
 import { isPaidPreviewDecision } from "@/components/portal/paid-preview-projection";
 import { PortalDocumentSidebarReadOnly } from "@/components/portal/portal-document-sidebar-read-only";
 import { PortalEntryTransition } from "@/components/portal/portal-entry-transition";
+import { PublicPortalShell } from "@/components/portal/public-portal-header";
 import { RenderPortal } from "@/components/portal/render-portal";
 import { Button } from "@/components/ui/button";
 import {
@@ -107,6 +108,10 @@ export default async function PublicPortalPage({
   const { error, session_id } = await searchParams;
   setRequestLocale(locale);
   if (!hasSupabaseEnv()) notFound();
+  const headerT = await getTranslations({
+    locale,
+    namespace: "PublicPortal.header",
+  });
 
   if (session_id) await confirmPaidPortalCheckout(slug, session_id);
 
@@ -114,36 +119,40 @@ export default async function PublicPortalPage({
   if (!access.portal || access.decision === "not_found") notFound();
   if (access.decision === "password_required") {
     return (
-      <PasswordGate
-        error={error === "invalid"}
-        locale={locale}
-        name={access.portal.name}
-        slug={slug}
-      />
+      <PublicPortalShell downloadLabel={headerT("download")}>
+        <PasswordGate
+          error={error === "invalid"}
+          locale={locale}
+          name={access.portal.name}
+          slug={slug}
+        />
+      </PublicPortalShell>
     );
   }
   if (isPaidPreviewDecision(access.decision)) {
     return (
-      <PaidPreview
-        locale={locale}
-        portalId={access.portal.id}
-        slug={slug}
-        name={access.paidPreview?.name || access.portal.name}
-        description={
-          access.paidPreview?.description ?? access.portal.short_description
-        }
-        createdAt={access.portal.created_at}
-        designerName={access.portal.designer_name}
-        previewImages={access.paidPreview?.previewImages}
-        assetSummary={access.paidPreview?.assetSummary}
-        sampleFiles={access.paidPreview?.sampleFiles}
-        price={access.paidPreview?.price}
-        totalBytes={access.paidPreview?.totalBytes}
-        totalFiles={access.paidPreview?.totalFiles}
-        totalImages={access.paidPreview?.totalImages}
-        updatedAt={access.portal.updated_at}
-        unlockHref={access.paidPreview?.unlockHref}
-      />
+      <PublicPortalShell downloadLabel={headerT("download")}>
+        <PaidPreview
+          locale={locale}
+          portalId={access.portal.id}
+          slug={slug}
+          name={access.paidPreview?.name || access.portal.name}
+          description={
+            access.paidPreview?.description ?? access.portal.short_description
+          }
+          createdAt={access.portal.created_at}
+          designerName={access.portal.designer_name}
+          previewImages={access.paidPreview?.previewImages}
+          assetSummary={access.paidPreview?.assetSummary}
+          sampleFiles={access.paidPreview?.sampleFiles}
+          price={access.paidPreview?.price}
+          totalBytes={access.paidPreview?.totalBytes}
+          totalFiles={access.paidPreview?.totalFiles}
+          totalImages={access.paidPreview?.totalImages}
+          updatedAt={access.portal.updated_at}
+          unlockHref={access.paidPreview?.unlockHref}
+        />
+      </PublicPortalShell>
     );
   }
 
@@ -175,42 +184,51 @@ export default async function PublicPortalPage({
   const exportSource = "published" as const;
 
   return (
-    <PortalEntryTransition
-      iconUrl={renderDocument.portal.icon_url ?? null}
-      name={renderDocument.portal.name}
+    <PublicPortalShell
+      downloadHref={
+        portal.allow_downloads
+          ? portalExportHref(slug, exportSource)
+          : undefined
+      }
+      downloadLabel={headerT("download")}
     >
-      <RenderPortal
-        document={renderDocument}
-        actionConfig={{
-          public: {
-            exportSource,
-            slug,
-            slots: {
-              global: { exportAssets: portal.allow_downloads },
-              item: {
-                color: { copy: portal.allow_color_copy },
-                file: { download: portal.allow_asset_downloads },
-                font: { download: portal.allow_asset_downloads },
-                image: { download: portal.allow_asset_downloads },
+      <PortalEntryTransition
+        iconUrl={renderDocument.portal.icon_url ?? null}
+        name={renderDocument.portal.name}
+      >
+        <RenderPortal
+          document={renderDocument}
+          actionConfig={{
+            public: {
+              exportSource,
+              slug,
+              slots: {
+                global: { exportAssets: portal.allow_downloads },
+                item: {
+                  color: { copy: portal.allow_color_copy },
+                  file: { download: portal.allow_asset_downloads },
+                  font: { download: portal.allow_asset_downloads },
+                  image: { download: portal.allow_asset_downloads },
+                },
+                section: { download: portal.allow_downloads },
               },
-              section: { download: portal.allow_downloads },
             },
-          },
-        }}
-        sidebar={
-          <PortalDocumentSidebarReadOnly
-            exportHref={
-              portal.allow_downloads
-                ? portalExportHref(slug, exportSource)
-                : undefined
-            }
-            sectionIds={visibleSections.map((section) => section.id)}
-            sections={visibleSections}
-          />
-        }
-        visibility={{ requireContent: true }}
-      />
-    </PortalEntryTransition>
+          }}
+          sidebar={
+            <PortalDocumentSidebarReadOnly
+              exportHref={
+                portal.allow_downloads
+                  ? portalExportHref(slug, exportSource)
+                  : undefined
+              }
+              sectionIds={visibleSections.map((section) => section.id)}
+              sections={visibleSections}
+            />
+          }
+          visibility={{ requireContent: true }}
+        />
+      </PortalEntryTransition>
+    </PublicPortalShell>
   );
 }
 

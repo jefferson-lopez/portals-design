@@ -199,6 +199,22 @@ describe("public portal media rendering", () => {
     expect(imageSurfacePosition).toBeGreaterThan(closePosition);
   });
 
+  test("image viewer rounds only the image container", () => {
+    const html = renderToStaticMarkup(
+      <PortalSectionVisual section={section("gallery")} />,
+    );
+
+    expect(html).toContain(
+      'class="flex max-h-[78vh] min-h-[40vh] items-center justify-center overflow-auto rounded-lg"',
+    );
+    expect(html).toContain(
+      'class="block max-h-[74vh] max-w-full object-contain"',
+    );
+    expect(html).not.toContain(
+      'class="block rounded-md max-h-[74vh] max-w-full object-contain"',
+    );
+  });
+
   test("gallery comparison mode shows descriptions below images", () => {
     const html = renderToStaticMarkup(
       <PortalSectionVisual

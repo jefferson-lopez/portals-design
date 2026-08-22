@@ -4728,9 +4728,13 @@ export function SettingsDialog({
                   ) : (
                     <>
                       <FieldLabel>{t("privacy")}</FieldLabel>
+                      <input
+                        name="visibility"
+                        type="hidden"
+                        value={visibility}
+                      />
                       <Select
                         items={visibilityItems}
-                        name="visibility"
                         onValueChange={(value) => {
                           if (!value) return;
                           if (value === "password" && !guardPassword()) return;

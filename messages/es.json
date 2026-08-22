@@ -231,7 +231,7 @@
       "primaryImage": "Imagen principal",
       "file": "Archivo",
       "filesAdded": "{count, plural, =0 {No se agregaron archivos} one {# archivo agregado} other {# archivos agregados}}",
-      "filesCount": "{count, plural, one {# archivo} other {# archivos}}",
+      "filesCount": "+ {count, plural, one {# archivo} other {# archivos}}",
       "filesReviewEmpty": "No se agregaron archivos — el proyecto se creará sin analizar archivos."
     },
     "delete": {
@@ -266,6 +266,14 @@
       "edit": "Editar",
       "view": "Ver",
       "usage": "Uso",
+      "fileTypesLabel": "Tipos de archivo disponibles",
+      "filesCount": "+ {count, plural, one {# archivo} other {# archivos}}",
+      "colorsLabel": "Paleta de colores",
+      "noFiles": "Sin archivos",
+      "noColors": "Sin colores",
+      "imagesLabel": "Imágenes del portal",
+      "imagesCount": "+ {count, plural, one {# imagen} other {# imágenes}}",
+      "noImages": "Sin imágenes",
       "purchasedAt": "Comprado",
       "plan": {
         "free": "Gratis",
@@ -353,6 +361,9 @@
     }
   },
   "PublicPortal": {
+    "header": {
+      "download": "Descargar portal"
+    },
     "loading": {
       "label": "Cargando portal"
     },
